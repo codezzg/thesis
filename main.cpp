@@ -188,6 +188,10 @@ class HelloTriangleApplication {
 
 			glfwSetWindowUserPointer(window, this);
 			glfwSetWindowSizeCallback(window, HelloTriangleApplication::onWindowResized);
+			glfwSetKeyCallback(window, [] (GLFWwindow *window, int key, int, int action, int) {
+				if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+					glfwSetWindowShouldClose(window, GLFW_TRUE);
+			});
 		}
 
 		void initVulkan() {
@@ -366,9 +370,17 @@ class HelloTriangleApplication {
 				}
 			}
 
+			dumpPhysicalDevice(physicalDevice);
+
 			if (physicalDevice == VK_NULL_HANDLE) {
 				throw std::runtime_error("failed to find a suitable GPU!");
 			}
+		}
+
+		void dumpPhysicalDevice(VkPhysicalDevice& physicalDevice) {
+			VkPhysicalDeviceProperties props;
+			vkGetPhysicalDeviceProperties(physicalDevice, &props);
+			std::cout << "Picked physical device: " << props.deviceName << std::endl;
 		}
 
 		void createLogicalDevice() {
