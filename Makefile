@@ -6,7 +6,7 @@ CFLAGS = -std=c++17 -I$(VULKAN_SDK_PATH)/include -ggdb -Wall -Wextra -pedantic
 LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs glfw3` -lvulkan
 INCLUDES = -Isrc
 
-VulkanTest: main.o src/Vertex.o src/FPSCounter.o src/validation.cpp
+VulkanTest: main.o src/Vertex.o src/FPSCounter.o src/validation.o src/model.o src/utils.o
 	$(CC) $(CFLAGS) $(INCLUDES) -o VulkanTest $^ $(LDFLAGS)
 
 main.o: main.cpp
@@ -21,4 +21,4 @@ test: VulkanTest
 	./VulkanTest
 
 clean:
-	rm -f VulkanTest
+	rm -f VulkanTest src/*.o

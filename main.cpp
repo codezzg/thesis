@@ -16,13 +16,15 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
+#define TINYOBJ_IMPLEMENTATION
+#include "third_party/tiny_obj_loader.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb_image.h"
-#define TINYOBJLOADER_IMPLEMENTATION
-#include "third_party/tiny_obj_loader.h"
 #include "FPSCounter.hpp"
 #include "Vertex.hpp"
 #include "validation.hpp"
+#include "model.hpp"
+#include "utils.hpp"
 
 constexpr int WIDTH = 800;
 constexpr int HEIGHT = 600;
@@ -150,7 +152,7 @@ class HelloTriangleApplication final {
 			createTextureImage();
 			createTextureImageView();
 			createTextureSampler();
-			loadModel();
+			loadModel(MODEL_PATH, vertices, indices);
 			createVertexBuffer();
 			createIndexBuffer();
 			createUniformBuffer();
@@ -944,41 +946,6 @@ class HelloTriangleApplication final {
 			endSingleTimeCommands(commandBuffer);
 		}
 
-		void loadModel() {
-			tinyobj::attrib_t attrib;
-			std::vector<tinyobj::shape_t> shapes;
-			std::vector<tinyobj::material_t> materials;
-			std::string err;
-
-			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH))
-				throw std::runtime_error(err);
-
-			std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
-
-			for (const auto& shape : shapes) {
-				for (const auto& index : shape.mesh.indices) {
-					Vertex vertex = {};
-					vertex.pos = {
-						attrib.vertices[3 * index.vertex_index + 0],
-						attrib.vertices[3 * index.vertex_index + 1],
-						attrib.vertices[3 * index.vertex_index + 2],
-					};
-					vertex.texCoord = {
-						attrib.texcoords[2 * index.texcoord_index + 0],
-						1.0f - attrib.texcoords[2 * index.texcoord_index + 1],
-					};
-					vertex.color = {1.0f, 1.0f, 1.0f};
-
-					if (uniqueVertices.count(vertex) == 0) {
-						uniqueVertices[vertex] = vertices.size();
-						vertices.emplace_back(vertex);
-					}
-
-					indices.emplace_back(uniqueVertices[vertex]);
-				}
-			}
-		}
-
 		void createVertexBuffer() {
 			VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
@@ -1450,20 +1417,6 @@ class HelloTriangleApplication final {
 			}
 
 			return extensions;
-		}
-
-		static std::vector<char> readFile(const std::string& filename) {
-			std::ifstream file(filename, std::ios::ate | std::ios::binary);
-			if (!file.is_open())
-				throw std::runtime_error("failed to open file " + filename + "!");
-
-			const size_t fileSize = static_cast<size_t>(file.tellg());
-			std::vector<char> buffer(fileSize);
-
-			file.seekg(0);
-			file.read(buffer.data(), fileSize);
-
-			return buffer;
 		}
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
