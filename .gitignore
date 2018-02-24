@@ -2,3 +2,4 @@
 *~
 *.spv
 VulkanTest
+.gdbhist
