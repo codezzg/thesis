@@ -4,7 +4,7 @@ CFLAGS = -std=c++11 -I$(VULKAN_SDK_PATH)/include -ggdb -Wall -Wextra -pedantic
 LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs glfw3` -lvulkan
 
 VulkanTest: main.cpp
-	g++ $(CFLAGS) -o VulkanTest main.cpp $(LDFLAGS)
+	g++ $(CFLAGS) -o VulkanTest $^ $(LDFLAGS)
 
 .PHONY: test clean
 

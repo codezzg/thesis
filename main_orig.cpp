@@ -1,15 +1,18 @@
-
-
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+#include "stb_image.h"
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
 
 #include <iostream>
 #include <fstream>
@@ -20,9 +23,13 @@
 #include <cstring>
 #include <array>
 #include <set>
+#include <unordered_map>
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
+
+const std::string MODEL_PATH = "models/chalet.obj";
+const std::string TEXTURE_PATH = "textures/chalet.jpg";
 
 const std::vector<const char*> validationLayers = {
 	"VK_LAYER_LUNARG_standard_validation"
@@ -103,29 +110,24 @@ struct Vertex {
 
 		return attributeDescriptions;
 	}
+
+	bool operator==(const Vertex& other) const {
+		return pos == other.pos && color == other.color && texCoord == other.texCoord;
+	}
 };
+
+namespace std {
+	template<> struct hash<Vertex> {
+		size_t operator()(Vertex const& vertex) const {
+			return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+		}
+	};
+}
 
 struct UniformBufferObject {
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 proj;
-};
-
-const std::vector<Vertex> vertices = {
-	{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-	{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-	{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-	{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
-
-	{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-	{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-	{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-	{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
-};
-
-const std::vector<uint16_t> indices = {
-	0, 1, 2, 2, 3, 0,
-	4, 5, 6, 6, 7, 4
 };
 
 class HelloTriangleApplication {
@@ -173,6 +175,8 @@ class HelloTriangleApplication {
 		VkImageView textureImageView;
 		VkSampler textureSampler;
 
+		std::vector<Vertex> vertices;
+		std::vector<uint32_t> indices;
 		VkBuffer vertexBuffer;
 		VkDeviceMemory vertexBufferMemory;
 		VkBuffer indexBuffer;
@@ -217,6 +221,7 @@ class HelloTriangleApplication {
 			createTextureImage();
 			createTextureImageView();
 			createTextureSampler();
+			loadModel();
 			createVertexBuffer();
 			createIndexBuffer();
 			createUniformBuffer();
@@ -582,8 +587,8 @@ class HelloTriangleApplication {
 		}
 
 		void createGraphicsPipeline() {
-			auto vertShaderCode = readFile("shaders/vert.spv");
-			auto fragShaderCode = readFile("shaders/frag.spv");
+			auto vertShaderCode = readFile("shaders/3d.vert.spv");
+			auto fragShaderCode = readFile("shaders/3d.frag.spv");
 
 			VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
 			VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -739,24 +744,21 @@ class HelloTriangleApplication {
 			poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 			poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
 
-			if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+			if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create graphics command pool!");
+			}
 		}
 
 		void createDepthResources() {
 			VkFormat depthFormat = findDepthFormat();
-			createImage(swapChainExtent.width, swapChainExtent.height, depthFormat,
-					VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+
+			createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
 			depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-			transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
-					VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+			transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 		}
 
-		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
-				VkImageTiling tiling, VkFormatFeatureFlags features)
-		{
+		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
 			for (VkFormat format : candidates) {
 				VkFormatProperties props;
 				vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
@@ -772,11 +774,11 @@ class HelloTriangleApplication {
 		}
 
 		VkFormat findDepthFormat() {
-			return findSupportedFormat({
-					VK_FORMAT_D32_SFLOAT,
-					VK_FORMAT_D32_SFLOAT_S8_UINT,
-					VK_FORMAT_D24_UNORM_S8_UINT
-				},VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+			return findSupportedFormat(
+					{VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+					VK_IMAGE_TILING_OPTIMAL,
+					VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+					);
 		}
 
 		bool hasStencilComponent(VkFormat format) {
@@ -785,7 +787,7 @@ class HelloTriangleApplication {
 
 		void createTextureImage() {
 			int texWidth, texHeight, texChannels;
-			stbi_uc* pixels = stbi_load("textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+			stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 			VkDeviceSize imageSize = texWidth * texHeight * 4;
 
 			if (!pixels) {
@@ -814,8 +816,7 @@ class HelloTriangleApplication {
 		}
 
 		void createTextureImageView() {
-			textureImageView = createImageView(textureImage,
-					VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+			textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 
 		void createTextureSampler() {
@@ -834,8 +835,9 @@ class HelloTriangleApplication {
 			samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 			samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-			if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
+			if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
 				throw std::runtime_error("failed to create texture sampler!");
+			}
 		}
 
 		VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
@@ -906,6 +908,7 @@ class HelloTriangleApplication {
 
 			if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 				barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
 				if (hasStencilComponent(format)) {
 					barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 				}
@@ -978,12 +981,46 @@ class HelloTriangleApplication {
 			endSingleTimeCommands(commandBuffer);
 		}
 
+		void loadModel() {
+			tinyobj::attrib_t attrib;
+			std::vector<tinyobj::shape_t> shapes;
+			std::vector<tinyobj::material_t> materials;
+			std::string err;
+
+			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str()))
+				throw std::runtime_error(err);
+
+			std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+
+			for (const auto& shape : shapes) {
+				for (const auto& index : shape.mesh.indices) {
+					Vertex vertex = {};
+					vertex.pos = {
+						attrib.vertices[3 * index.vertex_index + 0],
+						attrib.vertices[3 * index.vertex_index + 1],
+						attrib.vertices[3 * index.vertex_index + 2]
+					};
+					vertex.texCoord = {
+						attrib.texcoords[2 * index.texcoord_index + 0],
+						1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+					};
+					vertex.color = {1.0f, 1.0f, 1.0f};
+
+					if (uniqueVertices.count(vertex) == 0) {
+						uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+						vertices.push_back(vertex);
+					}
+
+					indices.push_back(uniqueVertices[vertex]);
+				}
+			}
+		}
+
 		void createVertexBuffer() {
 			VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 			VkBuffer stagingBuffer;
 			VkDeviceMemory stagingBufferMemory;
-
 			createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 			void* data;
@@ -1004,8 +1041,7 @@ class HelloTriangleApplication {
 
 			VkBuffer stagingBuffer;
 			VkDeviceMemory stagingBufferMemory;
-			createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+			createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 			void* data;
 			vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
@@ -1210,7 +1246,7 @@ class HelloTriangleApplication {
 				VkDeviceSize offsets[] = {0};
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
-				vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+				vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 				vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
@@ -1229,7 +1265,7 @@ class HelloTriangleApplication {
 			semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
 			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-					vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS)
+					vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) {
 
 				throw std::runtime_error("failed to create semaphores!");
 			}
@@ -1406,7 +1442,7 @@ class HelloTriangleApplication {
 			VkPhysicalDeviceFeatures supportedFeatures;
 			vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-			return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+			return indices.isComplete() && extensionsSupported && swapChainAdequate  && supportedFeatures.samplerAnisotropy;
 		}
 
 		bool checkDeviceExtensionSupport(VkPhysicalDevice device) {

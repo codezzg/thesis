@@ -3,3 +3,4 @@
 *.spv
 VulkanTest
 .gdbhist
+chalet.obj
