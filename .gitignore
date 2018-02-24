@@ -4,3 +4,4 @@
 VulkanTest
 .gdbhist
 chalet.obj
+*.o

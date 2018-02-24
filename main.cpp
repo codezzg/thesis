@@ -13,15 +13,16 @@
 #include <fstream>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL // for hash function
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/hash.hpp>
 #include <chrono>
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "third_party/stb_image.h"
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader.h"
+#include "third_party/tiny_obj_loader.h"
+#include "FPSCounter.hpp"
+#include "Vertex.hpp"
+#include "validation.hpp"
 
 constexpr int WIDTH = 800;
 constexpr int HEIGHT = 600;
@@ -29,39 +30,9 @@ constexpr int HEIGHT = 600;
 constexpr auto MODEL_PATH = "models/chalet.obj";
 constexpr auto TEXTURE_PATH = "textures/chalet.jpg";
 
-const std::vector<const char*> validationLayers = {
-	"VK_LAYER_LUNARG_standard_validation"
-};
-
 const std::vector<const char*> deviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
-
-#ifdef NDEBUG
-const bool enableValidationLayers = false;
-#else
-const bool enableValidationLayers = true;
-#endif
-
-VkResult CreateDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,
-		const VkAllocationCallbacks* pAllocator, VkDebugReportCallbackEXT* pCallback) {
-	auto func = (PFN_vkCreateDebugReportCallbackEXT)
-		vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
-	if (func != nullptr) {
-		return func(instance, pCreateInfo, pAllocator, pCallback);
-	} else {
-		return VK_ERROR_EXTENSION_NOT_PRESENT;
-	}
-}
-
-void DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT callback,
-		const VkAllocationCallbacks* pAllocator) {
-	auto func = (PFN_vkDestroyDebugReportCallbackEXT)
-		vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
-	if (func != nullptr) {
-		func(instance, callback, pAllocator);
-	}
-}
 
 struct QueueFamilyIndices {
 	int graphicsFamily = -1;
@@ -77,55 +48,6 @@ struct SwapChainSupportDetails {
 	std::vector<VkSurfaceFormatKHR> formats;
 	std::vector<VkPresentModeKHR> presentModes;
 };
-
-struct Vertex {
-	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec2 texCoord;
-
-	static VkVertexInputBindingDescription getBindingDescription() {
-		VkVertexInputBindingDescription bindingDescription = {};
-		bindingDescription.binding = 0;
-		bindingDescription.stride = sizeof(Vertex);
-		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return bindingDescription;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {};
-		attributeDescriptions[0].binding = 0;
-		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-		attributeDescriptions[1].binding = 0;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-		attributeDescriptions[2].binding = 0;
-		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-		return attributeDescriptions;
-	}
-
-	bool operator ==(const Vertex& other) const {
-		return pos == other.pos && color == other.color && texCoord == other.texCoord;
-	}
-};
-
-namespace std {
-	template<> struct hash<Vertex> {
-		size_t operator ()(const Vertex& vertex) const {
-			return ((hash<glm::vec3>()(vertex.pos) ^
-				(hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
-				(hash<glm::vec2>()(vertex.texCoord) << 1);
-		}
-	};
-}
 
 struct UniformBufferObject {
 	glm::mat4 model;
@@ -239,11 +161,17 @@ class HelloTriangleApplication final {
 		}
 
 		void mainLoop() {
+			FPSCounter fps;
+			fps.start();
+
 			while (!glfwWindowShouldClose(window)) {
 				glfwPollEvents();
 
 				updateUniformBuffer();
 				drawFrame();
+
+				fps.addFrame();
+				fps.report();
 			}
 
 			vkDeviceWaitIdle(device);
@@ -294,7 +222,7 @@ class HelloTriangleApplication final {
 			vkDestroyCommandPool(device, commandPool, nullptr);
 
 			vkDestroyDevice(device, nullptr);
-			DestroyDebugReportCallbackEXT(instance, callback, nullptr);
+			destroyDebugReportCallbackEXT(instance, callback, nullptr);
 			vkDestroySurfaceKHR(instance, surface, nullptr);
 			vkDestroyInstance(instance, nullptr);
 
@@ -326,7 +254,7 @@ class HelloTriangleApplication final {
 		}
 
 		void createInstance() {
-			if (enableValidationLayers && !checkValidationLayerSupport()) {
+			if (gEnableValidationLayers && !checkValidationLayerSupport()) {
 				throw std::runtime_error("validation layers requested, but not available!");
 			}
 
@@ -346,9 +274,9 @@ class HelloTriangleApplication final {
 			createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
 			createInfo.ppEnabledExtensionNames = extensions.data();
 
-			if (enableValidationLayers) {
-				createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-				createInfo.ppEnabledLayerNames = validationLayers.data();
+			if (gEnableValidationLayers) {
+				createInfo.enabledLayerCount = static_cast<uint32_t>(gValidationLayers.size());
+				createInfo.ppEnabledLayerNames = gValidationLayers.data();
 			} else {
 				createInfo.enabledLayerCount = 0;
 			}
@@ -359,14 +287,14 @@ class HelloTriangleApplication final {
 		}
 
 		void setupDebugCallback() {
-			if (!enableValidationLayers) return;
+			if (!gEnableValidationLayers) return;
 
 			VkDebugReportCallbackCreateInfoEXT createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 			createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
 			createInfo.pfnCallback = debugCallback;
 
-			if (CreateDebugReportCallbackEXT(instance, &createInfo, nullptr, &callback) != VK_SUCCESS) {
+			if (createDebugReportCallbackEXT(instance, &createInfo, nullptr, &callback) != VK_SUCCESS) {
 				throw std::runtime_error("failed to set up debug callback!");
 			}
 		}
@@ -437,9 +365,9 @@ class HelloTriangleApplication final {
 			createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 			createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
-			if (enableValidationLayers) {
-				createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-				createInfo.ppEnabledLayerNames = validationLayers.data();
+			if (gEnableValidationLayers) {
+				createInfo.enabledLayerCount = static_cast<uint32_t>(gValidationLayers.size());
+				createInfo.ppEnabledLayerNames = gValidationLayers.data();
 			} else {
 				createInfo.enabledLayerCount = 0;
 			}
@@ -1517,36 +1445,11 @@ class HelloTriangleApplication final {
 
 			std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
-			if (enableValidationLayers) {
+			if (gEnableValidationLayers) {
 				extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 			}
 
 			return extensions;
-		}
-
-		bool checkValidationLayerSupport() {
-			uint32_t layerCount;
-			vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-
-			std::vector<VkLayerProperties> availableLayers(layerCount);
-			vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-			for (const char* layerName : validationLayers) {
-				bool layerFound = false;
-
-				for (const auto& layerProperties : availableLayers) {
-					if (strcmp(layerName, layerProperties.layerName) == 0) {
-						layerFound = true;
-						break;
-					}
-				}
-
-				if (!layerFound) {
-					return false;
-				}
-			}
-
-			return true;
 		}
 
 		static std::vector<char> readFile(const std::string& filename) {
