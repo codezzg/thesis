@@ -1,7 +1,6 @@
 #pragma once
 
-//#define TINYOBJLOADER_IMPLEMENTATION
-#include "third_party/tiny_obj_loader.h"
+#include <vector>
 #include "Vertex.hpp"
 
 //struct Model {

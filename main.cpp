@@ -16,8 +16,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
-#define TINYOBJ_IMPLEMENTATION
-#include "third_party/tiny_obj_loader.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb_image.h"
 #include "FPSCounter.hpp"

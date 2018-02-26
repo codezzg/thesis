@@ -5,3 +5,5 @@ VulkanTest
 .gdbhist
 chalet.obj
 *.o
+thesis
+CMakeFiles/
