@@ -21,6 +21,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 	LINKER_LANGUAGE CXX
 )
 
+##### FIND PACKAGES
+
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARIES})
@@ -28,6 +30,11 @@ target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARIES})
 find_package(GLFW REQUIRED)
 include_directories(${GLFW_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GLFW_LIBRARIES})
+
+find_package(Sparsehash REQUIRED)
+include_directories(${Sparsehash_INCLUDE_DIRS})
+
+#####################
 
 if(RELEASE)
 	message(STATUS "Compiling in RELEASE mode")

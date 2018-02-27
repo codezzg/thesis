@@ -1,5 +1,5 @@
 #include "model.hpp"
-#include <unordered_map>
+#include <sparsehash/dense_hash_map>
 #include <chrono>
 #include <iostream>
 #ifdef USE_EXPERIMENTAL_TINYOBJ
@@ -109,7 +109,8 @@ void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector
 	std::cout << "load time: " << load_ms.count() << " [msecs]" << std::endl;
 #endif
 
-	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+	google::dense_hash_map<Vertex, uint32_t> uniqueVertices;
+	uniqueVertices.set_empty_key(VERTEX_EMPTY_KEY);
 
 #ifdef USE_EXPERIMENTAL_TINYOBJ
 	for (const auto& index : attrib.indices) {

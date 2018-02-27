@@ -1,5 +1,6 @@
 #include "validation.hpp"
 #include <cstring>
+#include <iostream>
 
 VkResult createDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,
 		const VkAllocationCallbacks* pAllocator, VkDebugReportCallbackEXT* pCallback) {
@@ -44,4 +45,19 @@ bool checkValidationLayerSupport() {
 	}
 
 	return true;
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+		VkDebugReportFlagsEXT /*flags*/,
+		VkDebugReportObjectTypeEXT /*objType*/,
+		uint64_t /*obj*/,
+		size_t /*location*/,
+		int32_t /*code*/,
+		const char* /*layerPrefix*/,
+		const char* msg,
+		void* /*userData*/)
+{
+	std::cerr << "validation layer: " << msg << std::endl;
+
+	return VK_FALSE;
 }

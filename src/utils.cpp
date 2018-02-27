@@ -1,5 +1,6 @@
 #include "utils.hpp"
 #include <fstream>
+#include <iostream>
 
 std::vector<char> readFile(const std::string& filename) {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -15,3 +16,9 @@ std::vector<char> readFile(const std::string& filename) {
 	return buffer;
 }
 
+
+void dumpPhysicalDevice(VkPhysicalDevice& physicalDevice) {
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physicalDevice, &props);
+	std::cout << "Picked physical device: " << props.deviceName << std::endl;
+}

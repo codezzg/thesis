@@ -19,6 +19,13 @@ struct Vertex final {
 	bool operator ==(const Vertex& other) const;
 };
 
+// Used for initializing empty key in sparsehash containers
+constexpr Vertex VERTEX_EMPTY_KEY {
+	glm::vec3 { -999999, -999999, -999999 },
+	glm::vec3 { -999999, -999999, -999999 },
+	glm::vec2 { -999999, -999999 }
+};
+
 namespace std {
 	template<> struct hash<Vertex> {
 		size_t operator ()(const Vertex& vertex) const {

@@ -231,6 +231,33 @@ src/model.cpp.s:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/model.cpp.s
 .PHONY : src/model.cpp.s
 
+src/phys_device.o: src/phys_device.cpp.o
+
+.PHONY : src/phys_device.o
+
+# target to build an object file
+src/phys_device.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/phys_device.cpp.o
+.PHONY : src/phys_device.cpp.o
+
+src/phys_device.i: src/phys_device.cpp.i
+
+.PHONY : src/phys_device.i
+
+# target to preprocess a source file
+src/phys_device.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/phys_device.cpp.i
+.PHONY : src/phys_device.cpp.i
+
+src/phys_device.s: src/phys_device.cpp.s
+
+.PHONY : src/phys_device.s
+
+# target to generate assembly for a file
+src/phys_device.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/phys_device.cpp.s
+.PHONY : src/phys_device.cpp.s
+
 src/utils.o: src/utils.cpp.o
 
 .PHONY : src/utils.o
@@ -285,6 +312,33 @@ src/validation.cpp.s:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/validation.cpp.s
 .PHONY : src/validation.cpp.s
 
+src/window.o: src/window.cpp.o
+
+.PHONY : src/window.o
+
+# target to build an object file
+src/window.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/window.cpp.o
+.PHONY : src/window.cpp.o
+
+src/window.i: src/window.cpp.i
+
+.PHONY : src/window.i
+
+# target to preprocess a source file
+src/window.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/window.cpp.i
+.PHONY : src/window.cpp.i
+
+src/window.s: src/window.cpp.s
+
+.PHONY : src/window.s
+
+# target to generate assembly for a file
+src/window.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/window.cpp.s
+.PHONY : src/window.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -306,12 +360,18 @@ help:
 	@echo "... src/model.o"
 	@echo "... src/model.i"
 	@echo "... src/model.s"
+	@echo "... src/phys_device.o"
+	@echo "... src/phys_device.i"
+	@echo "... src/phys_device.s"
 	@echo "... src/utils.o"
 	@echo "... src/utils.i"
 	@echo "... src/utils.s"
 	@echo "... src/validation.o"
 	@echo "... src/validation.i"
 	@echo "... src/validation.s"
+	@echo "... src/window.o"
+	@echo "... src/window.i"
+	@echo "... src/window.s"
 .PHONY : help
 
 
