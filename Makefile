@@ -204,6 +204,60 @@ src/Vertex.cpp.s:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/Vertex.cpp.s
 .PHONY : src/Vertex.cpp.s
 
+src/application.o: src/application.cpp.o
+
+.PHONY : src/application.o
+
+# target to build an object file
+src/application.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/application.cpp.o
+.PHONY : src/application.cpp.o
+
+src/application.i: src/application.cpp.i
+
+.PHONY : src/application.i
+
+# target to preprocess a source file
+src/application.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/application.cpp.i
+.PHONY : src/application.cpp.i
+
+src/application.s: src/application.cpp.s
+
+.PHONY : src/application.s
+
+# target to generate assembly for a file
+src/application.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/application.cpp.s
+.PHONY : src/application.cpp.s
+
+src/commands.o: src/commands.cpp.o
+
+.PHONY : src/commands.o
+
+# target to build an object file
+src/commands.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/commands.cpp.o
+.PHONY : src/commands.cpp.o
+
+src/commands.i: src/commands.cpp.i
+
+.PHONY : src/commands.i
+
+# target to preprocess a source file
+src/commands.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/commands.cpp.i
+.PHONY : src/commands.cpp.i
+
+src/commands.s: src/commands.cpp.s
+
+.PHONY : src/commands.s
+
+# target to generate assembly for a file
+src/commands.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/commands.cpp.s
+.PHONY : src/commands.cpp.s
+
 src/model.o: src/model.cpp.o
 
 .PHONY : src/model.o
@@ -357,6 +411,12 @@ help:
 	@echo "... src/Vertex.o"
 	@echo "... src/Vertex.i"
 	@echo "... src/Vertex.s"
+	@echo "... src/application.o"
+	@echo "... src/application.i"
+	@echo "... src/application.s"
+	@echo "... src/commands.o"
+	@echo "... src/commands.i"
+	@echo "... src/commands.s"
 	@echo "... src/model.o"
 	@echo "... src/model.i"
 	@echo "... src/model.s"

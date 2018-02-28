@@ -28,3 +28,5 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurface
 bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+
+VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);

@@ -8,4 +8,4 @@ GLFWwindow* initWindow();
 
 void cleanupWindow(GLFWwindow* window);
 
-std::vector<const char*> getRequiredExtensions();
+std::vector<const char*> getRequiredExtensions(bool validationEnabled);

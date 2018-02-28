@@ -23,15 +23,14 @@ void cleanupWindow(GLFWwindow* window) {
 	glfwTerminate();
 }
 
-std::vector<const char*> getRequiredExtensions() {
+std::vector<const char*> getRequiredExtensions(bool validationEnabled) {
 	uint32_t glfwExtensionCount = 0;
 	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
 	std::vector<const char*> extensions { glfwExtensions, glfwExtensions + glfwExtensionCount };
 
-	if (gEnableValidationLayers) {
+	if (validationEnabled)
 		extensions.emplace_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-	}
 
 	return extensions;
 }

@@ -1,6 +1,6 @@
 #include "phys_device.hpp"
-//#include <unordered_set>
-#include <sparsehash/dense_hash_set>
+#include <unordered_set>
+#include "utils.hpp"
 
 const std::vector<const char*> gDeviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -85,12 +85,39 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
 	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
 	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
 
-	google::dense_hash_set<std::string> requiredExtensions(gDeviceExtensions.begin(), gDeviceExtensions.end(),
-			"DENSEHASHSET_EMPTY");
-	requiredExtensions.set_deleted_key("DENSEHASHSET_DELETED");
+	std::unordered_set<std::string> requiredExtensions(gDeviceExtensions.begin(), gDeviceExtensions.end());
 
 	for (const auto& extension : availableExtensions)
 		requiredExtensions.erase(extension.extensionName);
 
 	return requiredExtensions.empty();
 }
+
+VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
+	uint32_t deviceCount = 0;
+	vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+	if (deviceCount == 0) {
+		throw std::runtime_error("failed to find GPUs with Vulkan support!");
+	}
+
+	std::vector<VkPhysicalDevice> devices(deviceCount);
+	vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	for (const auto& device : devices) {
+		if (isDeviceSuitable(device, surface)) {
+			physicalDevice = device;
+			break;
+		}
+	}
+
+	dumpPhysicalDevice(physicalDevice);
+
+	if (physicalDevice == VK_NULL_HANDLE) {
+		throw std::runtime_error("failed to find a suitable GPU!");
+	}
+
+	return physicalDevice;
+}
+
