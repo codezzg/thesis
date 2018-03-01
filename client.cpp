@@ -135,6 +135,7 @@ private:
 			fps.report();
 		}
 
+		activeEP.close();
 		vkDeviceWaitIdle(app.device);
 	}
 

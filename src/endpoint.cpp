@@ -78,7 +78,7 @@ void Endpoint::loopPassive() {
 	using namespace std::chrono_literals;
 
 	// Receive datagrams
-	while (true) {
+	while (!terminated) {
 		char buffer[1024];
 		sockaddr_storage srcAddr;
 		socklen_t srcAddrLen = sizeof(srcAddr);
@@ -106,7 +106,7 @@ void Endpoint::loopActive() {
 	using namespace std::chrono_literals;
 
 	// Send datagrams
-	while (true) {
+	while (!terminated) {
 		auto msg = "ping\n";
 
 		if (write(socket, msg, strlen(msg)) < 0) {
@@ -125,9 +125,11 @@ void Endpoint::runLoop() {
 	loopThread = std::make_unique<std::thread>(passive
 			? std::bind(&Endpoint::loopPassive, this)
 			: std::bind(&Endpoint::loopActive, this));
+	terminated = false;
 }
 
 void Endpoint::close() {
+	terminated = true;
 	if (loopThread && loopThread->joinable())
 		loopThread->join();
 	loopThread.reset(nullptr);

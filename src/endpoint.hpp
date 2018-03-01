@@ -16,6 +16,7 @@ constexpr socket_t invalidSocketID() {
 
 class Endpoint {
 	std::unique_ptr<std::thread> loopThread;
+	volatile bool terminated = false;
 
 	socket_t socket = invalidSocketID();
 	bool passive;
@@ -26,7 +27,9 @@ class Endpoint {
 	void loopActive();
 
 public:
+	// To be called once before using any Endpoint
 	static bool init();
+	// To be called once after closing all Endpoints
 	static bool cleanup();
 
 	bool startActive(const char *remoteIp, uint16_t remotePort);
