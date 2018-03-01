@@ -21,6 +21,7 @@ class Endpoint {
 	bool passive;
 
 
+	bool start(const char *remoteIp, uint16_t remotePort, bool passive);
 	void loopPassive();
 	void loopActive();
 

@@ -36,13 +36,14 @@ bool Endpoint::cleanup() {
 	return true;
 }
 
-bool Endpoint::startPassive(const char *remoteIp, uint16_t remotePort) {
+bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive) {
 
 	addrinfo hints = {},
 		 *result;
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
-	hints.ai_flags = AI_PASSIVE;
+	if (passive)
+		hints.ai_flags = AI_PASSIVE;
 
 	auto res = getaddrinfo(remoteIp, std::to_string(remotePort).c_str(), &hints, &result);
 	if (res != 0) {
@@ -50,7 +51,7 @@ bool Endpoint::startPassive(const char *remoteIp, uint16_t remotePort) {
 		return false;
 	}
 
-	socket = findFirstValidSocket(result, bind);
+	socket = findFirstValidSocket(result, passive ? ::bind : ::connect);
 	freeaddrinfo(result);
 
 	if (!isValidSocket(socket)) {
@@ -58,36 +59,17 @@ bool Endpoint::startPassive(const char *remoteIp, uint16_t remotePort) {
 		return false;
 	}
 
-	passive = true;
+	this->passive = passive;
 
 	return true;
 }
 
+bool Endpoint::startPassive(const char *remoteIp, uint16_t remotePort) {
+	return start(remoteIp, remotePort, true);
+}
+
 bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort) {
-
-	addrinfo hints = {},
-		 *result;
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_DGRAM;
-
-	auto res = getaddrinfo(remoteIp, std::to_string(remotePort).c_str(), &hints, &result);
-	if (res != 0) {
-		std::cerr << "getaddrinfo: " << gai_strerror(res) << "\n";
-		return false;
-	}
-
-	socket = findFirstValidSocket(result, connect);
-	freeaddrinfo(result);
-
-	std::cerr << "valid socket (" << socket << ") = " << isValidSocket(socket) << "\n";
-	if (!isValidSocket(socket)) {
-		std::cerr << "failed to connect to remote!" << std::endl;
-		return false;
-	}
-
-	passive = false;
-
-	return true;
+	return start(remoteIp, remotePort, false);
 }
 
 // TODO
