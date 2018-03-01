@@ -123,32 +123,32 @@ thesis/fast:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/build
 .PHONY : thesis/fast
 
-main.o: main.cpp.o
+client.o: client.cpp.o
 
-.PHONY : main.o
+.PHONY : client.o
 
 # target to build an object file
-main.cpp.o:
-	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/main.cpp.o
-.PHONY : main.cpp.o
+client.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/client.cpp.o
+.PHONY : client.cpp.o
 
-main.i: main.cpp.i
+client.i: client.cpp.i
 
-.PHONY : main.i
+.PHONY : client.i
 
 # target to preprocess a source file
-main.cpp.i:
-	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/main.cpp.i
-.PHONY : main.cpp.i
+client.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/client.cpp.i
+.PHONY : client.cpp.i
 
-main.s: main.cpp.s
+client.s: client.cpp.s
 
-.PHONY : main.s
+.PHONY : client.s
 
 # target to generate assembly for a file
-main.cpp.s:
-	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/main.cpp.s
-.PHONY : main.cpp.s
+client.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/client.cpp.s
+.PHONY : client.cpp.s
 
 src/FPSCounter.o: src/FPSCounter.cpp.o
 
@@ -257,6 +257,33 @@ src/commands.s: src/commands.cpp.s
 src/commands.cpp.s:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/commands.cpp.s
 .PHONY : src/commands.cpp.s
+
+src/endpoint.o: src/endpoint.cpp.o
+
+.PHONY : src/endpoint.o
+
+# target to build an object file
+src/endpoint.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/endpoint.cpp.o
+.PHONY : src/endpoint.cpp.o
+
+src/endpoint.i: src/endpoint.cpp.i
+
+.PHONY : src/endpoint.i
+
+# target to preprocess a source file
+src/endpoint.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/endpoint.cpp.i
+.PHONY : src/endpoint.cpp.i
+
+src/endpoint.s: src/endpoint.cpp.s
+
+.PHONY : src/endpoint.s
+
+# target to generate assembly for a file
+src/endpoint.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/endpoint.cpp.s
+.PHONY : src/endpoint.cpp.s
 
 src/model.o: src/model.cpp.o
 
@@ -402,9 +429,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... thesis"
 	@echo "... rebuild_cache"
-	@echo "... main.o"
-	@echo "... main.i"
-	@echo "... main.s"
+	@echo "... client.o"
+	@echo "... client.i"
+	@echo "... client.s"
 	@echo "... src/FPSCounter.o"
 	@echo "... src/FPSCounter.i"
 	@echo "... src/FPSCounter.s"
@@ -417,6 +444,9 @@ help:
 	@echo "... src/commands.o"
 	@echo "... src/commands.i"
 	@echo "... src/commands.s"
+	@echo "... src/endpoint.o"
+	@echo "... src/endpoint.i"
+	@echo "... src/endpoint.s"
 	@echo "... src/model.o"
 	@echo "... src/model.i"
 	@echo "... src/model.s"
