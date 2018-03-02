@@ -8,6 +8,8 @@
 #include <limits>
 #include <algorithm>
 #include <fstream>
+#include <cstring>
+#include <cstdio>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -31,6 +33,15 @@ struct UniformBufferObject final {
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 proj;
+};
+
+const std::vector<Vertex> VERTICES = {
+    {{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
+    {{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
+    {{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
+};
+const std::vector<Index> INDICES = {
+    0, 1, 2, 2, 3, 0
 };
 
 class HelloTriangleApplication final {
@@ -86,6 +97,10 @@ private:
 	VkBuffer uniformBuffer;
 	VkDeviceMemory uniformBufferMemory;
 
+	void *streamingBufferData = nullptr;
+	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
+	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
+
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
 	VkImageView textureImageView;
@@ -108,7 +123,13 @@ private:
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
-		loadModel(cfg::MODEL_PATH, vertices, indices);
+
+		//vertices = VERTICES;
+		indices = INDICES;
+		streamingBufferData = malloc(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE);
+
+		//loadModel(cfg::MODEL_PATH, vertices, indices);
+
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffer();
@@ -119,16 +140,22 @@ private:
 	}
 
 	void mainLoop() {
-		activeEP.startActive("0.0.0.0", 1234);
-		activeEP.runLoop();
+		passiveEP.startPassive("0.0.0.0", 1234);
+		passiveEP.runLoop();
 
 		FPSCounter fps;
 		fps.start();
 
+		updateUniformBuffer();
+
 		while (!glfwWindowShouldClose(app.window)) {
 			glfwPollEvents();
 
-			updateUniformBuffer();
+			receiveData(vertices, indices);
+
+			updateVertexBuffer();
+			updateIndexBuffer();
+
 			drawFrame();
 
 			fps.addFrame();
@@ -137,6 +164,54 @@ private:
 
 		activeEP.close();
 		vkDeviceWaitIdle(app.device);
+	}
+
+	// TODO
+	void receiveData(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+		const auto data = passiveEP.peek();
+		printf("raw data:\n");
+		for (int i = 0; i < 150; ++i)
+			printf("%hhx ", data[i]);
+
+		uint32_t magic = *(uint32_t*)data;
+		if (magic != 0x14101991) {
+			std::cerr << "WARNING: invalid magic number: " << magic << "\n";
+			return;
+		}
+		uint64_t packetId = *((uint64_t*)(data + sizeof(uint32_t)));
+
+		printf("\npacket %lu: magic = 0x%x\n", packetId, magic);
+
+		uint64_t nVertices = *((uint64_t*)(data + 12));
+		printf("n vertices: %lu\n", nVertices);
+		//for (size_t i = 0; i < nVertices; ++i)
+			//std::cerr << "v[" << i << "] = "
+				//<< *((Vertex*)(data + 20 + sizeof(Vertex)*i)) << std::endl;
+
+		vertices.resize(nVertices);
+		memcpy(vertices.data(), data + 20, nVertices * sizeof(Vertex));
+		std::cerr << "begin vertices\n";
+		for (auto& v : vertices) {
+			std::cerr << v << std::endl;
+			//v.pos.x += 0.001;
+			//if (v.pos.x > 1) v.pos.x = 0;
+		}
+		std::cerr << "end vertices (" << vertices.size() << ")\n";
+
+		uint64_t nIndices = *((uint64_t*)(data + 20 + nVertices * sizeof(Vertex)));
+		std::cerr << "n indices: " << nIndices << std::endl;
+
+		indices.resize(nIndices);
+		memcpy(indices.data(), data + 28 + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
+		std::cerr << "begin indices\n";
+		for (auto& i : indices) {
+			std::cerr << i << ", ";
+		}
+		std::cerr << "\nend indices (" << indices.size() << ")\n";
+
+		memcpy(streamingBufferData, vertices.data(), vertices.size() * sizeof(Vertex));
+		memcpy((uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE,
+				indices.data(), indices.size() * sizeof(indices[0]));
 	}
 
 	void cleanupSwapChain() {
@@ -760,27 +835,43 @@ private:
 		endSingleTimeCommands(app.device, app.queues.graphics, commandPool, commandBuffer);
 	}
 
+	/*
 	void createVertexBuffer() {
 		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
 
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				stagingBuffer, stagingBufferMemory);
 
 		void *data;
 		vkMapMemory(app.device, stagingBufferMemory, 0, bufferSize, 0, &data);
 		memcpy(data, vertices.data(), bufferSize);
 		vkUnmapMemory(app.device, stagingBufferMemory);
 
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+		createBuffer(bufferSize,
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
 		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
 		vkDestroyBuffer(app.device, stagingBuffer, nullptr);
 		vkFreeMemory(app.device, stagingBufferMemory, nullptr);
 	}
+	*/
 
+	void createVertexBuffer() {
+		VkDeviceSize bufferSize = VERTEX_BUFFER_SIZE;
+
+		createBuffer(bufferSize,
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				vertexBuffer, vertexBufferMemory);
+	}
+
+	/*
 	void createIndexBuffer() {
 		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
@@ -803,6 +894,16 @@ private:
 
 		vkDestroyBuffer(app.device, stagingBuffer, nullptr);
 		vkFreeMemory(app.device, stagingBufferMemory, nullptr);
+	}
+	*/
+
+	void createIndexBuffer() {
+		VkDeviceSize bufferSize = INDEX_BUFFER_SIZE;
+
+		createBuffer(bufferSize,
+				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				indexBuffer, indexBufferMemory);
 	}
 
 	void createUniformBuffer() {
@@ -976,6 +1077,24 @@ private:
 		if (vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS
 			|| vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS)
 			throw std::runtime_error("failed to create semaphores!");
+	}
+
+	void updateVertexBuffer() {
+		// Acquire handle to device memory
+		void *data;
+		vkMapMemory(app.device, vertexBufferMemory, 0, VERTEX_BUFFER_SIZE, 0, &data);
+		// Copy host memory to device
+		memcpy(data, streamingBufferData, VERTEX_BUFFER_SIZE);
+		vkUnmapMemory(app.device, vertexBufferMemory);
+	}
+
+	void updateIndexBuffer() {
+		// Acquire handle to device memory
+		void *data;
+		vkMapMemory(app.device, indexBufferMemory, 0, INDEX_BUFFER_SIZE, 0, &data);
+		// Copy host memory to device
+		memcpy(data, (uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
+		vkUnmapMemory(app.device, indexBufferMemory);
 	}
 
 	void updateUniformBuffer() {

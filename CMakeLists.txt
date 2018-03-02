@@ -11,6 +11,7 @@ include_directories(src/third_party)
 file(GLOB SRC ${MAIN_FILE}
 	src/*.cpp
 	src/third_party/*.cpp
+	#src/third_party/*.c
 )
 
 add_executable(${PROJECT_NAME} ${SRC})
@@ -38,6 +39,12 @@ find_package(Threads REQUIRED)
 include_directories(${Threads_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${Threads_LIBRARIES})
 
+find_package(GLM REQUIRED)
+include_directories(${GLM_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${GLM_LIBRARIES})
+add_definitions(-DGLM_FORCE_CXX14)
+
+
 #####################
 
 if(RELEASE)
@@ -49,6 +56,12 @@ if(RELEASE)
 else()
 	message(STATUS "Compiling in DEBUG mode")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -ggdb -Wall -pedantic -Wextra")
+endif()
+
+# Profiling tools
+if(${GPROF})
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg -no-pie -fPIC")
+	message(STATUS "Compiling with gprof support")
 endif()
 
 if(NO_EX_TINYOBJ)

@@ -4,7 +4,7 @@
 
 int main() {
 	Endpoint ep;
-	ep.startPassive("0.0.0.0", 1234);
+	ep.startActive("0.0.0.0", 1234);
 	ep.runLoop();
 
 	using namespace std::chrono_literals;

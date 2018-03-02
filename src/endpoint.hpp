@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <thread>
 #include <memory>
+#include <array>
 
 using socket_t = int;
 
@@ -15,18 +16,24 @@ constexpr socket_t invalidSocketID() {
 }
 
 class Endpoint {
+public:
+	constexpr static size_t BUFSIZE = 1<<24;
+
+private:
 	std::unique_ptr<std::thread> loopThread;
 	volatile bool terminated = false;
 
 	socket_t socket = invalidSocketID();
 	bool passive;
 
+	uint8_t *buffer;
 
 	bool start(const char *remoteIp, uint16_t remotePort, bool passive);
 	void loopPassive();
 	void loopActive();
 
 public:
+
 	// To be called once before using any Endpoint
 	static bool init();
 	// To be called once after closing all Endpoints
@@ -37,4 +44,6 @@ public:
 
 	void runLoop();
 	void close();
+
+	const uint8_t* peek() const { return buffer; }
 };

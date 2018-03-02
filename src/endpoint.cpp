@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <utility>
 #include <cstring>
+#include "Vertex.hpp"
+#include <vector>
 
 using socket_connect_op = int (*) (int, const sockaddr*, socklen_t);
 
@@ -77,12 +79,15 @@ void Endpoint::loopPassive() {
 
 	using namespace std::chrono_literals;
 
+	buffer = (uint8_t*)malloc(BUFSIZE);
+
 	// Receive datagrams
 	while (!terminated) {
-		char buffer[1024];
+		//char buffer[1024];
+		//memset(buffer, 0, BUFSIZE);
 		sockaddr_storage srcAddr;
 		socklen_t srcAddrLen = sizeof(srcAddr);
-		ssize_t count = recvfrom(socket, buffer, sizeof(buffer), 0,
+		ssize_t count = recvfrom(socket, buffer, 1024, 0,
 				reinterpret_cast<sockaddr*>(&srcAddr), &srcAddrLen);
 
 		if (count < 0) {
@@ -101,17 +106,58 @@ void Endpoint::loopPassive() {
 }
 
 // TODO
+const std::vector<Vertex> VERTICES = {
+    {{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
+    {{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
+    {{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
+};
+const std::vector<Index> INDICES = {
+    0, 1, 2, 2, 3, 0
+};
 void Endpoint::loopActive() {
 
 	using namespace std::chrono_literals;
 
+	constexpr uint32_t MAGIC = 0x14101991;
+	uint64_t packetId = 0;
+
 	// Send datagrams
 	while (!terminated) {
-		auto msg = "ping\n";
+		/* [0] MAGIC            : uint32
+		 * [4] ID               : uint64
+		 * [12] NVertices       : uint64
+		 * [20] Vertex0.pos.x   : float
+		 * [24] Vertex0.pos.y   : float
+		 * [28] Vertex0.pos.z   : float
+		 * [32] Vertex0.color.x : float
+		 * [36] Vertex0.color.y : float
+		 * [40] Vertex0.tex.u   : float
+		 * [42] Vertex0.tex.v   : float
+		 * ...
+		 * [20+NVertices*sizeof(Vertex)] NIndices : uint64
+		 * [..] Index0 : uint32_t
+		 * ...
+		 */
+		uint8_t message[1024];
+		*((uint32_t*) message) = MAGIC;
+		*((uint64_t*)(message + 4)) = packetId;
+		*((uint64_t*)(message + 12)) = uint64_t(VERTICES.size());
+		for (unsigned i = 0; i < VERTICES.size(); ++i) {
+			*((Vertex*)(message + 20 + sizeof(Vertex)*i)) = VERTICES[i];
+		}
+		const auto indexOff = 20 + VERTICES.size() * sizeof(Vertex);
+		*((uint64_t*)(message + indexOff)) = uint64_t(INDICES.size());
+		for (unsigned i = 0; i < INDICES.size(); ++i) {
+			*((uint32_t*)(message + 8 + indexOff + sizeof(Index)*i)) = INDICES[i];
+		}
 
-		if (write(socket, msg, strlen(msg)) < 0) {
+		std::cerr << "Useful bytes: " << (8 + indexOff + INDICES.size() * sizeof(Index)) << "\n";
+
+		if (write(socket, message, 1024) < 0) {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
 		}
+
+		++packetId;
 
 		std::this_thread::sleep_for(1s);
 	}

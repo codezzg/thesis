@@ -2,6 +2,7 @@
 
 #include <array>
 #include <utility>
+#include <ostream>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #define GLM_ENABLE_EXPERIMENTAL // for hash function
@@ -19,6 +20,8 @@ struct Vertex final {
 	bool operator ==(const Vertex& other) const;
 };
 
+using Index = uint32_t;
+
 // Used for initializing empty key in sparsehash containers
 constexpr Vertex VERTEX_EMPTY_KEY {
 	glm::vec3 { -999999, -999999, -999999 },
@@ -34,4 +37,19 @@ namespace std {
 				(hash<glm::vec2>()(vertex.texCoord) << 1);
 		}
 	};
+}
+
+inline std::ostream& operator <<(std::ostream& s, const glm::vec2& v) {
+	s << "(" << v.x << ", " << v.y << ")";
+	return s;
+}
+
+inline std::ostream& operator <<(std::ostream& s, const glm::vec3& v) {
+	s << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+	return s;
+}
+
+inline std::ostream& operator <<(std::ostream& s, const Vertex& v) {
+	s << v.pos << ", " << v.color << ", " << v.texCoord;
+	return s;
 }
