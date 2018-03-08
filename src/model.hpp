@@ -10,4 +10,4 @@
 
 void loadModel(const char *modelPath,
 		/* out */ std::vector<Vertex>& vertices,
-		/* out */ std::vector<uint32_t>& indices);
+		/* out */ std::vector<Index>& indices);

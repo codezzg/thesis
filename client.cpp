@@ -27,7 +27,7 @@
 #include "phys_device.hpp"
 #include "commands.hpp"
 #include "application.hpp"
-#include "endpoint.hpp"
+#include "client_endpoint.hpp"
 
 struct UniformBufferObject final {
 	glm::mat4 model;
@@ -64,8 +64,9 @@ public:
 private:
 	Application app;
 
-	Endpoint passiveEP;
-	Endpoint activeEP;
+	ClientEndpoint passiveEP;
+	int64_t curFrame = -1;
+	//Endpoint activeEP;
 
 	VkSwapchainKHR swapChain;
 	std::vector<VkImage> swapChainImages;
@@ -162,34 +163,37 @@ private:
 			fps.report();
 		}
 
-		activeEP.close();
+		passiveEP.close();
 		vkDeviceWaitIdle(app.device);
 	}
 
 	// TODO
-	void receiveData(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+	void receiveData(std::vector<Vertex>& vertices, std::vector<Index>& indices) {
+		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame)
+			return;
+
 		const auto data = passiveEP.peek();
-		printf("raw data:\n");
+		if (data == nullptr)
+			return;
+
+		curFrame = passiveEP.getFrameId();
+
+		printf("[%ld] raw data:\n", curFrame);
 		for (int i = 0; i < 150; ++i)
 			printf("%hhx ", data[i]);
 
-		uint32_t magic = *(uint32_t*)data;
-		if (magic != 0x14101991) {
-			std::cerr << "WARNING: invalid magic number: " << magic << "\n";
-			return;
-		}
-		uint64_t packetId = *((uint64_t*)(data + sizeof(uint32_t)));
-
-		printf("\npacket %lu: magic = 0x%x\n", packetId, magic);
-
-		uint64_t nVertices = *((uint64_t*)(data + 12));
-		printf("n vertices: %lu\n", nVertices);
+		// data is [(64b)nVertices|(64b)nIndices|vertices|indices]
+		uint64_t nVertices = *reinterpret_cast<const uint64_t*>(data);
+		uint64_t nIndices = *(reinterpret_cast<const uint64_t*>(data) + 1);
+		printf("\nn vertices: %lu, n indices: %lu\n", nVertices, nIndices);
 		//for (size_t i = 0; i < nVertices; ++i)
 			//std::cerr << "v[" << i << "] = "
 				//<< *((Vertex*)(data + 20 + sizeof(Vertex)*i)) << std::endl;
 
 		vertices.resize(nVertices);
-		memcpy(vertices.data(), data + 20, nVertices * sizeof(Vertex));
+		const auto vOff = 2 * sizeof(uint64_t);
+		for (unsigned i = 0; i < nVertices; ++i)
+			vertices[i] = *(Vertex*)(data + vOff + i * sizeof(Vertex));
 		std::cerr << "begin vertices\n";
 		for (auto& v : vertices) {
 			std::cerr << v << std::endl;
@@ -198,11 +202,13 @@ private:
 		}
 		std::cerr << "end vertices (" << vertices.size() << ")\n";
 
-		uint64_t nIndices = *((uint64_t*)(data + 20 + nVertices * sizeof(Vertex)));
-		std::cerr << "n indices: " << nIndices << std::endl;
-
 		indices.resize(nIndices);
-		memcpy(indices.data(), data + 28 + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
+		//memcpy(indices.data(), data + 28 + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
+		const auto iOff = vOff + nVertices * sizeof(Vertex);
+		std::cerr << "iOff = " << iOff << "\n";
+		for (unsigned i = 0; i < nIndices; ++i)
+			indices[i] = *(Index*)(data + iOff + i * sizeof(Index));
+
 		std::cerr << "begin indices\n";
 		for (auto& i : indices) {
 			std::cerr << i << ", ";
@@ -211,7 +217,7 @@ private:
 
 		memcpy(streamingBufferData, vertices.data(), vertices.size() * sizeof(Vertex));
 		memcpy((uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE,
-				indices.data(), indices.size() * sizeof(indices[0]));
+				indices.data(), indices.size() * sizeof(Index));
 	}
 
 	void cleanupSwapChain() {

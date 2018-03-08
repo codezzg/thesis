@@ -67,7 +67,7 @@ static const char* mmap_file(size_t *len, const char *filename) {
 #endif // USE_EXPERIMENTAL_TINYOBJ
 
 
-void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector<Index>& indices) {
 
 #ifdef USE_EXPERIMENTAL_TINYOBJ
 	namespace to = tinyobj_opt;
@@ -140,4 +140,5 @@ void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector
 		}
 #endif
 	}
+	std::cout << "size = " << vertices.size() << ", " << indices.size() << "\n";
 }

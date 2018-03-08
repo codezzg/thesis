@@ -231,6 +231,33 @@ src/application.cpp.s:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/application.cpp.s
 .PHONY : src/application.cpp.s
 
+src/client_endpoint.o: src/client_endpoint.cpp.o
+
+.PHONY : src/client_endpoint.o
+
+# target to build an object file
+src/client_endpoint.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/client_endpoint.cpp.o
+.PHONY : src/client_endpoint.cpp.o
+
+src/client_endpoint.i: src/client_endpoint.cpp.i
+
+.PHONY : src/client_endpoint.i
+
+# target to preprocess a source file
+src/client_endpoint.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/client_endpoint.cpp.i
+.PHONY : src/client_endpoint.cpp.i
+
+src/client_endpoint.s: src/client_endpoint.cpp.s
+
+.PHONY : src/client_endpoint.s
+
+# target to generate assembly for a file
+src/client_endpoint.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/client_endpoint.cpp.s
+.PHONY : src/client_endpoint.cpp.s
+
 src/commands.o: src/commands.cpp.o
 
 .PHONY : src/commands.o
@@ -339,6 +366,33 @@ src/phys_device.cpp.s:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/phys_device.cpp.s
 .PHONY : src/phys_device.cpp.s
 
+src/server_endpoint.o: src/server_endpoint.cpp.o
+
+.PHONY : src/server_endpoint.o
+
+# target to build an object file
+src/server_endpoint.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/server_endpoint.cpp.o
+.PHONY : src/server_endpoint.cpp.o
+
+src/server_endpoint.i: src/server_endpoint.cpp.i
+
+.PHONY : src/server_endpoint.i
+
+# target to preprocess a source file
+src/server_endpoint.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/server_endpoint.cpp.i
+.PHONY : src/server_endpoint.cpp.i
+
+src/server_endpoint.s: src/server_endpoint.cpp.s
+
+.PHONY : src/server_endpoint.s
+
+# target to generate assembly for a file
+src/server_endpoint.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/server_endpoint.cpp.s
+.PHONY : src/server_endpoint.cpp.s
+
 src/utils.o: src/utils.cpp.o
 
 .PHONY : src/utils.o
@@ -441,6 +495,9 @@ help:
 	@echo "... src/application.o"
 	@echo "... src/application.i"
 	@echo "... src/application.s"
+	@echo "... src/client_endpoint.o"
+	@echo "... src/client_endpoint.i"
+	@echo "... src/client_endpoint.s"
 	@echo "... src/commands.o"
 	@echo "... src/commands.i"
 	@echo "... src/commands.s"
@@ -453,6 +510,9 @@ help:
 	@echo "... src/phys_device.o"
 	@echo "... src/phys_device.i"
 	@echo "... src/phys_device.s"
+	@echo "... src/server_endpoint.o"
+	@echo "... src/server_endpoint.i"
+	@echo "... src/server_endpoint.s"
 	@echo "... src/utils.o"
 	@echo "... src/utils.i"
 	@echo "... src/utils.s"

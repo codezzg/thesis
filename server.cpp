@@ -1,9 +1,9 @@
-#include "endpoint.hpp"
+#include "server_endpoint.hpp"
 #include <chrono>
 #include <thread>
 
 int main() {
-	Endpoint ep;
+	ServerEndpoint ep;
 	ep.startActive("0.0.0.0", 1234);
 	ep.runLoop();
 
