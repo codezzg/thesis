@@ -178,10 +178,6 @@ private:
 
 		curFrame = passiveEP.getFrameId();
 
-		printf("[%ld] raw data:\n", curFrame);
-		for (int i = 0; i < 150; ++i)
-			printf("%hhx ", data[i]);
-
 		// data is [(64b)nVertices|(64b)nIndices|vertices|indices]
 		uint64_t nVertices = *reinterpret_cast<const uint64_t*>(data);
 		uint64_t nIndices = *(reinterpret_cast<const uint64_t*>(data) + 1);
@@ -214,6 +210,14 @@ private:
 			std::cerr << i << ", ";
 		}
 		std::cerr << "\nend indices (" << indices.size() << ")\n";
+
+		printf("[%ld] raw data:\n", curFrame);
+		for (int i = 0; i < 150; ++i) {
+			if (i == vOff) printf("|> ");
+			if (i == iOff) printf("<| ");
+			printf("%hhx ", data[i]);
+		}
+
 
 		memcpy(streamingBufferData, vertices.data(), vertices.size() * sizeof(Vertex));
 		memcpy((uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE,

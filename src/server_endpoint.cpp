@@ -23,6 +23,7 @@ static int writeAllPossible(std::array<uint8_t, N>& buffer,
 		const std::vector<Vertex>& vertices, const std::vector<Index>& indices, int offset)
 {
 	unsigned bufferIdx = 0;
+	unsigned nV = 0, nI = 0;
 
 	for (unsigned i = offset; i < vertices.size(); ++i) {
 		if (bufferIdx + sizeof(Vertex) >= buffer.size()) {
@@ -32,9 +33,10 @@ static int writeAllPossible(std::array<uint8_t, N>& buffer,
 
 		*(reinterpret_cast<Vertex*>(buffer.data() + bufferIdx)) = vertices[i];
 		bufferIdx += sizeof(Vertex);
+		++nV;
 	}
 
-	for (unsigned i = std::max(0ul, offset - vertices.size()); i < indices.size(); ++i) {
+	for (unsigned i = std::max(0, offset - signed(vertices.size())); i < indices.size(); ++i) {
 		if (bufferIdx + sizeof(Index) >= buffer.size()) {
 			// no more room in buffer
 			return indices.size() - i;
@@ -42,19 +44,23 @@ static int writeAllPossible(std::array<uint8_t, N>& buffer,
 
 		*(reinterpret_cast<Index*>(buffer.data() + bufferIdx)) = indices[i];
 		bufferIdx += sizeof(Index);
+		++nI;
 	}
 
+	std::cerr << "copied " << nV << " vertices and " << nI << " indices.\n";
 	return 0;
 }
 
 // TODO
 const std::vector<Vertex> vertices = {
-    {{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
-    {{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
-    {{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
+	//{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
+	{{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
+	{{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
+	{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
 };
 const std::vector<Index> indices = {
-    0, 1, 2, 2, 3, 0
+	//8
+	0, 1, 2, 2, 3, 0
 };
 void ServerEndpoint::loopFunc() {
 
