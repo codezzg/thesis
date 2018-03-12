@@ -16,19 +16,26 @@
 #include "config.hpp"
 
 /** Writes all possible vertices and indices, starting from `offset`, into `buffer` until it has room.
- *  Returns the number of elements that were not copied.
+ *  Returns the number of bytes that were copied.
  */
 template <long unsigned N>
 static int writeAllPossible(std::array<uint8_t, N>& buffer,
-		const std::vector<Vertex>& vertices, const std::vector<Index>& indices, int offset)
+		const std::vector<Vertex>& vertices, const std::vector<Index>& indices, long offset)
 {
-	unsigned bufferIdx = 0;
+	std::cerr << "writeAllPossible<N=" << N << ">(offset = " << offset << ")\n";
+	std::cerr << "sizeof(Vertex) = " << sizeof(Vertex) << "\n";
 	unsigned nV = 0, nI = 0;
+	unsigned bufferIdx = 0;
 
+	auto cp = [&nV, &nI] () {
+		std::cerr << "copied " << nV << " vertices and " << nI << " indices. "
+			<< "(" << (sizeof(Vertex) * nV + sizeof(Index) * nI) << " bytes)\n";
+	};
 	for (unsigned i = offset; i < vertices.size(); ++i) {
 		if (bufferIdx + sizeof(Vertex) >= buffer.size()) {
 			// no more room in buffer
-			return indices.size() + vertices.size() - i;
+			cp();
+			return i;
 		}
 
 		*(reinterpret_cast<Vertex*>(buffer.data() + bufferIdx)) = vertices[i];
@@ -36,10 +43,11 @@ static int writeAllPossible(std::array<uint8_t, N>& buffer,
 		++nV;
 	}
 
-	for (unsigned i = std::max(0, offset - signed(vertices.size())); i < indices.size(); ++i) {
+	for (unsigned i = std::max(0l, offset - long(vertices.size())); i < indices.size(); ++i) {
 		if (bufferIdx + sizeof(Index) >= buffer.size()) {
 			// no more room in buffer
-			return indices.size() - i;
+			cp();
+			return vertices.size() + i;
 		}
 
 		*(reinterpret_cast<Index*>(buffer.data() + bufferIdx)) = indices[i];
@@ -47,31 +55,34 @@ static int writeAllPossible(std::array<uint8_t, N>& buffer,
 		++nI;
 	}
 
-	std::cerr << "copied " << nV << " vertices and " << nI << " indices.\n";
-	return 0;
+	cp();
+	return vertices.size() + indices.size();
 }
 
 // TODO
-const std::vector<Vertex> vertices = {
-	//{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
-	{{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
-	{{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
-	{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
-};
-const std::vector<Index> indices = {
-	//8
-	0, 1, 2, 2, 3, 0
-};
+//const std::vector<Vertex> vertices = {
+	////{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
+	//{{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
+	//{{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
+	//{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
+//};
+//const std::vector<Index> indices = {
+	////8
+	//0, 1, 2, 2, 3, 0
+//};
 void ServerEndpoint::loopFunc() {
 
-	//std::vector<Vertex> vertices;
-	//std::vector<Index> indices;
+	std::vector<Vertex> vertices;
+	std::vector<Index> indices;
 
-	//loadModel("models/chalet.obj", vertices, indices);
+	loadModel("models/mill.obj", vertices, indices);
 
 	std::cerr << "Loaded " << vertices.size() << " vertices + " << indices.size() << " indices. "
 		<< "Tot size = " << (vertices.size() * sizeof(Vertex) + indices.size() * sizeof(Index)) / 1024
 		<< " KiB\n";
+
+	//vertices.resize(30);
+	//indices.resize(70);
 
 	using namespace std::chrono_literals;
 
@@ -89,7 +100,8 @@ void ServerEndpoint::loopFunc() {
 		firstPacket.header.packetId = packetId;
 		firstPacket.nVertices = vertices.size();
 		firstPacket.nIndices = indices.size();
-		int remaining = writeAllPossible(firstPacket.payload, vertices, indices, 0);
+		int copied = writeAllPossible(firstPacket.payload, vertices, indices, 0);
+		std::cerr << "copied: " << copied << "\n";
 
 		for (int i = 0; i < 64; ++i)
 			printf("%hhx ", firstPacket.payload[i]);
@@ -98,14 +110,16 @@ void ServerEndpoint::loopFunc() {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
 		}
 
-		while (remaining != 0) {
-			// Send remaining data
+		const auto totElems = vertices.size() + indices.size();
+		while (copied < totElems) {
+			// Send copied data
 			// Create new batch
 			FrameData packet;
 			packet.header.magic = cfg::PACKET_MAGIC;
 			packet.header.frameId = frameId;
 			packet.header.packetId = ++packetId;
-			remaining = writeAllPossible(packet.payload, vertices, indices, remaining);
+			copied = writeAllPossible(packet.payload, vertices, indices, copied);
+			std::cerr << "copied: " << copied << "\n";
 			std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
 			if (write(socket, &packet, sizeof(packet)) < 0) {
 				std::cerr << "could not write to remote: " << strerror(errno) << "\n";
@@ -138,7 +152,7 @@ void ServerEndpoint::loopFunc() {
 		++frameId;
 		packetId = 0;
 
-		std::this_thread::sleep_for(1.016s);
+		std::this_thread::sleep_for(0.033s);
 	}
 }
 

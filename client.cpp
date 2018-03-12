@@ -35,15 +35,6 @@ struct UniformBufferObject final {
 	glm::mat4 proj;
 };
 
-const std::vector<Vertex> VERTICES = {
-    {{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
-    {{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
-    {{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
-};
-const std::vector<Index> INDICES = {
-    0, 1, 2, 2, 3, 0
-};
-
 class HelloTriangleApplication final {
 public:
 	void run() {
@@ -51,10 +42,7 @@ public:
 
 		// FIXME
 		glfwSetWindowUserPointer(app.window, this);
-		glfwSetWindowSizeCallback(app.window, [] (GLFWwindow *window, int /*width*/, int /*height*/) {
-			reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window))
-				->recreateSwapChain();
-		});
+		glfwSetWindowSizeCallback(app.window, onWindowResized);
 
 		initVulkan();
 		mainLoop();
@@ -126,7 +114,7 @@ private:
 		createTextureSampler();
 
 		//vertices = VERTICES;
-		indices = INDICES;
+		//indices = INDICES;
 		streamingBufferData = malloc(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE);
 
 		//loadModel(cfg::MODEL_PATH, vertices, indices);
@@ -149,13 +137,21 @@ private:
 
 		updateUniformBuffer();
 
+		size_t pvs = vertices.size(), pis = indices.size();
 		while (!glfwWindowShouldClose(app.window)) {
 			glfwPollEvents();
 
 			receiveData(vertices, indices);
+			// FIXME
+			if (vertices.size() != pvs || indices.size() != pis) {
+				pvs = vertices.size();
+				pis = indices.size();
+				recreateSwapChain();
+			}
 
 			updateVertexBuffer();
 			updateIndexBuffer();
+			updateUniformBuffer();
 
 			drawFrame();
 
@@ -169,10 +165,12 @@ private:
 
 	// TODO
 	void receiveData(std::vector<Vertex>& vertices, std::vector<Index>& indices) {
+		//std::cerr << "receive data. curFrame = " << curFrame << ", passive.get = " << passiveEP.getFrameId() << "\n";
 		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame)
 			return;
 
 		const auto data = passiveEP.peek();
+		//std::cerr << "data = " << data << "\n";
 		if (data == nullptr)
 			return;
 
@@ -191,11 +189,11 @@ private:
 		for (unsigned i = 0; i < nVertices; ++i)
 			vertices[i] = *(Vertex*)(data + vOff + i * sizeof(Vertex));
 		std::cerr << "begin vertices\n";
-		for (auto& v : vertices) {
+		/*for (auto& v : vertices) {
 			std::cerr << v << std::endl;
 			//v.pos.x += 0.001;
 			//if (v.pos.x > 1) v.pos.x = 0;
-		}
+		}*/
 		std::cerr << "end vertices (" << vertices.size() << ")\n";
 
 		indices.resize(nIndices);
@@ -206,9 +204,9 @@ private:
 			indices[i] = *(Index*)(data + iOff + i * sizeof(Index));
 
 		std::cerr << "begin indices\n";
-		for (auto& i : indices) {
+		/*for (auto& i : indices) {
 			std::cerr << i << ", ";
-		}
+		}*/
 		std::cerr << "\nend indices (" << indices.size() << ")\n";
 
 		printf("[%ld] raw data:\n", curFrame);
@@ -217,6 +215,7 @@ private:
 			if (i == iOff) printf("<| ");
 			printf("%hhx ", data[i]);
 		}
+		printf("\n");
 
 
 		memcpy(streamingBufferData, vertices.data(), vertices.size() * sizeof(Vertex));
@@ -282,6 +281,8 @@ private:
 		if (width == 0 || height == 0) return;
 
 		vkDeviceWaitIdle(app.device);
+
+		std::cerr << "recreateSwapChain\n";
 
 		cleanupSwapChain();
 
@@ -1074,6 +1075,7 @@ private:
 			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 			vkCmdDrawIndexed(commandBuffers[i], indices.size(), 1, 0, 0, 0);
+			std::cerr << "recreating command buffer with v = " << vertices.size() << ", i = " << indices.size() << "\n";
 			vkCmdEndRenderPass(commandBuffers[i]);
 
 			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
@@ -1114,9 +1116,9 @@ private:
 		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 		UniformBufferObject ubo = {};
-		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
-		ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-		ubo.proj = glm::perspective(glm::radians(45.f), swapChainExtent.width / float(swapChainExtent.height), 0.1f, 10.f);
+		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.f), glm::vec3(0.f, -1.f, 0.f));
+		ubo.view = glm::lookAt(glm::vec3(140.f, 140.f, 140.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+		ubo.proj = glm::perspective(glm::radians(60.f), swapChainExtent.width / float(swapChainExtent.height), 0.1f, 300.f);
 		ubo.proj[1][1] *= -1;
 
 		void *data;

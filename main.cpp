@@ -104,7 +104,7 @@ private:
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
-		loadModel(cfg::MODEL_PATH, vertices, indices);
+		loadModel("models/bb8.obj", vertices, indices);
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffer();
@@ -555,7 +555,7 @@ private:
 
 	void createTextureImage() {
 		int texWidth, texHeight, texChannels;
-		auto pixels = stbi_load(cfg::TEXTURE_PATH, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		auto pixels = stbi_load("textures/bb8.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 		VkDeviceSize imageSize = texWidth * texHeight * 4;
 
 		if (!pixels)
@@ -978,8 +978,8 @@ private:
 
 		UniformBufferObject ubo = {};
 		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
-		ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-		ubo.proj = glm::perspective(glm::radians(45.f), swapChainExtent.width / float(swapChainExtent.height), 0.1f, 10.f);
+		ubo.view = glm::lookAt(glm::vec3(80.f, 80.f, 80.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+		ubo.proj = glm::perspective(glm::radians(50.f), swapChainExtent.width / float(swapChainExtent.height), 0.1f, 200.f);
 		ubo.proj[1][1] *= -1;
 
 		void *data;
