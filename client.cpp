@@ -6,6 +6,7 @@
 #include <cstring>
 #include <set>
 #include <limits>
+#include <memory>
 #include <algorithm>
 #include <fstream>
 #include <cstring>
@@ -14,6 +15,8 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
 #include <chrono>
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb_image.h"
@@ -28,6 +31,9 @@
 #include "commands.hpp"
 #include "application.hpp"
 #include "client_endpoint.hpp"
+#include "camera.hpp"
+#include "clock.hpp"
+#include "buffers.hpp"
 
 struct UniformBufferObject final {
 	glm::mat4 model;
@@ -40,9 +46,10 @@ public:
 	void run() {
 		app.init();
 
-		// FIXME
 		glfwSetWindowUserPointer(app.window, this);
 		glfwSetWindowSizeCallback(app.window, onWindowResized);
+		glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwSetCursorPosCallback(app.window, cursorPosCallback);
 
 		initVulkan();
 		mainLoop();
@@ -55,6 +62,9 @@ private:
 	ClientEndpoint passiveEP;
 	int64_t curFrame = -1;
 	//Endpoint activeEP;
+
+	Camera camera;
+	std::unique_ptr<CameraController> cameraCtrl;
 
 	VkSwapchainKHR swapChain;
 	std::vector<VkImage> swapChainImages;
@@ -71,7 +81,6 @@ private:
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 
-	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffers;
 
 	VkSemaphore imageAvailableSemaphore;
@@ -106,7 +115,7 @@ private:
 		createRenderPass();
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
-		commandPool = createCommandPool(app.device, app.physicalDevice, app.surface);
+		app.commandPool = createCommandPool(app.device, app.physicalDevice, app.surface);
 		createDepthResources();
 		createFramebuffers();
 		createTextureImage();
@@ -116,6 +125,8 @@ private:
 		//vertices = VERTICES;
 		//indices = INDICES;
 		streamingBufferData = malloc(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE);
+		camera = createCamera();
+		cameraCtrl = std::make_unique<CameraController>(camera);
 
 		//loadModel(cfg::MODEL_PATH, vertices, indices);
 
@@ -137,23 +148,23 @@ private:
 
 		updateUniformBuffer();
 
-		size_t pvs = vertices.size(), pis = indices.size();
+		auto beginTime = std::chrono::high_resolution_clock::now();
+		auto& clock = Clock::instance();
 		while (!glfwWindowShouldClose(app.window)) {
 			glfwPollEvents();
 
-			receiveData(vertices, indices);
-			// FIXME
-			if (vertices.size() != pvs || indices.size() != pis) {
-				pvs = vertices.size();
-				pis = indices.size();
-				recreateSwapChain();
-			}
+			runFrame();
 
-			updateVertexBuffer();
-			updateIndexBuffer();
-			updateUniformBuffer();
-
-			drawFrame();
+			// Time calculation and stuff
+			const auto endTime = std::chrono::high_resolution_clock::now();
+			float dt = std::chrono::duration_cast<std::chrono::microseconds>(
+					endTime - beginTime).count() / 1'000'000.f;
+			if (dt > 1.f)
+				dt = clock.targetDeltaTime;
+			clock.update(dt);
+			beginTime = endTime;
+			//std::cerr << "dt = " << clock.deltaTime() << " (estimate FPS = " <<
+				//1 / clock.deltaTime() << ")\n";
 
 			fps.addFrame();
 			fps.report();
@@ -161,6 +172,28 @@ private:
 
 		passiveEP.close();
 		vkDeviceWaitIdle(app.device);
+	}
+
+	void runFrame() {
+		static size_t pvs = vertices.size(),
+		              pis = indices.size();
+
+		// Receive network data
+		receiveData(vertices, indices);
+
+		if (vertices.size() != pvs || indices.size() != pis) {
+			pvs = vertices.size();
+			pis = indices.size();
+			recreateSwapChain();
+		}
+
+		updateVertexBuffer();
+		updateIndexBuffer();
+		updateUniformBuffer();
+
+		cameraCtrl->processInput(app.window);
+
+		drawFrame();
 	}
 
 	// TODO
@@ -232,7 +265,7 @@ private:
 			vkDestroyFramebuffer(app.device, framebuffer, nullptr);
 		}
 
-		vkFreeCommandBuffers(app.device, commandPool, static_cast<uint32_t>(commandBuffers.size()),
+		vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(commandBuffers.size()),
 				commandBuffers.data());
 
 		vkDestroyPipeline(app.device, graphicsPipeline, nullptr);
@@ -265,7 +298,7 @@ private:
 
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
-		vkDestroyCommandPool(app.device, commandPool, nullptr);
+		vkDestroyCommandPool(app.device, app.commandPool, nullptr);
 
 		app.cleanup();
 	}
@@ -275,14 +308,21 @@ private:
 		appl->recreateSwapChain();
 	}
 
+	static void cursorPosCallback(GLFWwindow *window, double xpos, double ypos) {
+		static double prevX = cfg::WIDTH / 2.0,
+		              prevY = cfg::HEIGHT / 2.0;
+		auto appl = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
+		appl->cameraCtrl->turn(xpos - prevX, prevY - ypos);
+		prevX = xpos;
+		prevY = ypos;
+	}
+
 	void recreateSwapChain() {
 		int width, height;
 		glfwGetWindowSize(app.window, &width, &height);
 		if (width == 0 || height == 0) return;
 
 		vkDeviceWaitIdle(app.device);
-
-		std::cerr << "recreateSwapChain\n";
 
 		cleanupSwapChain();
 
@@ -464,8 +504,8 @@ private:
 		fragShaderStageInfo.pName = "main";
 
 		VkPipelineShaderStageCreateInfo shaderStages[] = {
-				vertShaderStageInfo,
-				fragShaderStageInfo
+			vertShaderStageInfo,
+			fragShaderStageInfo
 		};
 
 		// Configure fixed pipeline
@@ -537,10 +577,6 @@ private:
 		colorBlending.logicOp = VK_LOGIC_OP_COPY;
 		colorBlending.attachmentCount = 1;
 		colorBlending.pAttachments = &colorBlendAttachment;
-		colorBlending.blendConstants[0] = 0.0f;
-		colorBlending.blendConstants[1] = 0.0f;
-		colorBlending.blendConstants[2] = 0.0f;
-		colorBlending.blendConstants[3] = 0.0f;
 
 		VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -657,7 +693,7 @@ private:
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
-		createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		createBuffer(app, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				stagingBuffer, stagingBufferMemory);
 
@@ -673,7 +709,7 @@ private:
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
 				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		copyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight);
+		copyBufferToImage(app, stagingBuffer, textureImage, texWidth, texHeight);
 		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
 				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		vkDestroyBuffer(app.device, stagingBuffer, nullptr);
@@ -758,7 +794,7 @@ private:
 		VkMemoryAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+		allocInfo.memoryTypeIndex = findMemoryType(app, memRequirements.memoryTypeBits, properties);
 
 		if (vkAllocateMemory(app.device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate image memory!");
@@ -769,7 +805,7 @@ private:
 	void transitionImageLayout(VkImage image, VkFormat format,
 			VkImageLayout oldLayout, VkImageLayout newLayout)
 	{
-		auto commandBuffer = beginSingleTimeCommands(app.device, commandPool);
+		auto commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
 
 		VkImageMemoryBarrier barrier = {};
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -824,26 +860,7 @@ private:
 				0, nullptr,
 				0, nullptr,
 				1, &barrier);
-		endSingleTimeCommands(app.device, app.queues.graphics, commandPool, commandBuffer);
-	}
-
-	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-		VkCommandBuffer commandBuffer = beginSingleTimeCommands(app.device, commandPool);
-
-		VkBufferImageCopy region = {};
-		region.bufferOffset = 0;
-		region.bufferRowLength = 0;
-		region.bufferImageHeight = 0;
-		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.imageSubresource.mipLevel = 0;
-		region.imageSubresource.baseArrayLayer = 0;
-		region.imageSubresource.layerCount = 1;
-		region.imageOffset = { 0, 0, 0 };
-		region.imageExtent = { width, height, 1 };
-
-		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-		endSingleTimeCommands(app.device, app.queues.graphics, commandPool, commandBuffer);
+		endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 	}
 
 	/*
@@ -876,7 +893,7 @@ private:
 	void createVertexBuffer() {
 		VkDeviceSize bufferSize = VERTEX_BUFFER_SIZE;
 
-		createBuffer(bufferSize,
+		createBuffer(app, bufferSize,
 				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vertexBuffer, vertexBufferMemory);
@@ -911,7 +928,7 @@ private:
 	void createIndexBuffer() {
 		VkDeviceSize bufferSize = INDEX_BUFFER_SIZE;
 
-		createBuffer(bufferSize,
+		createBuffer(app, bufferSize,
 				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				indexBuffer, indexBufferMemory);
@@ -919,7 +936,7 @@ private:
 
 	void createUniformBuffer() {
 		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				uniformBuffer, uniformBufferMemory);
 	}
@@ -982,65 +999,12 @@ private:
 		vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 	}
 
-	void createBuffer(
-			VkDeviceSize size,
-			VkBufferUsageFlags usage,
-			VkMemoryPropertyFlags properties,
-			VkBuffer& buffer,
-			VkDeviceMemory& bufferMemory)
-	{
-		VkBufferCreateInfo bufferInfo = {};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = size;
-		bufferInfo.usage = usage;
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		if (vkCreateBuffer(app.device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-			throw std::runtime_error("failed to create vertex buffer!");
-
-		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(app.device, buffer, &memRequirements);
-
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-		if (vkAllocateMemory(app.device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate buffer memory!");
-
-		vkBindBufferMemory(app.device, buffer, bufferMemory, 0);
-	}
-
-	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-		auto commandBuffer = beginSingleTimeCommands(app.device, commandPool);
-
-		VkBufferCopy copyRegion = {};
-		copyRegion.srcOffset = 0;
-		copyRegion.dstOffset = 0;
-		copyRegion.size = size;
-		vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-		endSingleTimeCommands(app.device, app.queues.graphics, commandPool, commandBuffer);
-	}
-
-	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const {
-		VkPhysicalDeviceMemoryProperties memProperties;
-		vkGetPhysicalDeviceMemoryProperties(app.physicalDevice, &memProperties);
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i)
-			if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-				return i;
-
-		throw std::runtime_error("failed to find suitable memory type!");
-	}
-
-
 	void createCommandBuffers() {
 		commandBuffers.resize(swapChainFramebuffers.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.commandPool = commandPool;
+		allocInfo.commandPool = app.commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
@@ -1113,12 +1077,16 @@ private:
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
 		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+		float time = std::chrono::duration<float, std::chrono::seconds::period>(
+				currentTime - startTime).count();
 
 		UniformBufferObject ubo = {};
-		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.f), glm::vec3(0.f, -1.f, 0.f));
-		ubo.view = glm::lookAt(glm::vec3(140.f, 140.f, 140.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
-		ubo.proj = glm::perspective(glm::radians(60.f), swapChainExtent.width / float(swapChainExtent.height), 0.1f, 300.f);
+		ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
+		//std::cerr << "view mat = " << glm::to_string(camera.viewMatrix()) << "\n";
+		ubo.view = camera.viewMatrix();
+			//glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
+		ubo.proj = glm::perspective(glm::radians(60.f),
+				swapChainExtent.width / float(swapChainExtent.height), 0.1f, 300.f);
 		ubo.proj[1][1] *= -1;
 
 		void *data;

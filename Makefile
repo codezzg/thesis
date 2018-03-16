@@ -231,6 +231,60 @@ src/application.cpp.s:
 	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/application.cpp.s
 .PHONY : src/application.cpp.s
 
+src/buffers.o: src/buffers.cpp.o
+
+.PHONY : src/buffers.o
+
+# target to build an object file
+src/buffers.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/buffers.cpp.o
+.PHONY : src/buffers.cpp.o
+
+src/buffers.i: src/buffers.cpp.i
+
+.PHONY : src/buffers.i
+
+# target to preprocess a source file
+src/buffers.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/buffers.cpp.i
+.PHONY : src/buffers.cpp.i
+
+src/buffers.s: src/buffers.cpp.s
+
+.PHONY : src/buffers.s
+
+# target to generate assembly for a file
+src/buffers.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/buffers.cpp.s
+.PHONY : src/buffers.cpp.s
+
+src/camera.o: src/camera.cpp.o
+
+.PHONY : src/camera.o
+
+# target to build an object file
+src/camera.cpp.o:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/camera.cpp.o
+.PHONY : src/camera.cpp.o
+
+src/camera.i: src/camera.cpp.i
+
+.PHONY : src/camera.i
+
+# target to preprocess a source file
+src/camera.cpp.i:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/camera.cpp.i
+.PHONY : src/camera.cpp.i
+
+src/camera.s: src/camera.cpp.s
+
+.PHONY : src/camera.s
+
+# target to generate assembly for a file
+src/camera.cpp.s:
+	$(MAKE) -f CMakeFiles/thesis.dir/build.make CMakeFiles/thesis.dir/src/camera.cpp.s
+.PHONY : src/camera.cpp.s
+
 src/client_endpoint.o: src/client_endpoint.cpp.o
 
 .PHONY : src/client_endpoint.o
@@ -495,6 +549,12 @@ help:
 	@echo "... src/application.o"
 	@echo "... src/application.i"
 	@echo "... src/application.s"
+	@echo "... src/buffers.o"
+	@echo "... src/buffers.i"
+	@echo "... src/buffers.s"
+	@echo "... src/camera.o"
+	@echo "... src/camera.i"
+	@echo "... src/camera.s"
 	@echo "... src/client_endpoint.o"
 	@echo "... src/client_endpoint.i"
 	@echo "... src/client_endpoint.s"

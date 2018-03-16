@@ -9,7 +9,6 @@ struct Queues final {
 	VkQueue present;
 };
 
-
 struct Application final {
 
 	GLFWwindow* window;
@@ -23,6 +22,8 @@ struct Application final {
 	Queues queues;
 
 	Validation validation;
+
+	VkCommandPool commandPool;
 
 
 	void init();
