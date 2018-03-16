@@ -7,4 +7,6 @@ chalet.obj
 *.o
 thesis
 CMakeFiles/
+CMakeCache.txt
 gmon.out
+Makefile

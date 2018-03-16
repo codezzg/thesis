@@ -34,6 +34,8 @@
 #include "camera.hpp"
 #include "clock.hpp"
 #include "buffers.hpp"
+#include "swap.hpp"
+#include "formats.hpp"
 
 struct UniformBufferObject final {
 	glm::mat4 model;
@@ -339,7 +341,7 @@ private:
 		auto swapChainSupport = querySwapChainSupport(app.physicalDevice, app.surface);
 		auto surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
 		auto presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-		auto extent = chooseSwapExtent(swapChainSupport.capabilities);
+		auto extent = chooseSwapExtent(app, swapChainSupport.capabilities);
 
 		uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 		if (swapChainSupport.capabilities.maxImageCount > 0 &&
@@ -411,7 +413,7 @@ private:
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		VkAttachmentDescription depthAttachment = {};
-		depthAttachment.format = findDepthFormat();
+		depthAttachment.format = findDepthFormat(app.physicalDevice);
 		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -645,7 +647,7 @@ private:
 	}
 
 	void createDepthResources() {
-		auto depthFormat = findDepthFormat();
+		auto depthFormat = findDepthFormat(app.physicalDevice);
 		createImage(swapChainExtent.width, swapChainExtent.height, depthFormat,
 				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
@@ -653,34 +655,6 @@ private:
 
 		transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-	}
-
-	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
-			VkImageTiling tiling, VkFormatFeatureFlags features) const
-	{
-		for (auto format : candidates) {
-			VkFormatProperties props;
-			vkGetPhysicalDeviceFormatProperties(app.physicalDevice, format, &props);
-			if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
-				return format;
-			} else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
-				return format;
-			}
-		}
-
-		throw std::runtime_error("failed to find supported format!");
-	}
-
-	VkFormat findDepthFormat() const {
-		return findSupportedFormat({
-			VK_FORMAT_D32_SFLOAT,
-			VK_FORMAT_D32_SFLOAT_S8_UINT,
-			VK_FORMAT_D24_UNORM_S8_UINT
-		}, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-	}
-
-	bool hasStencilComponent(VkFormat format) const {
-		return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 	}
 
 	void createTextureImage() {
@@ -1155,47 +1129,6 @@ private:
 			throw std::runtime_error("failed to create shader module!");
 
 		return shaderModule;
-	}
-
-	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) const {
-		// No preferred format
-		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
-			return { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
-		for (const auto& availableFormat : availableFormats) {
-			if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM
-					&& availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-				return availableFormat;
-		}
-
-		return availableFormats[0];
-	}
-
-	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) const {
-		auto bestMode = VK_PRESENT_MODE_FIFO_KHR;
-
-		for (const auto& availablePresentMode : availablePresentModes) {
-			if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				return availablePresentMode;
-			} else if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-				bestMode = availablePresentMode;
-			}
-		}
-		return bestMode;
-	}
-
-	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) const {
-		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
-			return capabilities.currentExtent;
-		else {
-			int width, height;
-			glfwGetWindowSize(app.window, &width, &height);
-			VkExtent2D actualExtent = { uint32_t(width), uint32_t(height) };
-			actualExtent.width = std::max(capabilities.minImageExtent.width,
-							std::min(capabilities.maxImageExtent.width, actualExtent.width));
-			actualExtent.height = std::max(capabilities.minImageExtent.height,
-							std::min(capabilities.maxImageExtent.height, actualExtent.height));
-			return actualExtent;
-		}
 	}
 };
 
