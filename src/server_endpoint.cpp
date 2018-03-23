@@ -154,6 +154,7 @@ void ServerActiveEndpoint::loopFunc() {
 	deallocServerMemory(serverMemory);
 }
 
+// Receives client parameters wherewith the server shall calculate the primitives to send during next frame
 void ServerPassiveEndpoint::loopFunc() {
 	// This buffer contains a single packet
 	buffer = new uint8_t[sizeof(FrameData)];

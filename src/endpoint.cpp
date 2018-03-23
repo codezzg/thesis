@@ -41,7 +41,6 @@ bool Endpoint::cleanup() {
 
 Endpoint::~Endpoint() {
 	close();
-	std::cout << "loopThread = " << loopThread.get() << std::endl;
 }
 
 bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive) {
