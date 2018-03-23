@@ -10,3 +10,5 @@ CMakeFiles/
 CMakeCache.txt
 gmon.out
 Makefile
+.gdb_history
+*.gz

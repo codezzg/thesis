@@ -10,6 +10,6 @@ constexpr auto TEXTURE_PATH = "textures/chalet.jpg";
 //constexpr auto TEXTURE_PATH = "textures/texture.jpg";
 
 constexpr uint32_t PACKET_MAGIC = 0x14101991;
-constexpr size_t PACKET_SIZE_BYTES = 63000;
+constexpr size_t PACKET_SIZE_BYTES = 512;
 
 }

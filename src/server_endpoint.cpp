@@ -11,6 +11,7 @@
 #include "Vertex.hpp"
 // TODO cross-platform
 #include <unistd.h>
+#include <cstring>
 #include "model.hpp"
 #include "data.hpp"
 #include "config.hpp"
@@ -70,7 +71,7 @@ static int writeAllPossible(std::array<uint8_t, N>& buffer,
 	////8
 	//0, 1, 2, 2, 3, 0
 //};
-void ServerEndpoint::loopFunc() {
+void ServerActiveEndpoint::loopFunc() {
 
 	std::vector<Vertex> vertices;
 	std::vector<Index> indices;
@@ -156,3 +157,41 @@ void ServerEndpoint::loopFunc() {
 	}
 }
 
+void ServerPassiveEndpoint::loopFunc() {
+	// This buffer contains a single packet
+	buffer = new uint8_t[sizeof(FrameData)];
+	int64_t frameId = -1;
+
+	while (!terminated) {
+		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
+		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
+			continue;
+
+		if (!validatePacket(packetBuf.data(), frameId))
+			continue;
+
+		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
+		// Update frame if necessary
+		if (packet->header.frameId > frameId) {
+			frameId = packet->header.frameId;
+		}
+
+		memcpy(buffer, packet->payload.data(), packet->payload.size());
+	}
+
+	delete [] buffer;
+}
+
+
+void Server::run(const char *activeIp, int activePort, const char *passiveIp, int passivePort) {
+	activeEP.startActive(activeIp, activePort);
+	activeEP.runLoop();
+
+	passiveEP.startPassive(passiveIp, passivePort);
+	passiveEP.runLoop();
+}
+
+void Server::close() {
+	activeEP.close();
+	passiveEP.close();
+}

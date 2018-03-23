@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <utility>
 #include <cstring>
+#include <functional>
+#include "data.hpp"
 
 using socket_connect_op = int (*) (int, const sockaddr*, socklen_t);
 
@@ -92,4 +94,34 @@ void Endpoint::close() {
 	if (loopThread && loopThread->joinable())
 		loopThread->join();
 	loopThread.reset(nullptr);
+}
+
+bool receivePacket(socket_t socket, uint8_t *buffer, size_t len) {
+	ssize_t count = recv(socket, buffer, len, 0);
+
+	if (count < 0) {
+		std::cerr << "Error receiving message: " << strerror(errno) << "\n";
+		return false;
+	} else if (count == sizeof(buffer)) {
+		std::cerr << "Warning: datagram was truncated as it's too large.\n";
+		return false;
+	}
+
+	//std::cerr << "Received " << count << " bytes: \n"; //<< buffer << std::endl;
+
+	return true;
+}
+
+
+bool validatePacket(uint8_t *packetBuf, int64_t frameId) {
+	const auto packet = reinterpret_cast<FrameData*>(packetBuf);
+	if (packet->header.magic != cfg::PACKET_MAGIC) {
+		std::cerr << "Packet has invalid magic: dropping.\n";
+		return false;
+	}
+	if (packet->header.frameId < frameId) {
+		std::cerr << "Packet is old: dropping\n";
+		return false;
+	}
+	return true;
 }

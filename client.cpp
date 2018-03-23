@@ -61,7 +61,7 @@ public:
 private:
 	Application app;
 
-	ClientEndpoint passiveEP;
+	ClientPassiveEndpoint passiveEP;
 	int64_t curFrame = -1;
 	//Endpoint activeEP;
 

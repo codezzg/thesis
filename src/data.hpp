@@ -22,4 +22,5 @@ struct FrameData final {
 	FrameHeader header;
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES - sizeof(FrameHeader)> payload;
 };
+
 #pragma pack(pop)

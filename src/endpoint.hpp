@@ -15,6 +15,11 @@ constexpr socket_t invalidSocketID() {
 	return -1;
 }
 
+// Common functions
+bool receivePacket(socket_t socket, uint8_t *buffer, size_t len);
+bool validatePacket(uint8_t *packetBuf, int64_t frameId);
+//
+
 class Endpoint {
 private:
 	std::unique_ptr<std::thread> loopThread;

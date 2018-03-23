@@ -13,23 +13,7 @@
 
 static constexpr auto BUFSIZE = 1<<24;
 
-static bool receive(socket_t socket, uint8_t *buffer, size_t len) {
-	ssize_t count = recv(socket, buffer, len, 0);
-
-	if (count < 0) {
-		std::cerr << "Error receiving message: " << strerror(errno) << "\n";
-		return false;
-	} else if (count == sizeof(buffer)) {
-		std::cerr << "Warning: datagram was truncated as it's too large.\n";
-		return false;
-	}
-
-	//std::cerr << "Received " << count << " bytes: \n"; //<< buffer << std::endl;
-
-	return true;
-}
-
-void ClientEndpoint::loopFunc() {
+void ClientPassiveEndpoint::loopFunc() {
 
 	// This will be filled like this:
 	// [(64b)nVertices|(64b)nIndices|vertices|indices]
@@ -45,19 +29,13 @@ void ClientEndpoint::loopFunc() {
 		static_assert(sizeof(FirstFrameData) >= sizeof(FrameData),
 				"size of FrameData is larger than FirstFrameData!");
 		std::array<uint8_t, sizeof(FirstFrameData) + 1> packetBuf = {};
-		if (!receive(socket, packetBuf.data(), packetBuf.size()))
+		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
-		// Validate the packet
+		if (!validatePacket(packetBuf.data(), frameId))
+			continue;
+
 		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
-		if (packet->header.magic != cfg::PACKET_MAGIC) {
-			std::cerr << "Packet has invalid magic: dropping.\n";
-			continue;
-		}
-		if (packet->header.frameId < frameId) {
-			std::cerr << "Packet is old: dropping\n";
-			continue;
-		}
 
 		// Update frame if necessary
 		if (packet->header.frameId > frameId) {
@@ -107,6 +85,32 @@ void ClientEndpoint::loopFunc() {
 	delete [] buffer;
 }
 
-const uint8_t* ClientEndpoint::peek() const {
+const uint8_t* ClientPassiveEndpoint::peek() const {
 	return bufferFilled && !terminated ? buffer : nullptr;
+}
+
+
+void ClientActiveEndpoint::loopFunc() {
+	int64_t frameId = -1;
+	uint64_t packetId = 0;
+
+	while (!terminated) {
+		// Prepare data
+		FrameData data;
+		data.header.magic = cfg::PACKET_MAGIC;
+		data.header.frameId = frameId;
+		data.header.packetId = packetId;
+		/* Payload:
+		 * [0] position.x
+		 * [1] position.y
+		 * [2] position.z
+		 * [3] rotation.w
+		 * [4] rotation.x
+		 * [5] rotation.y
+		 * [6] rotation.z
+		 */
+		auto p = data.payload.data();
+	//p[0] =
+
+	}
 }
