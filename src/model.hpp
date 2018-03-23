@@ -8,6 +8,12 @@
 	//std::vector<uint32_t> indices;
 //};
 
-void loadModel(const char *modelPath,
-		/* out */ std::vector<Vertex>& vertices,
-		/* out */ std::vector<Index>& indices);
+/** Loads a model's vertices and indices into `buffer`.
+ *  Buffer is filled with [vertices|indices], and indices start at
+ *  offset `sizeof(Vertex) * nVertices`.
+ *  Will return false if there were errors.
+ */
+bool loadModel(const char *modelPath,
+		/* out */ uint8_t *buffer,
+		/* out */ int& nVertices,
+		/* out */ int& nIndices);

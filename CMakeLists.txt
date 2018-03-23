@@ -4,6 +4,7 @@ set(PROJECT_NAME thesis)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 set(MAIN_FILE client.cpp)
+#set(MAIN_FILE main.cpp)
 
 include_directories(src/)
 include_directories(src/third_party)
@@ -32,8 +33,8 @@ find_package(GLFW REQUIRED)
 include_directories(${GLFW_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GLFW_LIBRARIES})
 
-find_package(Sparsehash REQUIRED)
-include_directories(${Sparsehash_INCLUDE_DIRS})
+#find_package(Sparsehash REQUIRED)
+#include_directories(${Sparsehash_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
 include_directories(${Threads_INCLUDE_DIRS})

@@ -151,6 +151,8 @@ private:
 		FPSCounter fps;
 		fps.start();
 
+		updateVertexBuffer();
+		updateIndexBuffer();
 		updateUniformBuffer();
 
 		auto beginTime = std::chrono::high_resolution_clock::now();
@@ -259,6 +261,12 @@ private:
 		memcpy(streamingBufferData, vertices.data(), vertices.size() * sizeof(Vertex));
 		memcpy((uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE,
 				indices.data(), indices.size() * sizeof(Index));
+
+		if (curFrame == 1) {
+			std::ofstream of("sb.data", std::ios::binary);
+			for (int i = 0; i < vertices.size() * sizeof(Vertex) + indices.size() * sizeof(Index); ++i)
+				of << ((uint8_t*)streamingBufferData)[i];
+		}
 	}
 
 	void cleanupSwapChain() {

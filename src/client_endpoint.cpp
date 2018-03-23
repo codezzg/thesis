@@ -25,12 +25,11 @@ void ClientPassiveEndpoint::loopFunc() {
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
 	uint64_t nBytesReceived = 0;
+	bool bufferCopied = false;
 
 	// Receive datagrams
 	while (!terminated) {
-		static_assert(sizeof(FirstFrameData) >= sizeof(FrameData),
-				"size of FrameData is larger than FirstFrameData!");
-		std::array<uint8_t, sizeof(FirstFrameData) + 1> packetBuf = {};
+		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
@@ -45,42 +44,38 @@ void ClientPassiveEndpoint::loopFunc() {
 			// Clear current buffer, start receiving new data
 			memset(backBuffer, -1, BUFSIZE);
 			bufferFilled = false;
+			bufferCopied = false;
 			nBytesReceived = 0;
-		}
 
-		uint8_t *payload = nullptr;
-		size_t payloadLen = 0;
-		// Distinguish first packet from others
-		if (packet->header.packetId == 0) {
-			const auto data = reinterpret_cast<FirstFrameData*>(packetBuf.data());
-			nVertices = data->nVertices;
-			nIndices = data->nIndices;
-			std::cerr << "[" << frameId << "] received nvertices = " << nVertices << ", nindices = " << nIndices << "\n";
+			// Update n vertices and indices
+			nVertices = packet->header.nVertices;
+			nIndices = packet->header.nIndices;
 			*(reinterpret_cast<uint64_t*>(backBuffer)) = nVertices;
 			*(reinterpret_cast<uint64_t*>(backBuffer) + 1) = nIndices;
-			payload = data->payload.data();
-			payloadLen = data->payload.size();
-		} else {
-			payload = packet->payload.data();
-			payloadLen = packet->payload.size();
 		}
 
-		std::cerr << "received packet " << frameId << ":" << packet->header.packetId << "\n";
+		uint8_t *payload = packet->payload.data();
+		size_t payloadLen = packet->payload.size();
+
+		//dumpPacket("client.dump", *packet);
 
 		// Compute the offset to insert data at
-		const size_t offset = 2 * sizeof(uint64_t) + (packet->header.packetId == 0
-			? 0
-			: (packet->header.packetId * sizeof(packet->payload)
-				+ sizeof(FirstFrameData::payload))); // payload of first packet is different
+		const size_t offset = 2 * sizeof(uint64_t) + packet->header.packetId * packet->payload.size();
+		//std::cerr << "received packet " << frameId << ":" << packet->header.packetId << "; offset = " << offset << "\n";
 
 		// Insert data into the buffer
 		memcpy(backBuffer + offset, payload, payloadLen);
 
 		nBytesReceived += payloadLen;
+		//std::cerr << "payload len = " << payloadLen << "\n";
 		bufferFilled = nBytesReceived >= nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
-		//std::cerr << "received " << nBytesReceived << " / " << nVertices * sizeof(Vertex) + nIndices * sizeof(Index) << "\n";
-		if (bufferFilled)
+
+		if (bufferFilled && !bufferCopied) {
+			//std::cerr << "received " << nBytesReceived << " / "
+				//<< nVertices * sizeof(Vertex) + nIndices * sizeof(Index) << "\n";
 			memcpy(buffer, backBuffer, BUFSIZE);
+			bufferCopied = true;
+		}
 	}
 
 	delete [] backBuffer;
@@ -91,6 +86,8 @@ const uint8_t* ClientPassiveEndpoint::peek() const {
 	return bufferFilled && !terminated ? buffer : nullptr;
 }
 
+
+/////////////////////// Active EP
 static void insertCameraData(uint8_t *buffer, const Camera& camera) {
 	/*
 	 * CameraData:

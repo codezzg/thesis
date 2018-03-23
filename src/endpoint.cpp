@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <unistd.h>
+#include <fstream>
 #include <utility>
 #include <cstring>
 #include <functional>
@@ -124,4 +125,17 @@ bool validatePacket(uint8_t *packetBuf, int64_t frameId) {
 		return false;
 	}
 	return true;
+}
+
+void dumpPacket(const char *fname, const FrameData& packet) {
+	std::ofstream file(fname, std::ios::app);
+	file << "\n--- packet " << packet.header.frameId << ":" << packet.header.packetId << "\n";
+	file << "Header:\n";
+	file << std::hex;
+	for (int i = 0; i < sizeof(FrameHeader); ++i)
+		file << (*(reinterpret_cast<const uint8_t*>(&packet.header) + i) & 0xFF) << " ";
+	file << "\nPayload:\n";
+	for (uint8_t byte : packet.payload) {
+		file << (byte & 0xFF) << " ";
+	}
 }

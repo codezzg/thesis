@@ -16,48 +16,59 @@
 #include "data.hpp"
 #include "config.hpp"
 
-/** Writes all possible vertices and indices, starting from `offset`, into `buffer` until it has room.
- *  Returns the number of bytes that were copied.
+/** Writes all possible vertices and indices, starting from `offset`-th byte,
+ *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
+ *  @return the number of bytes that were copied so far, i.e. the next offset to use.
+ *  NOTE: this operation may leave some unused trailing space in buffer if payload.size() is not
+ *  a multiple of sizeof(Vertex) and sizeof(Index). The client, upon receiving
+ *  the packet this buffer belongs to, should not just
+ *  memcpy(dst, buffer, buffer.size()), but it must calculate the exact amount of bytes to pick from
+ *  the buffer, or it will copy the unused garbage bytes too!
  */
-template <long unsigned N>
-static int writeAllPossible(std::array<uint8_t, N>& buffer,
-		const std::vector<Vertex>& vertices, const std::vector<Index>& indices, long offset)
+template <size_t N>
+static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
+		int nVertices, int nIndices, size_t offset)
 {
-	std::cerr << "writeAllPossible<N=" << N << ">(offset = " << offset << ")\n";
-	std::cerr << "sizeof(Vertex) = " << sizeof(Vertex) << "\n";
-	unsigned nV = 0, nI = 0;
-	unsigned bufferIdx = 0;
-
-	auto cp = [&nV, &nI] () {
-		std::cerr << "copied " << nV << " vertices and " << nI << " indices. "
-			<< "(" << (sizeof(Vertex) * nV + sizeof(Index) * nI) << " bytes)\n";
-	};
-	for (unsigned i = offset; i < vertices.size(); ++i) {
-		if (bufferIdx + sizeof(Vertex) >= buffer.size()) {
-			// no more room in buffer
-			cp();
-			return i;
+	const auto srcSize = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
+	auto srcIdx = offset;
+	auto dstIdx = 0lu;
+	while (srcIdx < srcSize && dstIdx < N) {
+		const bool isVertex = srcIdx < static_cast<unsigned>(nVertices) * sizeof(Vertex);
+		if (isVertex) {
+			// Check for room
+			if (dstIdx + sizeof(Vertex) > N) {
+				std::cerr << "[Warning] only filled " << dstIdx << "/" << N << " dst bytes.\n";
+				return srcIdx;
+			}
+			*(reinterpret_cast<Vertex*>(dst.data() + dstIdx)) =
+					*(reinterpret_cast<const Vertex*>(src + srcIdx));
+			dstIdx += sizeof(Vertex);
+			srcIdx += sizeof(Vertex);
+		} else {
+			// Check for room
+			if (dstIdx + sizeof(Index) > N) {
+				std::cerr << "[Warning] only filled " << dstIdx << "/" << N << " dst bytes.\n";
+				return srcIdx;
+			}
+			*(reinterpret_cast<Index*>(dst.data() + dstIdx)) =
+					*(reinterpret_cast<const Index*>(src + srcIdx));
+			dstIdx += sizeof(Index);
+			srcIdx += sizeof(Index);
 		}
-
-		*(reinterpret_cast<Vertex*>(buffer.data() + bufferIdx)) = vertices[i];
-		bufferIdx += sizeof(Vertex);
-		++nV;
 	}
 
-	for (unsigned i = std::max(0l, offset - long(vertices.size())); i < indices.size(); ++i) {
-		if (bufferIdx + sizeof(Index) >= buffer.size()) {
-			// no more room in buffer
-			cp();
-			return vertices.size() + i;
-		}
+	// If we arrived here, we filled every last byte of the payload with no waste.
+	return srcIdx;
+}
 
-		*(reinterpret_cast<Index*>(buffer.data() + bufferIdx)) = indices[i];
-		bufferIdx += sizeof(Index);
-		++nI;
-	}
+constexpr size_t MEMSIZE = 1<<24;
 
-	cp();
-	return vertices.size() + indices.size();
+static uint8_t* allocServerMemory() {
+	return new uint8_t[MEMSIZE];
+}
+
+static void deallocServerMemory(uint8_t *mem) {
+	delete [] mem;
 }
 
 // TODO
@@ -73,13 +84,17 @@ static int writeAllPossible(std::array<uint8_t, N>& buffer,
 //};
 void ServerActiveEndpoint::loopFunc() {
 
-	std::vector<Vertex> vertices;
-	std::vector<Index> indices;
+	uint8_t *serverMemory = allocServerMemory();
 
-	loadModel("models/mill.obj", vertices, indices);
+	int nVertices = 0,
+	    nIndices = 0;
+	if (!loadModel("models/mill.obj", serverMemory, nVertices, nIndices))
+		return;
 
-	std::cerr << "Loaded " << vertices.size() << " vertices + " << indices.size() << " indices. "
-		<< "Tot size = " << (vertices.size() * sizeof(Vertex) + indices.size() * sizeof(Index)) / 1024
+	const auto vertices = reinterpret_cast<Vertex*>(serverMemory);
+	const auto indices = reinterpret_cast<Index*>(serverMemory + sizeof(Vertex) * nVertices);
+	std::cerr << "Loaded " << nVertices << " vertices + " << nIndices << " indices. "
+		<< "Tot size = " << (nVertices * sizeof(Vertex) + nIndices * sizeof(Index)) / 1024
 		<< " KiB\n";
 
 	//vertices.resize(30);
@@ -88,73 +103,46 @@ void ServerActiveEndpoint::loopFunc() {
 	using namespace std::chrono_literals;
 
 	int64_t frameId = 0;
-	int32_t packetId = 0;
 
 	// Send datagrams
 	while (!terminated) {
 
 		// Start new frame
-		// Send # vertices and indices to client, along with all the data that fit.
-		FirstFrameData firstPacket;
-		firstPacket.header.magic = cfg::PACKET_MAGIC;
-		firstPacket.header.frameId = frameId;
-		firstPacket.header.packetId = packetId;
-		firstPacket.nVertices = vertices.size();
-		firstPacket.nIndices = indices.size();
-		int copied = writeAllPossible(firstPacket.payload, vertices, indices, 0);
-		std::cerr << "copied: " << copied << "\n";
+		int totSent = 0;
+		int nPacketsSent = 0;
+		auto offset = 0lu;
+		int32_t packetId = 0;
 
-		for (int i = 0; i < 64; ++i)
-			printf("%hhx ", firstPacket.payload[i]);
-		std::cerr << "\nwriting packet " << frameId << ":" << packetId << "\n";
-		if (write(socket, &firstPacket, sizeof(firstPacket)) < 0) {
-			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
-		}
-
-		const auto totElems = vertices.size() + indices.size();
-		while (copied < totElems) {
-			// Send copied data
-			// Create new batch
+		const size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
+		while (offset < totBytes) {
+			// Create new packet
 			FrameData packet;
 			packet.header.magic = cfg::PACKET_MAGIC;
 			packet.header.frameId = frameId;
-			packet.header.packetId = ++packetId;
-			copied = writeAllPossible(packet.payload, vertices, indices, copied);
-			std::cerr << "copied: " << copied << "\n";
-			std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
+			packet.header.packetId = packetId;
+			packet.header.nVertices = nVertices;
+			packet.header.nIndices = nIndices;
+			const auto preOff = offset;
+			offset = writeAllPossible(packet.payload, serverMemory, nVertices, nIndices, offset);
+			//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
+			//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
+			//dumpPacket("server.dump", packet);
 			if (write(socket, &packet, sizeof(packet)) < 0) {
 				std::cerr << "could not write to remote: " << strerror(errno) << "\n";
 			}
+			totSent += packet.payload.size();
+			++nPacketsSent;
+			++packetId;
 		}
 
-		/*
-		*((uint32_t*) buffer) = MAGIC;
-		*((uint64_t*)(buffer + 4)) = packetId;
-		*((uint64_t*)(buffer + 12)) = uint64_t(vertices.size());
-		*((uint64_t*)(buffer + 20)) = uint64_t(indices.size());
-		std::cerr << "sending " << vertices.size() << " vertices and " << indices.size() << " indices\n";
-		for (unsigned i = 0; i < vertices.size(); ++i) {
-			*((Vertex*)(buffer + 28 + sizeof(Vertex)*i)) = vertices[i];
-		}
-		const auto indexOff = 28 + vertices.size() * sizeof(Vertex);
-		for (unsigned i = 0; i < indices.size(); ++i) {
-			*((uint32_t*)(buffer + indexOff + sizeof(Index)*i)) = indices[i];
-		}
-
-		const auto bytesSent = indexOff + sizeof(Index) * indices.size();
-		std::cerr << "sent: " << bytesSent / 1024 << " KiB\n";
-
-		if (write(socket, buffer, BUFSIZE) < 0) {
-			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
-		}
-
-		++packetId;*/
+		//std::cerr << "Sent total " << totSent << " bytes (" << nPacketsSent << " packets).\n";
 
 		++frameId;
-		packetId = 0;
 
-		std::this_thread::sleep_for(1.033s);
+		std::this_thread::sleep_for(0.033s);
 	}
+
+	deallocServerMemory(serverMemory);
 }
 
 void ServerPassiveEndpoint::loopFunc() {

@@ -18,6 +18,8 @@ constexpr socket_t invalidSocketID() {
 // Common functions
 bool receivePacket(socket_t socket, uint8_t *buffer, size_t len);
 bool validatePacket(uint8_t *packetBuf, int64_t frameId);
+struct FrameData;
+void dumpPacket(const char *fname, const FrameData& packet);
 //
 
 class Endpoint {

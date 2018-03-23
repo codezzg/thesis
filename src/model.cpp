@@ -1,5 +1,5 @@
 #include "model.hpp"
-#include <sparsehash/dense_hash_map>
+#include <unordered_map>
 #include <chrono>
 #include <iostream>
 #ifdef USE_EXPERIMENTAL_TINYOBJ
@@ -67,7 +67,7 @@ static const char* mmap_file(size_t *len, const char *filename) {
 #endif // USE_EXPERIMENTAL_TINYOBJ
 
 
-void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector<Index>& indices) {
+bool loadModel(const char *modelPath, uint8_t *buffer, int& nVertices, int& nIndices) {
 
 #ifdef USE_EXPERIMENTAL_TINYOBJ
 	namespace to = tinyobj_opt;
@@ -86,8 +86,7 @@ void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector
 	const char* data = mmap_file(&data_len, modelPath);
 	if (data == nullptr) {
 		printf("failed to load file\n");
-		exit(-1);
-		return ;
+		return false;
 	}
 	auto load_t_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
@@ -99,20 +98,26 @@ void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector
 	option.verbose = true;
 	bool ret = to::parseObj(&attrib, &shapes, &materials, data, data_len, option);
 	std::cout << "load time: " << load_ms.count() << " [msecs]" << std::endl;
-	if (!ret)
-		throw std::runtime_error("failed to load model!");
+	if (!ret) {
+		std::cerr << "failed to load model!\n";
+		return false;
+	}
 #else
-	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath))
-		throw std::runtime_error(err);
+	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath)) {
+		std::cerr << err;
+		return false;
+	}
 	auto load_t_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
 	std::cout << "load time: " << load_ms.count() << " [msecs]" << std::endl;
 #endif
 
-	google::dense_hash_map<Vertex, uint32_t> uniqueVertices;
-	uniqueVertices.set_empty_key(VERTEX_EMPTY_KEY);
+	std::unordered_map<Vertex, uint32_t> uniqueVertices;
+	std::vector<Index> indices;
 
+	nVertices = 0;
 #ifdef USE_EXPERIMENTAL_TINYOBJ
+	indices.reserve(attrib.indices.size());
 	for (const auto& index : attrib.indices) {
 #else
 	for (const auto& shape : shapes) {
@@ -131,8 +136,9 @@ void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector
 			vertex.color = {1.0f, 1.0f, 1.0f};
 
 			if (uniqueVertices.count(vertex) == 0) {
-				uniqueVertices[vertex] = vertices.size();
-				vertices.emplace_back(vertex);
+				uniqueVertices[vertex] = nVertices;
+				*(reinterpret_cast<Vertex*>(buffer) + nVertices) = vertex;
+				++nVertices;
 			}
 
 			indices.emplace_back(uniqueVertices[vertex]);
@@ -140,5 +146,10 @@ void loadModel(const char *modelPath, std::vector<Vertex>& vertices, std::vector
 		}
 #endif
 	}
-	std::cout << "size = " << vertices.size() << ", " << indices.size() << "\n";
+	nIndices = indices.size();
+	// Copy indices into buffer
+	memcpy(buffer + sizeof(Vertex) * nVertices, indices.data(), sizeof(Index) * indices.size());
+	std::cout << "size = " << nVertices << ", " << nIndices << "\n";
+
+	return true;
 }
