@@ -71,6 +71,15 @@ static void deallocServerMemory(uint8_t *mem) {
 	delete [] mem;
 }
 
+// STUB
+static void transformVertices(Vertex *vertices, int nVertices) {
+	static float t = 0;
+	for (int i = 0; i < nVertices; ++i) {
+		vertices[i].pos += 0.01 * cos(t * 0.1 + i * 0.01);
+	}
+	t += 0.033;
+}
+
 // TODO
 //const std::vector<Vertex> vertices = {
 	////{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
@@ -97,9 +106,6 @@ void ServerActiveEndpoint::loopFunc() {
 		<< "Tot size = " << (nVertices * sizeof(Vertex) + nIndices * sizeof(Index)) / 1024
 		<< " KiB\n";
 
-	//vertices.resize(30);
-	//indices.resize(70);
-
 	using namespace std::chrono_literals;
 
 	int64_t frameId = 0;
@@ -115,6 +121,9 @@ void ServerActiveEndpoint::loopFunc() {
 
 		const size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 		while (offset < totBytes) {
+
+			transformVertices(vertices, nVertices);
+
 			// Create new packet
 			FrameData packet;
 			packet.header.magic = cfg::PACKET_MAGIC;
