@@ -2,6 +2,8 @@
 
 #include "endpoint.hpp"
 
+class Camera;
+
 class ClientPassiveEndpoint : public Endpoint {
 	uint8_t *buffer = nullptr;
 	volatile bool bufferFilled = false;
@@ -15,5 +17,10 @@ public:
 };
 
 class ClientActiveEndpoint : public Endpoint {
+	Camera *camera = nullptr;
+
 	void loopFunc() override;
+
+public:
+	void setCamera(Camera *camera) { this->camera = camera; }
 };

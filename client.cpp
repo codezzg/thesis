@@ -36,6 +36,9 @@
 #include "buffers.hpp"
 #include "swap.hpp"
 #include "formats.hpp"
+#include "vulkan_errors.hpp"
+
+using namespace std::literals::string_literals;
 
 struct UniformBufferObject final {
 	glm::mat4 model;
@@ -62,8 +65,8 @@ private:
 	Application app;
 
 	ClientPassiveEndpoint passiveEP;
+	ClientActiveEndpoint activeEP;
 	int64_t curFrame = -1;
-	//Endpoint activeEP;
 
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
@@ -129,7 +132,7 @@ private:
 		streamingBufferData = malloc(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE);
 		camera = createCamera();
 		cameraCtrl = std::make_unique<CameraController>(camera);
-
+		activeEP.setCamera(&camera);
 		//loadModel(cfg::MODEL_PATH, vertices, indices);
 
 		createVertexBuffer();
@@ -378,8 +381,7 @@ private:
 		createInfo.clipped = VK_TRUE;
 		createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-		if (vkCreateSwapchainKHR(app.device, &createInfo, nullptr, &swapChain) != VK_SUCCESS)
-			throw std::runtime_error("failed to create swap chain!");
+		VLKCHECK(vkCreateSwapchainKHR(app.device, &createInfo, nullptr, &swapChain));
 
 		vkGetSwapchainImagesKHR(app.device, swapChain, &imageCount, nullptr);
 		swapChainImages.resize(imageCount);
@@ -453,8 +455,7 @@ private:
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &dependency;
 
-		if (vkCreateRenderPass(app.device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
-			throw std::runtime_error("failed to create render pass!");
+		VLKCHECK(vkCreateRenderPass(app.device, &renderPassInfo, nullptr, &renderPass));
 	}
 
 	void createDescriptorSetLayout() {
@@ -482,8 +483,7 @@ private:
 		layoutInfo.bindingCount = bindings.size();
 		layoutInfo.pBindings = bindings.data();
 
-		if (vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
-			throw std::runtime_error("failed to create descriptor set layout!");
+		VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
 	}
 
 	void createGraphicsPipeline() {
@@ -595,8 +595,7 @@ private:
 		pipelineLayoutInfo.pushConstantRangeCount = 0;
 		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
-		if (vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-			throw std::runtime_error("failed to create pipeline layout!");
+		VLKCHECK(vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -616,8 +615,7 @@ private:
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineInfo.basePipelineIndex = -1;
 
-		if (vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
-			throw std::runtime_error("failed to create graphics pipeline!");
+		VLKCHECK(vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
 
 		// Cleanup
 		vkDestroyShaderModule(app.device, fragShaderModule, nullptr);
@@ -641,8 +639,7 @@ private:
 			framebufferInfo.height = swapChainExtent.height;
 			framebufferInfo.layers = 1;
 
-			if (vkCreateFramebuffer(app.device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
-				throw std::runtime_error("failed to create framebuffer!");
+			VLKCHECK(vkCreateFramebuffer(app.device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
 		}
 	}
 
@@ -711,8 +708,7 @@ private:
 		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-		if (vkCreateSampler(app.device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
-			throw std::runtime_error("failed to create texture sampler!");
+		VLKCHECK(vkCreateSampler(app.device, &samplerInfo, nullptr, &textureSampler));
 	}
 
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) const {
@@ -728,8 +724,7 @@ private:
 		createInfo.subresourceRange.layerCount = 1;
 
 		VkImageView imageView;
-		if (vkCreateImageView(app.device, &createInfo, nullptr, &imageView) != VK_SUCCESS)
-			throw std::runtime_error("failed to create texture image view!");
+		VLKCHECK(vkCreateImageView(app.device, &createInfo, nullptr, &imageView));
 
 		return imageView;
 	}
@@ -759,8 +754,7 @@ private:
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
-		if (vkCreateImage(app.device, &imageInfo, nullptr, &image) != VK_SUCCESS)
-			throw std::runtime_error("failed to create image!");
+		VLKCHECK(vkCreateImage(app.device, &imageInfo, nullptr, &image));
 
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(app.device, image, &memRequirements);
@@ -770,8 +764,7 @@ private:
 		allocInfo.allocationSize = memRequirements.size;
 		allocInfo.memoryTypeIndex = findMemoryType(app, memRequirements.memoryTypeBits, properties);
 
-		if (vkAllocateMemory(app.device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate image memory!");
+		VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &imageMemory));
 
 		vkBindImageMemory(app.device, image, imageMemory, 0);
 	}
@@ -928,8 +921,7 @@ private:
 		poolInfo.pPoolSizes = poolSizes.data();
 		poolInfo.maxSets = 1;
 
-		if (vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
-			throw std::runtime_error("failed to create descriptor pool!");
+		VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool));
 	}
 
 	void createDescriptorSet() {
@@ -940,8 +932,7 @@ private:
 		allocInfo.descriptorSetCount = 1;
 		allocInfo.pSetLayouts = layouts;
 
-		if (vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate descriptor set!");
+		VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
 
 		VkDescriptorBufferInfo bufferInfo = {};
 		bufferInfo.buffer = uniformBuffer;
@@ -982,8 +973,7 @@ private:
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
-		if (vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
-			throw std::runtime_error("failed to allocate command buffers!");
+		VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
 
 		for (size_t i = 0; i < commandBuffers.size(); ++i) {
 			VkCommandBufferBeginInfo beginInfo = {};
@@ -1016,8 +1006,7 @@ private:
 			std::cerr << "recreating command buffer with v = " << vertices.size() << ", i = " << indices.size() << "\n";
 			vkCmdEndRenderPass(commandBuffers[i]);
 
-			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
-				throw std::runtime_error("failed to record command buffer!");
+			VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
 		}
 	}
 
@@ -1095,8 +1084,7 @@ private:
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		if (vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
-			throw std::runtime_error("failed to submit draw command buffer!");
+		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
 
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1125,8 +1113,7 @@ private:
 		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
 		VkShaderModule shaderModule;
-		if (vkCreateShaderModule(app.device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-			throw std::runtime_error("failed to create shader module!");
+		VLKCHECK(vkCreateShaderModule(app.device, &createInfo, nullptr, &shaderModule));
 
 		return shaderModule;
 	}

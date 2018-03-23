@@ -7,9 +7,11 @@
 #include <iostream>
 #include <array>
 #include <cstring>
+#include <unistd.h>
 #include "data.hpp"
 #include "config.hpp"
 #include "Vertex.hpp"
+#include "camera.hpp"
 
 static constexpr auto BUFSIZE = 1<<24;
 
@@ -41,7 +43,7 @@ void ClientPassiveEndpoint::loopFunc() {
 		if (packet->header.frameId > frameId) {
 			frameId = packet->header.frameId;
 			// Clear current buffer, start receiving new data
-			memset(backBuffer, 0, BUFSIZE);
+			memset(backBuffer, -1, BUFSIZE);
 			bufferFilled = false;
 			nBytesReceived = 0;
 		}
@@ -63,7 +65,7 @@ void ClientPassiveEndpoint::loopFunc() {
 			payloadLen = packet->payload.size();
 		}
 
-		//std::cerr << "received packet " << frameId << ":" << packet->header.packetId << "\n";
+		std::cerr << "received packet " << frameId << ":" << packet->header.packetId << "\n";
 
 		// Compute the offset to insert data at
 		const size_t offset = 2 * sizeof(uint64_t) + (packet->header.packetId == 0
@@ -89,10 +91,31 @@ const uint8_t* ClientPassiveEndpoint::peek() const {
 	return bufferFilled && !terminated ? buffer : nullptr;
 }
 
+static void insertCameraData(uint8_t *buffer, const Camera& camera) {
+	/*
+	 * CameraData:
+	 * [0] position.x
+	 * [1] position.y
+	 * [2] position.z
+	 * [3] rotation.w
+	 * [4] rotation.x
+	 * [5] rotation.y
+	 * [6] rotation.z
+	 */
+	buffer[0] = camera.position.x;
+	buffer[1] = camera.position.y;
+	buffer[2] = camera.position.z;
+	buffer[3] = camera.rotation.w;
+	buffer[4] = camera.rotation.x;
+	buffer[5] = camera.rotation.y;
+	buffer[6] = camera.rotation.z;
+}
 
 void ClientActiveEndpoint::loopFunc() {
 	int64_t frameId = -1;
 	uint64_t packetId = 0;
+
+	using namespace std::literals::chrono_literals;
 
 	while (!terminated) {
 		// Prepare data
@@ -101,16 +124,15 @@ void ClientActiveEndpoint::loopFunc() {
 		data.header.frameId = frameId;
 		data.header.packetId = packetId;
 		/* Payload:
-		 * [0] position.x
-		 * [1] position.y
-		 * [2] position.z
-		 * [3] rotation.w
-		 * [4] rotation.x
-		 * [5] rotation.y
-		 * [6] rotation.z
+		 * [0] CameraData (28 B)
 		 */
-		auto p = data.payload.data();
-	//p[0] =
+		if (camera)
+			insertCameraData(data.payload.data(), *camera);
 
+		if (::write(socket, &data, sizeof(data)) < 0) {
+			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
+		}
+
+		std::this_thread::sleep_for(0.033s);
 	}
 }

@@ -153,7 +153,7 @@ void ServerActiveEndpoint::loopFunc() {
 		++frameId;
 		packetId = 0;
 
-		std::this_thread::sleep_for(0.033s);
+		std::this_thread::sleep_for(1.033s);
 	}
 }
 
