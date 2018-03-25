@@ -85,7 +85,7 @@ static void transformVertices(Vertex *vertices, int nVertices,
 
 	static float t = 0;
 	for (int i = 0; i < nVertices; ++i) {
-		vertices[i].pos += 0.01 * cos(t * 0.1 + i * 0.01);
+		vertices[i].pos += cos(t * 10 + i * 0.01);
 		vertices[i].color = glm::normalize(camera.position);
 	}
 	t += 0.033;
