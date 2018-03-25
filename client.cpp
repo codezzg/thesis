@@ -37,7 +37,7 @@
 #include "buffers.hpp"
 #include "swap.hpp"
 #include "formats.hpp"
-#include "vulkan_errors.hpp"
+#include "vulk_errors.hpp"
 
 using namespace std::literals::string_literals;
 
