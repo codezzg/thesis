@@ -330,8 +330,9 @@ private:
 		              prevY = cfg::HEIGHT / 2.0;
 		auto appl = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
 		appl->cameraCtrl->turn(xpos - prevX, prevY - ypos);
-		prevX = xpos;
-		prevY = ypos;
+		//prevX = xpos;
+		//prevY = ypos;
+		glfwSetCursorPos(window, prevX, prevY);
 	}
 
 	void recreateSwapChain() {

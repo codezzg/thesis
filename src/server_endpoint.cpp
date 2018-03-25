@@ -64,7 +64,7 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 	return srcIdx;
 }
 
-constexpr size_t MEMSIZE = 1<<24;
+static constexpr size_t MEMSIZE = 1<<24;
 
 static uint8_t* allocServerMemory() {
 	return new uint8_t[MEMSIZE];
@@ -75,10 +75,18 @@ static void deallocServerMemory(uint8_t *mem) {
 }
 
 // STUB
-static void transformVertices(Vertex *vertices, int nVertices) {
+static void transformVertices(Vertex *vertices, int nVertices,
+		const std::array<uint8_t, FrameData().payload.size()>& clientData)
+{
+	// TODO do something with client data
+	auto camera = deserializeCamera(clientData.data());
+	std::cerr << "camera: " << glm::to_string(camera.position) << " / "
+		<< glm::to_string(camera.rotation) << "\n";
+
 	static float t = 0;
 	for (int i = 0; i < nVertices; ++i) {
 		vertices[i].pos += 0.01 * cos(t * 0.1 + i * 0.01);
+		vertices[i].color = glm::normalize(camera.position);
 	}
 	t += 0.033;
 }
@@ -136,10 +144,7 @@ void ServerActiveEndpoint::loopFunc() {
 			std::copy(server.shared.clientData.begin(), server.shared.clientData.end(), clientData.begin());
 		}
 
-		// TODO do something with client data
-		auto camera = deserializeCamera(clientData.data());
-		std::cerr << "camera: " << glm::to_string(camera.position) << " / "
-			<< glm::to_string(camera.rotation) << "\n";
+		transformVertices(vertices, nVertices, clientData);
 
 		if (frameId >= 0)
 			sendFrameData(frameId, vertices, nVertices, indices, nIndices);
@@ -161,9 +166,6 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, Vertex *vertices,
 
 	const size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 	while (offset < totBytes) {
-
-		transformVertices(vertices, nVertices);
-
 		// Create new packet
 		FrameData packet;
 		packet.header.magic = cfg::PACKET_MAGIC;
