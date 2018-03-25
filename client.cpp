@@ -32,6 +32,7 @@
 #include "application.hpp"
 #include "client_endpoint.hpp"
 #include "camera.hpp"
+#include "camera_ctrl.hpp"
 #include "clock.hpp"
 #include "buffers.hpp"
 #include "swap.hpp"

@@ -15,6 +15,9 @@
 #include "data.hpp"
 #include "config.hpp"
 #include "frame_utils.hpp"
+#include "camera.hpp"
+#include "serialization.hpp"
+#include <glm/gtx/string_cast.hpp>
 
 /** Writes all possible vertices and indices, starting from `offset`-th byte,
  *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
@@ -134,6 +137,9 @@ void ServerActiveEndpoint::loopFunc() {
 		}
 
 		// TODO do something with client data
+		auto camera = deserializeCamera(clientData.data());
+		std::cerr << "camera: " << glm::to_string(camera.position) << " / "
+			<< glm::to_string(camera.rotation) << "\n";
 
 		if (frameId >= 0)
 			sendFrameData(frameId, vertices, nVertices, indices, nIndices);

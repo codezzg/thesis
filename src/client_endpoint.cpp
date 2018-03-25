@@ -12,6 +12,7 @@
 #include "config.hpp"
 #include "vertex.hpp"
 #include "camera.hpp"
+#include "serialization.hpp"
 #include "frame_utils.hpp"
 
 static constexpr auto BUFSIZE = 1<<24;
@@ -89,26 +90,6 @@ const uint8_t* ClientPassiveEndpoint::peek() const {
 
 
 /////////////////////// Active EP
-static void insertCameraData(uint8_t *buffer, const Camera& camera) {
-	/*
-	 * CameraData:
-	 * [0] position.x
-	 * [1] position.y
-	 * [2] position.z
-	 * [3] rotation.w
-	 * [4] rotation.x
-	 * [5] rotation.y
-	 * [6] rotation.z
-	 */
-	buffer[0] = camera.position.x;
-	buffer[1] = camera.position.y;
-	buffer[2] = camera.position.z;
-	buffer[3] = camera.rotation.w;
-	buffer[4] = camera.rotation.x;
-	buffer[5] = camera.rotation.y;
-	buffer[6] = camera.rotation.z;
-}
-
 void ClientActiveEndpoint::loopFunc() {
 	int64_t frameId = 0;
 	uint64_t packetId = 0;
@@ -118,7 +99,7 @@ void ClientActiveEndpoint::loopFunc() {
 	auto delay = 0ms;
 
 	while (!terminated) {
-		LimitFrameTime lft{ 1000ms - delay };
+		LimitFrameTime lft{ 33ms - delay };
 
 		// Prepare data
 		FrameData data;
@@ -129,7 +110,7 @@ void ClientActiveEndpoint::loopFunc() {
 		 * [0] CameraData (28 B)
 		 */
 		if (camera)
-			insertCameraData(data.payload.data(), *camera);
+			serializeCamera(data.payload.data(), *camera);
 
 		if (::write(socket, &data, sizeof(data)) < 0) {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
