@@ -78,6 +78,7 @@ bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort) {
 }
 
 void Endpoint::runLoop() {
+	std::cerr << "[" << this << "] called runLoop(). loopThead = " << loopThread.get() << "\n";
 	if (loopThread)
 		throw std::logic_error("Called runLoop twice on the same endpoint!");
 

@@ -10,8 +10,9 @@
 #include <unistd.h>
 #include "data.hpp"
 #include "config.hpp"
-#include "Vertex.hpp"
+#include "vertex.hpp"
 #include "camera.hpp"
+#include "frame_utils.hpp"
 
 static constexpr auto BUFSIZE = 1<<24;
 
@@ -109,12 +110,16 @@ static void insertCameraData(uint8_t *buffer, const Camera& camera) {
 }
 
 void ClientActiveEndpoint::loopFunc() {
-	int64_t frameId = -1;
+	int64_t frameId = 0;
 	uint64_t packetId = 0;
 
 	using namespace std::literals::chrono_literals;
 
+	auto delay = 0ms;
+
 	while (!terminated) {
+		LimitFrameTime lft{ 1000ms - delay };
+
 		// Prepare data
 		FrameData data;
 		data.header.magic = cfg::PACKET_MAGIC;
@@ -130,6 +135,7 @@ void ClientActiveEndpoint::loopFunc() {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
 		}
 
-		std::this_thread::sleep_for(0.033s);
+		++frameId;
+		delay = lft.getFrameDelay();
 	}
 }

@@ -24,7 +24,7 @@ void dumpPacket(const char *fname, const FrameData& packet);
 
 class Endpoint {
 private:
-	std::unique_ptr<std::thread> loopThread;
+	std::unique_ptr<std::thread> loopThread = {};
 
 	bool start(const char *remoteIp, uint16_t remotePort, bool passive);
 

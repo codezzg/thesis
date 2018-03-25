@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "Vertex.hpp"
+#include "vertex.hpp"
 
 //struct Model {
 	//std::vector<Vertex> vertices;

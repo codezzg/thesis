@@ -8,13 +8,13 @@
 #include <iostream>
 #include <thread>
 #include <vector>
-#include "Vertex.hpp"
 // TODO cross-platform
 #include <unistd.h>
 #include <cstring>
 #include "model.hpp"
 #include "data.hpp"
 #include "config.hpp"
+#include "frame_utils.hpp"
 
 /** Writes all possible vertices and indices, starting from `offset`-th byte,
  *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
@@ -93,7 +93,7 @@ static void transformVertices(Vertex *vertices, int nVertices) {
 //};
 void ServerActiveEndpoint::loopFunc() {
 
-	uint8_t *serverMemory = allocServerMemory();
+	serverMemory = allocServerMemory();
 
 	int nVertices = 0,
 	    nIndices = 0;
@@ -108,78 +108,115 @@ void ServerActiveEndpoint::loopFunc() {
 
 	using namespace std::chrono_literals;
 
-	int64_t frameId = 0;
+	std::mutex loopMtx;
+	std::unique_lock<std::mutex> loopUlk{ loopMtx };
+
+	constexpr auto targetFrameTime = 33ms;
+	auto delay = 0ms;
 
 	// Send datagrams
 	while (!terminated) {
+		LimitFrameTime lft{ 33ms - delay };
 
-		// Start new frame
-		int totSent = 0;
-		int nPacketsSent = 0;
-		auto offset = 0lu;
-		int32_t packetId = 0;
+		// Wait for the new frame data from the client
+		std::cerr << "Waiting for client data...\n";
+		server.shared.loopCv.wait(loopUlk);
+		//loopCv.wait_for(loopMtx, 0.033s);
 
-		const size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
-		while (offset < totBytes) {
+		std::cerr << "Received data from frame " << server.shared.clientFrame << "\n";
 
-			transformVertices(vertices, nVertices);
-
-			// Create new packet
-			FrameData packet;
-			packet.header.magic = cfg::PACKET_MAGIC;
-			packet.header.frameId = frameId;
-			packet.header.packetId = packetId;
-			packet.header.nVertices = nVertices;
-			packet.header.nIndices = nIndices;
-			const auto preOff = offset;
-			offset = writeAllPossible(packet.payload, serverMemory, nVertices, nIndices, offset);
-			//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
-			//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
-			//dumpPacket("server.dump", packet);
-			if (write(socket, &packet, sizeof(packet)) < 0) {
-				std::cerr << "could not write to remote: " << strerror(errno) << "\n";
-			}
-			totSent += packet.payload.size();
-			++nPacketsSent;
-			++packetId;
+		int64_t frameId = -1;
+		std::array<uint8_t, FrameData().payload.size()> clientData;
+		{
+			std::lock_guard<std::mutex> lock{ server.shared.clientDataMtx };
+			frameId = server.shared.clientFrame;
+			std::copy(server.shared.clientData.begin(), server.shared.clientData.end(), clientData.begin());
 		}
 
-		//std::cerr << "Sent total " << totSent << " bytes (" << nPacketsSent << " packets).\n";
+		// TODO do something with client data
 
-		++frameId;
+		if (frameId >= 0)
+			sendFrameData(frameId, vertices, nVertices, indices, nIndices);
 
-		std::this_thread::sleep_for(0.033s);
+		delay = lft.getFrameDelay();
 	}
 
 	deallocServerMemory(serverMemory);
 }
 
+void ServerActiveEndpoint::sendFrameData(int64_t frameId, Vertex *vertices,
+		int nVertices, Index *indices, int nIndices)
+{
+	// Start new frame
+	int totSent = 0;
+	int nPacketsSent = 0;
+	auto offset = 0lu;
+	int32_t packetId = 0;
+
+	const size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
+	while (offset < totBytes) {
+
+		transformVertices(vertices, nVertices);
+
+		// Create new packet
+		FrameData packet;
+		packet.header.magic = cfg::PACKET_MAGIC;
+		packet.header.frameId = frameId;
+		packet.header.packetId = packetId;
+		packet.header.nVertices = nVertices;
+		packet.header.nIndices = nIndices;
+		const auto preOff = offset;
+		offset = writeAllPossible(packet.payload, serverMemory, nVertices, nIndices, offset);
+		//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
+		//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
+		//dumpPacket("server.dump", packet);
+		if (::write(socket, &packet, sizeof(packet)) < 0) {
+			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
+		}
+		totSent += packet.payload.size();
+		++nPacketsSent;
+		++packetId;
+	}
+	//std::cerr << "Sent total " << totSent << " bytes (" << nPacketsSent << " packets).\n";
+}
+
+////////////////////////////////////////
+
+
 // Receives client parameters wherewith the server shall calculate the primitives to send during next frame
 void ServerPassiveEndpoint::loopFunc() {
-	// This buffer contains a single packet
-	buffer = new uint8_t[sizeof(FrameData)];
-	int64_t frameId = -1;
+	// Track the latest frame we received
+	int64_t latestFrame = -1;
 
 	while (!terminated) {
+		std::cerr << "loop start\n";
 		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
-		if (!validatePacket(packetBuf.data(), frameId))
+		if (!validatePacket(packetBuf.data(), latestFrame))
 			continue;
 
 		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
-		// Update frame if necessary
-		if (packet->header.frameId > frameId) {
-			frameId = packet->header.frameId;
+		std::cerr << "Received packet " << packet->header.frameId << "\n";
+		if (packet->header.frameId <= latestFrame)
+			continue;
+
+		latestFrame = packet->header.frameId;
+
+		// Update shared data
+		{
+			std::lock_guard<std::mutex> lock{ server.shared.clientDataMtx };
+			memcpy(server.shared.clientData.data(), packet->payload.data(), packet->payload.size());
+			server.shared.clientFrame = latestFrame;
 		}
-
-		memcpy(buffer, packet->payload.data(), packet->payload.size());
+		server.shared.loopCv.notify_all();
 	}
-
-	delete [] buffer;
 }
 
+/////////////////////////////////////////
+
+Server::Server() : activeEP(*this), passiveEP(*this) {}
 
 void Server::run(const char *activeIp, int activePort, const char *passiveIp, int passivePort) {
 	activeEP.startActive(activeIp, activePort);

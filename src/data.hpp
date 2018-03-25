@@ -2,7 +2,7 @@
 
 #include <array>
 #include "config.hpp"
-#include "Vertex.hpp"
+#include "vertex.hpp"
 
 #pragma pack(push, 1)
 struct FrameHeader final {

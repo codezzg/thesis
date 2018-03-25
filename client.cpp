@@ -21,10 +21,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb_image.h"
 #include "FPSCounter.hpp"
-#include "Vertex.hpp"
+#include "vertex.hpp"
 #include "validation.hpp"
 #include "model.hpp"
-#include "utils.hpp"
+#include "vulk_utils.hpp"
 #include "config.hpp"
 #include "window.hpp"
 #include "phys_device.hpp"
@@ -147,6 +147,9 @@ private:
 	void mainLoop() {
 		passiveEP.startPassive("0.0.0.0", 1234);
 		passiveEP.runLoop();
+
+		activeEP.startActive("0.0.0.0", 1235);
+		activeEP.runLoop();
 
 		FPSCounter fps;
 		fps.start();
