@@ -12,3 +12,4 @@ gmon.out
 Makefile
 .gdb_history
 *.gz
+cmake_install.cmake

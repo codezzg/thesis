@@ -195,7 +195,10 @@ private:
 		if (vertices.size() != pvs || indices.size() != pis) {
 			pvs = vertices.size();
 			pis = indices.size();
-			recreateSwapChain();
+			vkDeviceWaitIdle(app.device);
+			vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(commandBuffers.size()),
+				commandBuffers.data());
+			createCommandBuffers();
 		}
 
 		updateVertexBuffer();
@@ -1074,6 +1077,7 @@ private:
 
 
 	void drawFrame() {
+
 		uint32_t imageIndex;
 		auto result = vkAcquireNextImageKHR(app.device, swapChain, std::numeric_limits<uint64_t>::max(),
 				imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
