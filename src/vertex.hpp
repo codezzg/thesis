@@ -42,6 +42,11 @@ inline std::ostream& operator <<(std::ostream& s, const glm::vec3& v) {
 	return s;
 }
 
+inline std::ostream& operator <<(std::ostream& s, const glm::vec4& v) {
+	s << "(" << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ")";
+	return s;
+}
+
 inline std::ostream& operator <<(std::ostream& s, const Vertex& v) {
 	s << v.pos << ", " << v.color << ", " << v.texCoord;
 	return s;

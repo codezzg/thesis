@@ -1,19 +1,20 @@
 #pragma once
 
-#include <vector>
 #include "vertex.hpp"
 
-//struct Model {
-	//std::vector<Vertex> vertices;
-	//std::vector<uint32_t> indices;
-//};
+struct Model {
+	/** Unowning pointer to the model's vertices */
+	Vertex *vertices = nullptr;
+	/** Unowning pointer to the model's indices */
+	Index *indices = nullptr;
+	int nVertices = 0;
+	int nIndices = 0;
+};
 
 /** Loads a model's vertices and indices into `buffer`.
- *  Buffer is filled with [vertices|indices], and indices start at
+ *  `buffer` must be a region of correctly initialized memory.
+ *  Upon success, `buffer` gets filled with [vertices|indices], and indices start at
  *  offset `sizeof(Vertex) * nVertices`.
- *  Will return false if there were errors.
+ *  Will return a model with nullptr `vertices` if there were errors.
  */
-bool loadModel(const char *modelPath,
-		/* out */ uint8_t *buffer,
-		/* out */ int& nVertices,
-		/* out */ int& nIndices);
+Model loadModel(const char *modelPath, /* inout */ uint8_t *buffer);

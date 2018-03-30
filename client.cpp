@@ -340,7 +340,7 @@ private:
 		glfwGetWindowSize(app.window, &width, &height);
 		if (width == 0 || height == 0) return;
 
-		vkDeviceWaitIdle(app.device);
+		VLKCHECK(vkDeviceWaitIdle(app.device));
 
 		cleanupSwapChain();
 
@@ -1057,7 +1057,8 @@ private:
 				currentTime - startTime).count();
 
 		UniformBufferObject ubo = {};
-		ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
+		ubo.model = glm::mat4{1.0f};
+		//ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
 		//std::cerr << "view mat = " << glm::to_string(camera.viewMatrix()) << "\n";
 		ubo.view = camera.viewMatrix();
 			//glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});

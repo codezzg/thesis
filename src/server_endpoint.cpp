@@ -8,6 +8,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <glm/gtx/string_cast.hpp>
 // TODO cross-platform
 #include <unistd.h>
 #include <cstring>
@@ -17,7 +18,7 @@
 #include "frame_utils.hpp"
 #include "camera.hpp"
 #include "serialization.hpp"
-#include <glm/gtx/string_cast.hpp>
+#include "server_appstage.hpp"
 
 /** Writes all possible vertices and indices, starting from `offset`-th byte,
  *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
@@ -74,23 +75,6 @@ static void deallocServerMemory(uint8_t *mem) {
 	delete [] mem;
 }
 
-// STUB
-static void transformVertices(Vertex *vertices, int nVertices,
-		const std::array<uint8_t, FrameData().payload.size()>& clientData)
-{
-	// TODO do something with client data
-	auto camera = deserializeCamera(clientData.data());
-	std::cerr << "camera: " << glm::to_string(camera.position) << " / "
-		<< glm::to_string(camera.rotation) << "\n";
-
-	static float t = 0;
-	for (int i = 0; i < nVertices; ++i) {
-		vertices[i].pos += cos(t * 10 + i * 0.01);
-		vertices[i].color = glm::normalize(camera.position);
-	}
-	t += 0.033;
-}
-
 // TODO
 //const std::vector<Vertex> vertices = {
 	////{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
@@ -105,16 +89,19 @@ static void transformVertices(Vertex *vertices, int nVertices,
 void ServerActiveEndpoint::loopFunc() {
 
 	serverMemory = allocServerMemory();
+	// This is used for storing the data to send, varying each frame.
+	uint8_t *tmpMemory = serverMemory + MEMSIZE * 2 / 3;
 
-	int nVertices = 0,
-	    nIndices = 0;
-	if (!loadModel("models/mill.obj", serverMemory, nVertices, nIndices))
+	auto model = loadModel("models/mill.obj", serverMemory);
+	if (model.vertices == nullptr) {
+		std::cerr << "Failed to load model.\n";
 		return;
+	}
 
 	const auto vertices = reinterpret_cast<Vertex*>(serverMemory);
-	const auto indices = reinterpret_cast<Index*>(serverMemory + sizeof(Vertex) * nVertices);
-	std::cerr << "Loaded " << nVertices << " vertices + " << nIndices << " indices. "
-		<< "Tot size = " << (nVertices * sizeof(Vertex) + nIndices * sizeof(Index)) / 1024
+	const auto indices = reinterpret_cast<Index*>(serverMemory + sizeof(Vertex) * model.nVertices);
+	std::cerr << "Loaded " << model.nVertices << " vertices + " << model.nIndices << " indices. "
+		<< "Tot size = " << (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024
 		<< " KiB\n";
 
 	using namespace std::chrono_literals;
@@ -125,14 +112,14 @@ void ServerActiveEndpoint::loopFunc() {
 	constexpr auto targetFrameTime = 33ms;
 	auto delay = 0ms;
 
-	// Send datagrams
+	// Send frame datagrams to the client
 	while (!terminated) {
-		LimitFrameTime lft{ 33ms - delay };
+		const LimitFrameTime lft{ 33ms - delay };
 
 		// Wait for the new frame data from the client
 		std::cerr << "Waiting for client data...\n";
 		server.shared.loopCv.wait(loopUlk);
-		//loopCv.wait_for(loopMtx, 0.033s);
+		//server.shared.loopCv.wait_for(loopMtx, 0.033s);
 
 		std::cerr << "Received data from frame " << server.shared.clientFrame << "\n";
 
@@ -141,13 +128,18 @@ void ServerActiveEndpoint::loopFunc() {
 		{
 			std::lock_guard<std::mutex> lock{ server.shared.clientDataMtx };
 			frameId = server.shared.clientFrame;
-			std::copy(server.shared.clientData.begin(), server.shared.clientData.end(), clientData.begin());
+			std::copy(server.shared.clientData.begin(),
+					server.shared.clientData.end(), clientData.begin());
 		}
 
-		transformVertices(vertices, nVertices, clientData);
+		int nVertices = model.nVertices,
+		    nIndices = model.nIndices;
+		std::cerr << "v/i: " << nVertices << ", " << nIndices << " ---> ";
+		transformVertices(model, clientData, tmpMemory, nVertices, nIndices);
+		std::cerr << nVertices << ", " << nIndices << "\n";
 
 		if (frameId >= 0)
-			sendFrameData(frameId, vertices, nVertices, indices, nIndices);
+			sendFrameData(frameId, tmpMemory, nVertices, nIndices);
 
 		delay = lft.getFrameDelay();
 	}
@@ -155,9 +147,7 @@ void ServerActiveEndpoint::loopFunc() {
 	deallocServerMemory(serverMemory);
 }
 
-void ServerActiveEndpoint::sendFrameData(int64_t frameId, Vertex *vertices,
-		int nVertices, Index *indices, int nIndices)
-{
+void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int nVertices, int nIndices) {
 	// Start new frame
 	int totSent = 0;
 	int nPacketsSent = 0;
@@ -173,8 +163,8 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, Vertex *vertices,
 		packet.header.packetId = packetId;
 		packet.header.nVertices = nVertices;
 		packet.header.nIndices = nIndices;
-		const auto preOff = offset;
-		offset = writeAllPossible(packet.payload, serverMemory, nVertices, nIndices, offset);
+		//const auto preOff = offset;
+		offset = writeAllPossible(packet.payload, buffer, nVertices, nIndices, offset);
 		//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
 		//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
 		//dumpPacket("server.dump", packet);
@@ -197,7 +187,6 @@ void ServerPassiveEndpoint::loopFunc() {
 	int64_t latestFrame = -1;
 
 	while (!terminated) {
-		std::cerr << "loop start\n";
 		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;

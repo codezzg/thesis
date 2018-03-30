@@ -67,7 +67,9 @@ static const char* mmap_file(size_t *len, const char *filename) {
 #endif // USE_EXPERIMENTAL_TINYOBJ
 
 
-bool loadModel(const char *modelPath, uint8_t *buffer, int& nVertices, int& nIndices) {
+Model loadModel(const char *modelPath, uint8_t *buffer) {
+
+	Model model = {};
 
 #ifdef USE_EXPERIMENTAL_TINYOBJ
 	namespace to = tinyobj_opt;
@@ -86,7 +88,7 @@ bool loadModel(const char *modelPath, uint8_t *buffer, int& nVertices, int& nInd
 	const char* data = mmap_file(&data_len, modelPath);
 	if (data == nullptr) {
 		printf("failed to load file\n");
-		return false;
+		return model;
 	}
 	auto load_t_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
@@ -100,12 +102,12 @@ bool loadModel(const char *modelPath, uint8_t *buffer, int& nVertices, int& nInd
 	std::cout << "load time: " << load_ms.count() << " [msecs]" << std::endl;
 	if (!ret) {
 		std::cerr << "failed to load model!\n";
-		return false;
+		return model;
 	}
 #else
 	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath)) {
 		std::cerr << err;
-		return false;
+		return model;
 	}
 	auto load_t_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
@@ -115,7 +117,6 @@ bool loadModel(const char *modelPath, uint8_t *buffer, int& nVertices, int& nInd
 	std::unordered_map<Vertex, uint32_t> uniqueVertices;
 	std::vector<Index> indices;
 
-	nVertices = 0;
 #ifdef USE_EXPERIMENTAL_TINYOBJ
 	indices.reserve(attrib.indices.size());
 	for (const auto& index : attrib.indices) {
@@ -136,9 +137,9 @@ bool loadModel(const char *modelPath, uint8_t *buffer, int& nVertices, int& nInd
 			vertex.color = {1.0f, 1.0f, 1.0f};
 
 			if (uniqueVertices.count(vertex) == 0) {
-				uniqueVertices[vertex] = nVertices;
-				*(reinterpret_cast<Vertex*>(buffer) + nVertices) = vertex;
-				++nVertices;
+				uniqueVertices[vertex] = model.nVertices;
+				*(reinterpret_cast<Vertex*>(buffer) + model.nVertices) = vertex;
+				model.nVertices++;
 			}
 
 			indices.emplace_back(uniqueVertices[vertex]);
@@ -146,10 +147,15 @@ bool loadModel(const char *modelPath, uint8_t *buffer, int& nVertices, int& nInd
 		}
 #endif
 	}
-	nIndices = indices.size();
-	// Copy indices into buffer
-	memcpy(buffer + sizeof(Vertex) * nVertices, indices.data(), sizeof(Index) * indices.size());
-	std::cout << "size = " << nVertices << ", " << nIndices << "\n";
 
-	return true;
+	model.vertices = reinterpret_cast<Vertex*>(buffer);
+	model.indices = reinterpret_cast<Index*>(buffer + sizeof(Vertex) * model.nVertices);
+	model.nIndices = indices.size();
+
+	// Copy indices into buffer
+	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
+
+	std::cout << "size = " << model.nVertices << ", " << model.nIndices << "\n";
+
+	return model;
 }

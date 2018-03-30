@@ -99,7 +99,7 @@ void ClientActiveEndpoint::loopFunc() {
 	auto delay = 0ms;
 
 	while (!terminated) {
-		LimitFrameTime lft{ 33ms - delay };
+		const LimitFrameTime lft{ 33ms - delay };
 
 		// Prepare data
 		FrameData data;

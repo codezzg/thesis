@@ -14,7 +14,8 @@ class ServerActiveEndpoint : public Endpoint {
 	uint8_t *serverMemory = nullptr;
 
 	void loopFunc() override;
-	void sendFrameData(int64_t frameId, Vertex *vertices, int nVertices, Index *indices, int nIndices);
+	/** Sends vertices and indices, stored at `buffer`, to client */
+	void sendFrameData(int64_t frameId, uint8_t *buffer, int nVertices, int nIndices);
 public:
 	ServerActiveEndpoint(Server& server) : server(server) {}
 };

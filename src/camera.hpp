@@ -20,3 +20,19 @@ struct Camera {
 };
 
 Camera createCamera();
+
+struct Frustum {
+	glm::vec4 left;
+	glm::vec4 right;
+	glm::vec4 bottom;
+	glm::vec4 top;
+	glm::vec4 near;
+	glm::vec4 far;
+};
+
+/** Given a matrix `m`, calculates the frustum planes.
+ *  If `m` is the projection matrix, the clipping planes are in view space;
+ *  if `m` is the modelviewproj matrix, they are in model space.
+ *  @see http://web.archive.org/web/20120531231005/http://crazyjoke.free.fr/doc/3D/plane%20extraction.pdf
+ */
+Frustum calcFrustum(const glm::mat4& m);
