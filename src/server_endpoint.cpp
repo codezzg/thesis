@@ -2,15 +2,10 @@
 #include <chrono>
 #include <algorithm>
 #include <cstdlib>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <iostream>
 #include <thread>
 #include <vector>
 #include <glm/gtx/string_cast.hpp>
-// TODO cross-platform
-#include <unistd.h>
 #include <cstring>
 #include "model.hpp"
 #include "data.hpp"
@@ -168,7 +163,7 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 		//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
 		//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
 		//dumpPacket("server.dump", packet);
-		if (::write(socket, &packet, sizeof(packet)) < 0) {
+		if (::send(socket, reinterpret_cast<const char*>(&packet), sizeof(packet), 0) < 0) {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
 		}
 		totSent += packet.payload.size();

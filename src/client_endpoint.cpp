@@ -112,7 +112,7 @@ void ClientActiveEndpoint::loopFunc() {
 		if (camera)
 			serializeCamera(data.payload.data(), *camera);
 
-		if (::write(socket, &data, sizeof(data)) < 0) {
+		if (::send(socket, &data, sizeof(data), 0) < 0) {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
 		}
 

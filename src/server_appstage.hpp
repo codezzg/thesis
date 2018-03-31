@@ -19,7 +19,11 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 		/* inout */ uint8_t *buffer, /* inout */ int& nVertices, /* inout */ int& nIndices);
 
 
+#ifdef _WIN32
+inline bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum) {
+#else
 constexpr bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum) {
+#endif
 	{
 		const auto& plane = frustum.left;
 		if (plane.x * pos.x + plane.y * pos.y + plane.z * pos.z + plane.w <= -radius)

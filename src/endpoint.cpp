@@ -1,18 +1,14 @@
 #include "endpoint.hpp"
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <stdexcept>
 #include <cstdlib>
 #include <iostream>
-#include <unistd.h>
 #include <fstream>
 #include <utility>
 #include <cstring>
 #include <functional>
 #include "data.hpp"
 
-using socket_connect_op = int (*) (int, const sockaddr*, socklen_t);
+using socket_connect_op = int (*) (socket_t, const sockaddr*, socklen_t);
 
 static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op op) {
 	// Connect
@@ -24,19 +20,18 @@ static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op o
 		if (op(sock, info->ai_addr, info->ai_addrlen) == 0)
 			return sock;
 
-		close(sock);
+		xplatSockClose(sock);
 	}
 
 	return invalidSocketID();
 }
 
-// TODO: on windows, these ought to setup and cleanup sockets
 bool Endpoint::init() {
-	return true;
+	return xplatSocketInit();
 }
 
 bool Endpoint::cleanup() {
-	return true;
+	return xplatSocketCleanup();
 }
 
 Endpoint::~Endpoint() {
@@ -91,14 +86,14 @@ void Endpoint::close() {
 	if (terminated)
 		return;
 	terminated = true;
-	shutdown(socket, SHUT_RDWR);
+	xplatSockClose(socket);
 	if (loopThread && loopThread->joinable())
 		loopThread->join();
 	loopThread.reset(nullptr);
 }
 
 bool receivePacket(socket_t socket, uint8_t *buffer, size_t len) {
-	ssize_t count = recv(socket, buffer, len, 0);
+	ssize_t count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
 
 	if (count < 0) {
 		std::cerr << "Error receiving message: " << strerror(errno) << "\n";

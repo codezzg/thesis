@@ -3,7 +3,10 @@
 #include <glm/glm.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
-#include <GLFW/glfw3.h>
+
+// Thank you, window$...
+#undef near
+#undef far 
 
 struct Camera {
 	glm::vec3 position = { 0, 0, 0 };

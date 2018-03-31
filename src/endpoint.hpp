@@ -4,16 +4,7 @@
 #include <thread>
 #include <memory>
 #include <array>
-
-using socket_t = int;
-
-constexpr bool isValidSocket(socket_t sock) {
-	return sock >= 0;
-}
-
-constexpr socket_t invalidSocketID() {
-	return -1;
-}
+#include "endpoint_xplatform.hpp"
 
 // Common functions
 bool receivePacket(socket_t socket, uint8_t *buffer, size_t len);
