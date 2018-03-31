@@ -88,7 +88,7 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 		for (int i = 0; i < model.nVertices; ++i) {
 			const auto& v = model.vertices[i];
 			const auto vv = camera.viewMatrix() * glm::vec4{v.pos.x, v.pos.y, v.pos.z, 1.0};
-			if (sphereInFrustum(vv, sphere.radius * 2, frustum)) {
+			if (true || sphereInFrustum(vv, sphere.radius * 2, frustum)) {
 				verticesBuffer[vertexIdx] = v;
 				indexRemap[i] = vertexIdx;
 				if (!sphereInFrustum(vv, sphere.radius, frustum))

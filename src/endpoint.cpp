@@ -19,6 +19,7 @@ static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op o
 		if (op(sock, info->ai_addr, info->ai_addrlen) == 0)
 			return sock;
 
+		std::cerr << "socket connect op failed with " << xplatGetErrorString() << " (" << xplatGetError() << ") " << std::endl;
 		xplatSockClose(sock);
 	}
 
@@ -95,7 +96,7 @@ bool receivePacket(socket_t socket, uint8_t *buffer, size_t len) {
 	auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
 
 	if (count < 0) {
-		std::cerr << "Error receiving message: " << strerror(errno) << "\n";
+		std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
 		return false;
 	} else if (count == sizeof(buffer)) {
 		std::cerr << "Warning: datagram was truncated as it's too large.\n";

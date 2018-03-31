@@ -28,3 +28,15 @@ int xplatSockClose(socket_t sock) {
 #endif
 	return status;
 }
+
+const char* xplatGetErrorString() {
+	return strerror(xplatGetError());
+}
+
+int xplatGetError() {
+#ifdef _WIN32
+	return WSAGetLastError();
+#else
+	return errno;
+#endif
+}

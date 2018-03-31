@@ -150,10 +150,10 @@ private:
 	}
 
 	void mainLoop() {
-		passiveEP.startPassive("0.0.0.0", 1234);
+		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT);
 		passiveEP.runLoop();
 
-		activeEP.startActive("0.0.0.0", 1235);
+		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT);
 		activeEP.runLoop();
 
 		FPSCounter fps;
@@ -1142,6 +1142,12 @@ private:
 };
 
 int main() {
+	if (!Endpoint::init()) {
+		std::cerr << "Failed to initialize sockets." << std::endl;
+		return EXIT_FAILURE;
+	}
+	std::atexit([]() { Endpoint::cleanup(); });
+
 	HelloTriangleApplication app;
 
 	try {
