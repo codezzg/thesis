@@ -49,35 +49,4 @@ add_definitions(-DGLM_FORCE_CXX14)
 
 target_link_libraries(${PROJECT_NAME} common)
 
-if(RELEASE)
-	message(STATUS "Compiling in RELEASE mode")
-	# Disable assertions
-	add_definitions(-DNDEBUG=1)
-	add_definitions(-DRELEASE=1)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORTIFY_SOURCE=2 -O2 -Wall -pedantic -Wextra")
-else()
-	message(STATUS "Compiling in DEBUG mode")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -ggdb -Wall -pedantic -Wextra")
-endif()
-
-# Profiling tools
-if(${GPROF})
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg -no-pie -fPIC")
-	message(STATUS "Compiling with gprof support")
-endif()
-
-if(NO_EX_TINYOBJ)
-	message(STATUS "Using STABLE tinyobj")
-else()
-	message(STATUS "Using EXPERIMENTAL tinyobj")
-	add_definitions(-DUSE_EXPERIMENTAL_TINYOBJ=1)
-endif()
-
-# Linker
-execute_process(
-	COMMAND ${CMAKE_C_COMPILER} -fuse-ld=gold -Wl,--version
-	ERROR_QUIET OUTPUT_VARIABLE LD_VERSION)
-if("${LD_VERSION}" MATCHES "GNU gold")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fuse-ld=gold")
-	message(STATUS "Using GNU gold as linker")
-endif()
+do_build()
