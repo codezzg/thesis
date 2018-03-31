@@ -1,5 +1,10 @@
 #include "swap.hpp"
 #include <limits>
+#include <algorithm>
+
+// Windows, really...
+#undef max
+#undef min
 
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
 	// No preferred format

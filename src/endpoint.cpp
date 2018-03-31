@@ -5,10 +5,9 @@
 #include <fstream>
 #include <utility>
 #include <cstring>
+#include <string>
 #include <functional>
 #include "data.hpp"
-
-using socket_connect_op = int (*) (socket_t, const sockaddr*, socklen_t);
 
 static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op op) {
 	// Connect
@@ -93,7 +92,7 @@ void Endpoint::close() {
 }
 
 bool receivePacket(socket_t socket, uint8_t *buffer, size_t len) {
-	ssize_t count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
+	auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
 
 	if (count < 0) {
 		std::cerr << "Error receiving message: " << strerror(errno) << "\n";

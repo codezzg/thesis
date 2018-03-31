@@ -4,7 +4,11 @@
 #include <string>
 #include <stdexcept>
 
+#ifdef _WIN32
+inline const char* vlkResultStr(VkResult res) {
+#else
 constexpr const char* vlkResultStr(VkResult res) {
+#endif
 	switch (res) {
 		case VK_SUCCESS: return "VK_SUCCESS";
 		case VK_NOT_READY: return "VK_NOT_READY";

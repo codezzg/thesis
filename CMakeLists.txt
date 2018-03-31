@@ -30,7 +30,7 @@ include_directories(${Vulkan_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARIES})
 
 find_package(GLFW REQUIRED)
-include_directories(${GLFW_INCLUDE_DIRS})
+include_directories(${GLFW_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} ${GLFW_LIBRARIES})
 
 #find_package(Sparsehash REQUIRED)

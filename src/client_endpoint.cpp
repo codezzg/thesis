@@ -1,13 +1,9 @@
 #include "client_endpoint.hpp"
 #include <chrono>
 #include <cstdlib>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <iostream>
 #include <array>
 #include <cstring>
-#include <unistd.h>
 #include "data.hpp"
 #include "config.hpp"
 #include "vertex.hpp"
@@ -112,7 +108,7 @@ void ClientActiveEndpoint::loopFunc() {
 		if (camera)
 			serializeCamera(data.payload.data(), *camera);
 
-		if (::send(socket, &data, sizeof(data), 0) < 0) {
+		if (::send(socket, reinterpret_cast<const char*>(&data), sizeof(data), 0) < 0) {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
 		}
 

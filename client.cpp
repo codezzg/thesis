@@ -39,6 +39,10 @@
 #include "formats.hpp"
 #include "vulk_errors.hpp"
 
+// Fuck off, Windows
+#undef max
+#undef min
+
 using namespace std::literals::string_literals;
 
 struct UniformBufferObject final {

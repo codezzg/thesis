@@ -1,5 +1,10 @@
 #include "camera_ctrl.hpp"
 #include "clock.hpp"
+#include <cmath>
+
+#ifndef M_PI
+	#define M_PI 3.14159265358979323846264338327950288
+#endif
 
 void CameraController::move(CameraController::Direction dir) {
 	const auto dt = Clock::instance().deltaTime();

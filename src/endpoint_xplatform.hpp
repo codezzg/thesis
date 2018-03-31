@@ -2,7 +2,7 @@
 
 /** Platform independence layer for sockets */
 #ifdef _WIN32
-	#include <winsock2.h> // for INVALID_SOCKET
+	#include <WinSock2.h>
 	#include <Ws2tcpip.h>
 #else
 	#include <sys/socket.h>
@@ -13,8 +13,10 @@
 
 #ifdef _WIN32
 using socket_t = SOCKET;
+using socket_connect_op = int (__stdcall*) (socket_t, const sockaddr*, int);
 #else
 using socket_t = int;
+using socket_connect_op = int (*) (socket_t, const sockaddr*, socklen_t);
 #endif
 
 constexpr bool isValidSocket(socket_t sock) {
