@@ -13,3 +13,8 @@ Makefile
 .gdb_history
 *.gz
 cmake_install.cmake
+build/
+*.log
+*.dump
+*.data
+*.data.*

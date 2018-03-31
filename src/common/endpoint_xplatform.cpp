@@ -1,4 +1,8 @@
 #include "endpoint_xplatform.hpp"
+#ifndef _WIN32
+	#include <cstring>
+	#include <cerrno>
+#endif
 
 bool xplatSocketInit() {
 #ifdef _WIN32
@@ -23,7 +27,7 @@ int xplatSockClose(socket_t sock) {
 	status = shutdown(sock, SD_BOTH);
 	if (status == 0) status = closesocket(sock);
 #else
-	status = shutdown(sock, SD_RDWR);
+	status = shutdown(sock, SHUT_RDWR);
 	if (status == 0) status = close(sock);
 #endif
 	return status;

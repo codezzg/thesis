@@ -23,7 +23,6 @@
 #include "FPSCounter.hpp"
 #include "vertex.hpp"
 #include "validation.hpp"
-#include "model.hpp"
 #include "vulk_utils.hpp"
 #include "config.hpp"
 #include "window.hpp"
