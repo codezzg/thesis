@@ -2,10 +2,18 @@
 
 #include <vector>
 #include <vulkan/vulkan.h>
-#include "application.hpp"
 
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+struct Application;
 
-VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+struct SwapChain final {
+	VkSwapchainKHR handle;
+	VkExtent2D extent;
+	VkFormat imageFormat;
+	std::vector<VkImage> images;
+	std::vector<VkImageView> imageViews;
+	std::vector<VkFramebuffer> framebuffers;
+};
 
-VkExtent2D chooseSwapExtent(const Application& app, const VkSurfaceCapabilitiesKHR& capabilities);
+SwapChain createSwapChain(const Application& app);
+void createSwapChainImageViews(Application& app);
+void createSwapChainFramebuffers(Application& app);

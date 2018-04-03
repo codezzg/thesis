@@ -21,12 +21,15 @@ struct SwapChainSupportDetails final {
 };
 
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR surface);
 
-SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSurfaceKHR surface);
 
-bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
+bool isDeviceSuitable(VkPhysicalDevice physDevice, VkSurfaceKHR surface);
 
-bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice);
 
 VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
+
+uint32_t findMemoryType(VkPhysicalDevice physDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+

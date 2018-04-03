@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include "validation.hpp"
+#include "swap.hpp"
+#include "images.hpp"
 
 struct Queues final {
 	VkQueue graphics;
@@ -25,6 +27,12 @@ struct Application final {
 
 	VkCommandPool commandPool;
 
+	SwapChain swapChain;
+
+	VkRenderPass renderPass;
+
+	Image textureImage;
+	Image depthImage;
 
 	void init();
 	void cleanup();

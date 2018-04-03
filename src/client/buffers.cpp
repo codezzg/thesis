@@ -1,23 +1,12 @@
 #include "buffers.hpp"
 #include "commands.hpp"
+#include "phys_device.hpp"
 
-uint32_t findMemoryType(const Application& app, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(app.physicalDevice, &memProperties);
-	for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i)
-		if (typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			return i;
-
-	throw std::runtime_error("failed to find suitable memory type!");
-}
-
-void createBuffer(
+Buffer createBuffer(
 		const Application& app,
 		VkDeviceSize size,
 		VkBufferUsageFlags usage,
-		VkMemoryPropertyFlags properties,
-		/* out */ VkBuffer& buffer,
-		/* out */ VkDeviceMemory& bufferMemory)
+		VkMemoryPropertyFlags properties)
 {
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -25,21 +14,29 @@ void createBuffer(
 	bufferInfo.usage = usage;
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (vkCreateBuffer(app.device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-		throw std::runtime_error("failed to create buffer!");
+	VkBuffer bufferHandle;
+	if (vkCreateBuffer(app.device, &bufferInfo, nullptr, &bufferHandle) != VK_SUCCESS)
+		throw std::runtime_error("failed to create bufferHandle!");
 
 	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(app.device, buffer, &memRequirements);
+	vkGetBufferMemoryRequirements(app.device, bufferHandle, &memRequirements);
 
 	VkMemoryAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(app, memRequirements.memoryTypeBits, properties);
+	allocInfo.memoryTypeIndex = findMemoryType(app.physicalDevice, memRequirements.memoryTypeBits, properties);
 
+	VkDeviceMemory bufferMemory;
 	if (vkAllocateMemory(app.device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate buffer memory!");
+		throw std::runtime_error("failed to allocate bufferHandle memory!");
 
-	vkBindBufferMemory(app.device, buffer, bufferMemory, 0);
+	vkBindBufferMemory(app.device, bufferHandle, bufferMemory, 0);
+
+	Buffer buffer;
+	buffer.handle = bufferHandle;
+	buffer.memory = bufferMemory;
+
+	return buffer;
 }
 
 void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {

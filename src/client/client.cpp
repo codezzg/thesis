@@ -37,6 +37,8 @@
 #include "swap.hpp"
 #include "formats.hpp"
 #include "vulk_errors.hpp"
+#include "images.hpp"
+#include "renderpass.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -75,15 +77,7 @@ private:
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
 
-	VkSwapchainKHR swapChain;
-	std::vector<VkImage> swapChainImages;
-	VkFormat swapChainImageFormat;
-	VkExtent2D swapChainExtent;
-	std::vector<VkImageView> swapChainImageViews;
-	std::vector<VkFramebuffer> swapChainFramebuffers;
-
 	VkPipelineLayout pipelineLayout;
-	VkRenderPass renderPass;
 	VkPipeline graphicsPipeline;
 
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -97,38 +91,25 @@ private:
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
-	VkBuffer uniformBuffer;
-	VkDeviceMemory uniformBufferMemory;
+	Buffer vertexBuffer;
+	Buffer indexBuffer;
+	Buffer uniformBuffer;
 
 	void *streamingBufferData = nullptr;
 	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
 	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
 
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	VkImageView textureImageView;
-	VkSampler textureSampler;
-
-	VkImage depthImage;
-	VkDeviceMemory depthImageMemory;
-	VkImageView depthImageView;
-
 
 	void initVulkan() {
-		createSwapChain();
-		createImageViews();
-		createRenderPass();
+		app.swapChain = createSwapChain(app);
+		createSwapChainImageViews(app);
+		app.renderPass = createRenderPass(app);
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		app.commandPool = createCommandPool(app.device, app.physicalDevice, app.surface);
 		createDepthResources();
-		createFramebuffers();
+		createSwapChainFramebuffers(app);
 		createTextureImage();
-		createTextureImageView();
 		createTextureSampler();
 
 		//vertices = VERTICES;
@@ -280,11 +261,11 @@ private:
 	}
 
 	void cleanupSwapChain() {
-		vkDestroyImageView(app.device, depthImageView, nullptr);
-		vkDestroyImage(app.device, depthImage, nullptr);
-		vkFreeMemory(app.device, depthImageMemory, nullptr);
+		vkDestroyImageView(app.device, app.depthImage.view, nullptr);
+		vkDestroyImage(app.device, app.depthImage.handle, nullptr);
+		vkFreeMemory(app.device, app.depthImage.memory, nullptr);
 
-		for (auto framebuffer : swapChainFramebuffers) {
+		for (auto framebuffer : app.swapChain.framebuffers) {
 			vkDestroyFramebuffer(app.device, framebuffer, nullptr);
 		}
 
@@ -293,31 +274,31 @@ private:
 
 		vkDestroyPipeline(app.device, graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(app.device, pipelineLayout, nullptr);
-		vkDestroyRenderPass(app.device, renderPass, nullptr);
+		vkDestroyRenderPass(app.device, app.renderPass, nullptr);
 
-		for (auto imageView : swapChainImageViews)
+		for (auto imageView : app.swapChain.imageViews)
 			vkDestroyImageView(app.device, imageView, nullptr);
 
-		vkDestroySwapchainKHR(app.device, swapChain, nullptr);
+		vkDestroySwapchainKHR(app.device, app.swapChain.handle, nullptr);
 	}
 
 	void cleanup() {
 		cleanupSwapChain();
 
-		vkDestroySampler(app.device, textureSampler, nullptr);
-		vkDestroyImageView(app.device, textureImageView, nullptr);
-		vkDestroyImage(app.device, textureImage, nullptr);
-		vkFreeMemory(app.device, textureImageMemory, nullptr);
+		vkDestroySampler(app.device, app.textureImage.sampler, nullptr);
+		vkDestroyImageView(app.device, app.textureImage.view, nullptr);
+		vkDestroyImage(app.device, app.textureImage.handle, nullptr);
+		vkFreeMemory(app.device, app.textureImage.memory, nullptr);
 
 		vkDestroyDescriptorPool(app.device, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(app.device, descriptorSetLayout, nullptr);
 
-		vkDestroyBuffer(app.device, uniformBuffer, nullptr);
-		vkFreeMemory(app.device, uniformBufferMemory, nullptr);
-		vkDestroyBuffer(app.device, indexBuffer, nullptr);
-		vkFreeMemory(app.device, indexBufferMemory, nullptr);
-		vkDestroyBuffer(app.device, vertexBuffer, nullptr);
-		vkFreeMemory(app.device, vertexBufferMemory, nullptr);
+		vkDestroyBuffer(app.device, uniformBuffer.handle, nullptr);
+		vkFreeMemory(app.device, uniformBuffer.memory, nullptr);
+		vkDestroyBuffer(app.device, indexBuffer.handle, nullptr);
+		vkFreeMemory(app.device, indexBuffer.memory, nullptr);
+		vkDestroyBuffer(app.device, vertexBuffer.handle, nullptr);
+		vkFreeMemory(app.device, vertexBuffer.memory, nullptr);
 
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
@@ -350,131 +331,13 @@ private:
 
 		cleanupSwapChain();
 
-		createSwapChain();
-		createImageViews();
-		createRenderPass();
+		app.swapChain = createSwapChain(app);
+		createSwapChainImageViews(app);
+		app.renderPass = createRenderPass(app);
 		createGraphicsPipeline();
 		createDepthResources();
-		createFramebuffers();
+		createSwapChainFramebuffers(app);
 		createCommandBuffers();
-	}
-
-	void createSwapChain() {
-		auto swapChainSupport = querySwapChainSupport(app.physicalDevice, app.surface);
-		auto surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-		auto presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-		auto extent = chooseSwapExtent(app, swapChainSupport.capabilities);
-
-		uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-		if (swapChainSupport.capabilities.maxImageCount > 0 &&
-				swapChainSupport.capabilities.maxImageCount < imageCount) {
-			imageCount = swapChainSupport.capabilities.maxImageCount;
-		}
-
-		VkSwapchainCreateInfoKHR createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		createInfo.surface = app.surface;
-		createInfo.minImageCount = imageCount;
-		createInfo.imageFormat = surfaceFormat.format;
-		createInfo.imageColorSpace = surfaceFormat.colorSpace;
-		createInfo.imageExtent = extent;
-		createInfo.imageArrayLayers = 1;
-		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-		auto indices = findQueueFamilies(app.physicalDevice, app.surface);
-		uint32_t queueFamilyIndices[] = {
-			(uint32_t) indices.graphicsFamily,
-			(uint32_t) indices.presentFamily
-		};
-
-		if (indices.graphicsFamily != indices.presentFamily) {
-			createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-			createInfo.queueFamilyIndexCount = 2;
-			createInfo.pQueueFamilyIndices = queueFamilyIndices;
-		} else {
-			createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		}
-		createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		createInfo.presentMode = presentMode;
-		createInfo.clipped = VK_TRUE;
-		createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-		VLKCHECK(vkCreateSwapchainKHR(app.device, &createInfo, nullptr, &swapChain));
-
-		vkGetSwapchainImagesKHR(app.device, swapChain, &imageCount, nullptr);
-		swapChainImages.resize(imageCount);
-		vkGetSwapchainImagesKHR(app.device, swapChain, &imageCount, swapChainImages.data());
-
-		swapChainImageFormat = surfaceFormat.format;
-		swapChainExtent = extent;
-	}
-
-	void createImageViews() {
-		swapChainImageViews.resize(swapChainImages.size());
-		for (size_t i = 0; i < swapChainImages.size(); ++i) {
-			swapChainImageViews[i] = createImageView(
-				swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-		}
-	}
-
-	void createRenderPass() {
-		VkAttachmentDescription colorAttachment = {};
-		colorAttachment.format = swapChainImageFormat;
-		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-		VkAttachmentReference colorAttachmentRef = {};
-		colorAttachmentRef.attachment = 0;
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		VkAttachmentDescription depthAttachment = {};
-		depthAttachment.format = findDepthFormat(app.physicalDevice);
-		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		VkAttachmentReference depthAttachmentRef = {};
-		depthAttachmentRef.attachment = 1;
-		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		VkSubpassDescription subpass = {};
-		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpass.colorAttachmentCount = 1;
-		subpass.pColorAttachments = &colorAttachmentRef;
-		subpass.pDepthStencilAttachment = &depthAttachmentRef;
-
-		VkSubpassDependency dependency = {};
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		dependency.dstSubpass = 0;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependency.srcAccessMask = 0;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-		const std::array<VkAttachmentDescription, 2> attachments = {
-			colorAttachment, depthAttachment
-		};
-
-		VkRenderPassCreateInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = attachments.size();
-		renderPassInfo.pAttachments = attachments.data();
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pSubpasses = &subpass;
-		renderPassInfo.dependencyCount = 1;
-		renderPassInfo.pDependencies = &dependency;
-
-		VLKCHECK(vkCreateRenderPass(app.device, &renderPassInfo, nullptr, &renderPass));
 	}
 
 	void createDescriptorSetLayout() {
@@ -547,14 +410,14 @@ private:
 		VkViewport viewport = {};
 		viewport.x = 0.f;
 		viewport.y = 0.f;
-		viewport.width = static_cast<float>(swapChainExtent.width);
-		viewport.height = static_cast<float>(swapChainExtent.height);
+		viewport.width = static_cast<float>(app.swapChain.extent.width);
+		viewport.height = static_cast<float>(app.swapChain.extent.height);
 		viewport.minDepth = 0.f;
 		viewport.maxDepth = 1.f;
 
 		VkRect2D scissor = {};
 		scissor.offset = {0, 0};
-		scissor.extent = swapChainExtent;
+		scissor.extent = app.swapChain.extent;
 
 		VkPipelineViewportStateCreateInfo viewportState = {};
 		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -629,47 +492,28 @@ private:
 		pipelineInfo.pDepthStencilState = &depthStencil;
 		pipelineInfo.pDynamicState = nullptr;
 		pipelineInfo.layout = pipelineLayout;
-		pipelineInfo.renderPass = renderPass;
+		pipelineInfo.renderPass = app.renderPass;
 		pipelineInfo.subpass = 0;
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineInfo.basePipelineIndex = -1;
 
-		VLKCHECK(vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
+		VLKCHECK(vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1,
+					&pipelineInfo, nullptr, &graphicsPipeline));
 
 		// Cleanup
 		vkDestroyShaderModule(app.device, fragShaderModule, nullptr);
 		vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
 	}
 
-	void createFramebuffers() {
-		swapChainFramebuffers.resize(swapChainImageViews.size());
-		for (size_t i = 0; i < swapChainImageViews.size(); ++i) {
-			std::array<VkImageView, 2> attachments = {
-				swapChainImageViews[i],
-				depthImageView
-			};
-
-			VkFramebufferCreateInfo framebufferInfo = {};
-			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			framebufferInfo.renderPass = renderPass;
-			framebufferInfo.attachmentCount = attachments.size();
-			framebufferInfo.pAttachments = attachments.data();
-			framebufferInfo.width = swapChainExtent.width;
-			framebufferInfo.height = swapChainExtent.height;
-			framebufferInfo.layers = 1;
-
-			VLKCHECK(vkCreateFramebuffer(app.device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
-		}
-	}
-
 	void createDepthResources() {
-		auto depthFormat = findDepthFormat(app.physicalDevice);
-		createImage(swapChainExtent.width, swapChainExtent.height, depthFormat,
+		const auto depthFormat = findDepthFormat(app.physicalDevice);
+		app.depthImage = createImage(app, app.swapChain.extent.width, app.swapChain.extent.height, depthFormat,
 				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-		depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		app.depthImage.view = createImageView(app, app.depthImage.handle,
+				depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-		transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
+		transitionImageLayout(app, app.depthImage.handle, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 	}
 
@@ -681,34 +525,29 @@ private:
 		if (!pixels)
 			throw std::runtime_error("failed to load texture image!");
 
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		createBuffer(app, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				stagingBuffer, stagingBufferMemory);
+		const auto stagingBuffer = createBuffer(app, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		void *data;
-		vkMapMemory(app.device, stagingBufferMemory, 0, imageSize, 0, &data);
+		vkMapMemory(app.device, stagingBuffer.memory, 0, imageSize, 0, &data);
 		memcpy(data, pixels, static_cast<size_t>(imageSize));
-		vkUnmapMemory(app.device, stagingBufferMemory);
+		vkUnmapMemory(app.device, stagingBuffer.memory);
 
 		stbi_image_free(pixels);
 
-		createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+		app.textureImage = createImage(app, texWidth, texHeight,
+				VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
-		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		copyBufferToImage(app, stagingBuffer, textureImage, texWidth, texHeight);
-		transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		vkDestroyBuffer(app.device, stagingBuffer, nullptr);
-		vkFreeMemory(app.device, stagingBufferMemory, nullptr);
-	}
-
-	void createTextureImageView() {
-		textureImageView = createImageView(textureImage,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		app.textureImage.view = createImageView(app, app.textureImage.handle,
 				VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+		transitionImageLayout(app, app.textureImage.handle, VK_FORMAT_R8G8B8A8_UNORM,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		copyBufferToImage(app, stagingBuffer.handle, app.textureImage.handle, texWidth, texHeight);
+		transitionImageLayout(app, app.textureImage.handle, VK_FORMAT_R8G8B8A8_UNORM,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		vkDestroyBuffer(app.device, stagingBuffer.handle, nullptr);
+		vkFreeMemory(app.device, stagingBuffer.memory, nullptr);
 	}
 
 	void createTextureSampler() {
@@ -727,126 +566,7 @@ private:
 		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-		VLKCHECK(vkCreateSampler(app.device, &samplerInfo, nullptr, &textureSampler));
-	}
-
-	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) const {
-		VkImageViewCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		createInfo.image = image;
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = format;;
-		createInfo.subresourceRange.aspectMask = aspectFlags;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
-
-		VkImageView imageView;
-		VLKCHECK(vkCreateImageView(app.device, &createInfo, nullptr, &imageView));
-
-		return imageView;
-	}
-
-	void createImage(
-			uint32_t width,
-			uint32_t height,
-			VkFormat format,
-			VkImageTiling tiling,
-			VkImageUsageFlags usage,
-			VkMemoryPropertyFlags properties,
-			VkImage& image,
-			VkDeviceMemory& imageMemory)
-	{
-		VkImageCreateInfo imageInfo = {};
-		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageInfo.extent.width = width;
-		imageInfo.extent.height = height;
-		imageInfo.extent.depth = 1;
-		imageInfo.mipLevels = 1;
-		imageInfo.arrayLayers = 1;
-		imageInfo.format = format;
-		imageInfo.tiling = tiling;
-		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageInfo.usage = usage;
-		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-
-		VLKCHECK(vkCreateImage(app.device, &imageInfo, nullptr, &image));
-
-		VkMemoryRequirements memRequirements;
-		vkGetImageMemoryRequirements(app.device, image, &memRequirements);
-
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = findMemoryType(app, memRequirements.memoryTypeBits, properties);
-
-		VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &imageMemory));
-
-		vkBindImageMemory(app.device, image, imageMemory, 0);
-	}
-
-	void transitionImageLayout(VkImage image, VkFormat format,
-			VkImageLayout oldLayout, VkImageLayout newLayout)
-	{
-		auto commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
-
-		VkImageMemoryBarrier barrier = {};
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.oldLayout = oldLayout;
-		barrier.newLayout = newLayout;
-		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.image = image;
-		if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			if (hasStencilComponent(format))
-				barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-		} else {
-			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		}
-		barrier.subresourceRange.baseMipLevel = 0;
-		barrier.subresourceRange.levelCount = 1;
-		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = 0;
-
-		VkPipelineStageFlags sourceStage,
-				     destinationStage;
-
-		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-			barrier.srcAccessMask = 0;
-			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		} else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-			sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-		} else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-			barrier.srcAccessMask = 0;
-			barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-			destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		} else {
-			throw std::invalid_argument("unsupported layout transition!");
-		}
-
-		vkCmdPipelineBarrier(commandBuffer,
-				sourceStage,
-				destinationStage,
-				0,
-				0, nullptr,
-				0, nullptr,
-				1, &barrier);
-		endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
+		VLKCHECK(vkCreateSampler(app.device, &samplerInfo, nullptr, &app.textureImage.sampler));
 	}
 
 	/*
@@ -867,7 +587,7 @@ private:
 
 		createBuffer(bufferSize,
 				VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBuffer.memory);
 
 		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
@@ -879,10 +599,9 @@ private:
 	void createVertexBuffer() {
 		VkDeviceSize bufferSize = VERTEX_BUFFER_SIZE;
 
-		createBuffer(app, bufferSize,
+		vertexBuffer = createBuffer(app, bufferSize,
 				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				vertexBuffer, vertexBufferMemory);
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	}
 
 	/*
@@ -902,7 +621,7 @@ private:
 
 		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				indexBuffer, indexBufferMemory);
+				indexBuffer, indexBuffer.memory);
 
 		copyBuffer(stagingBuffer, indexBuffer, bufferSize);
 
@@ -914,17 +633,15 @@ private:
 	void createIndexBuffer() {
 		VkDeviceSize bufferSize = INDEX_BUFFER_SIZE;
 
-		createBuffer(app, bufferSize,
+		indexBuffer = createBuffer(app, bufferSize,
 				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				indexBuffer, indexBufferMemory);
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	}
 
 	void createUniformBuffer() {
 		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-		createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				uniformBuffer, uniformBufferMemory);
+		uniformBuffer = createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	}
 
 	void createDescriptorPool() {
@@ -954,14 +671,14 @@ private:
 		VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
 
 		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = uniformBuffer;
+		bufferInfo.buffer = uniformBuffer.handle;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
 		VkDescriptorImageInfo imageInfo = {};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = textureImageView;
-		imageInfo.sampler = textureSampler;
+		imageInfo.imageView = app.textureImage.view;
+		imageInfo.sampler = app.textureImage.sampler;
 
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -984,7 +701,7 @@ private:
 	}
 
 	void createCommandBuffers() {
-		commandBuffers.resize(swapChainFramebuffers.size());
+		commandBuffers.resize(app.swapChain.framebuffers.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1004,10 +721,10 @@ private:
 
 			VkRenderPassBeginInfo renderPassInfo = {};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassInfo.renderPass = renderPass;
-			renderPassInfo.framebuffer = swapChainFramebuffers[i];
+			renderPassInfo.renderPass = app.renderPass;
+			renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
 			renderPassInfo.renderArea.offset = {0, 0};
-			renderPassInfo.renderArea.extent = swapChainExtent;
+			renderPassInfo.renderArea.extent = app.swapChain.extent;
 			std::array<VkClearValue, 2> clearValues = {};
 			clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
 			clearValues[1].depthStencil = {1.f, 0};
@@ -1016,13 +733,15 @@ private:
 
 			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-			VkBuffer vertexBuffers[] = { vertexBuffer };
+			VkBuffer vertexBuffers[] = { vertexBuffer.handle };
 			VkDeviceSize offsets[] = { 0 };
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+					pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 			vkCmdDrawIndexed(commandBuffers[i], indices.size(), 1, 0, 0, 0);
-			std::cerr << "recreating command buffer with v = " << vertices.size() << ", i = " << indices.size() << "\n";
+			std::cerr << "recreating command buffer with v = "
+				<< vertices.size() << ", i = " << indices.size() << "\n";
 			vkCmdEndRenderPass(commandBuffers[i]);
 
 			VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
@@ -1040,19 +759,19 @@ private:
 	void updateVertexBuffer() {
 		// Acquire handle to device memory
 		void *data;
-		vkMapMemory(app.device, vertexBufferMemory, 0, VERTEX_BUFFER_SIZE, 0, &data);
+		vkMapMemory(app.device, vertexBuffer.memory, 0, VERTEX_BUFFER_SIZE, 0, &data);
 		// Copy host memory to device
 		memcpy(data, streamingBufferData, VERTEX_BUFFER_SIZE);
-		vkUnmapMemory(app.device, vertexBufferMemory);
+		vkUnmapMemory(app.device, vertexBuffer.memory);
 	}
 
 	void updateIndexBuffer() {
 		// Acquire handle to device memory
 		void *data;
-		vkMapMemory(app.device, indexBufferMemory, 0, INDEX_BUFFER_SIZE, 0, &data);
+		vkMapMemory(app.device, indexBuffer.memory, 0, INDEX_BUFFER_SIZE, 0, &data);
 		// Copy host memory to device
 		memcpy(data, (uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
-		vkUnmapMemory(app.device, indexBufferMemory);
+		vkUnmapMemory(app.device, indexBuffer.memory);
 	}
 
 	void updateUniformBuffer() {
@@ -1069,20 +788,21 @@ private:
 		ubo.view = camera.viewMatrix();
 			//glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
 		ubo.proj = glm::perspective(glm::radians(60.f),
-				swapChainExtent.width / float(swapChainExtent.height), 0.1f, 300.f);
+				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
 		ubo.proj[1][1] *= -1;
 
 		void *data;
-		vkMapMemory(app.device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
+		vkMapMemory(app.device, uniformBuffer.memory, 0, sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(app.device, uniformBufferMemory);
+		vkUnmapMemory(app.device, uniformBuffer.memory);
 	}
 
 
 	void drawFrame() {
 
 		uint32_t imageIndex;
-		auto result = vkAcquireNextImageKHR(app.device, swapChain, std::numeric_limits<uint64_t>::max(),
+		auto result = vkAcquireNextImageKHR(app.device, app.swapChain.handle,
+				std::numeric_limits<uint64_t>::max(),
 				imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -1111,7 +831,7 @@ private:
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = signalSemaphores;
-		VkSwapchainKHR swapChains[] = { swapChain };
+		VkSwapchainKHR swapChains[] = { app.swapChain.handle };
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = swapChains;
 		presentInfo.pImageIndices = &imageIndex;
