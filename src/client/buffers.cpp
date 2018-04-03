@@ -69,4 +69,3 @@ void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, u
 
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }
-

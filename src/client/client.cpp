@@ -89,18 +89,21 @@ private:
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
 	Buffer vertexBuffer;
 	Buffer indexBuffer;
 	Buffer uniformBuffer;
 
-	void *streamingBufferData = nullptr;
+	uint8_t *streamingBufferData = nullptr;
+	uint64_t nVertices = 0;
+	uint64_t nIndices = 0;
 	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
 	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
+	static constexpr size_t UNIFORM_BUFFER_SIZE = sizeof(UniformBufferObject);
 
 
 	void initVulkan() {
+		app.memory.reserve(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE + UNIFORM_BUFFER_SIZE);
+
 		app.swapChain = createSwapChain(app);
 		createSwapChainImageViews(app);
 		app.renderPass = createRenderPass(app);
@@ -114,15 +117,19 @@ private:
 
 		//vertices = VERTICES;
 		//indices = INDICES;
-		streamingBufferData = malloc(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE);
+		streamingBufferData = reinterpret_cast<uint8_t*>(malloc(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE));
 		camera = createCamera();
 		cameraCtrl = std::make_unique<CameraController>(camera);
 		activeEP.setCamera(&camera);
 		//loadModel(cfg::MODEL_PATH, vertices, indices);
 
-		createVertexBuffer();
-		createIndexBuffer();
-		createUniformBuffer();
+		vertexBuffer = createBuffer(app, VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		indexBuffer = createBuffer(app, INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		uniformBuffer = createBuffer(app, UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
 		createDescriptorPool();
 		createDescriptorSet();
 		createCommandBuffers();
@@ -170,15 +177,15 @@ private:
 	}
 
 	void runFrame() {
-		static size_t pvs = vertices.size(),
-		              pis = indices.size();
+		static size_t pvs = nVertices,
+		              pis = nIndices;
 
 		// Receive network data
-		receiveData(vertices, indices);
+		receiveData();
 
-		if (vertices.size() != pvs || indices.size() != pis) {
-			pvs = vertices.size();
-			pis = indices.size();
+		if (nVertices != pvs || nIndices != pis) {
+			pvs = nVertices;
+			pis = nIndices;
 			vkDeviceWaitIdle(app.device);
 			vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(commandBuffers.size()),
 				commandBuffers.data());
@@ -195,7 +202,7 @@ private:
 	}
 
 	// TODO
-	void receiveData(std::vector<Vertex>& vertices, std::vector<Index>& indices) {
+	void receiveData() {
 		//std::cerr << "receive data. curFrame = " << curFrame << ", passive.get = " << passiveEP.getFrameId() << "\n";
 		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame)
 			return;
@@ -208,56 +215,57 @@ private:
 		curFrame = passiveEP.getFrameId();
 
 		// data is [(64b)nVertices|(64b)nIndices|vertices|indices]
-		uint64_t nVertices = *reinterpret_cast<const uint64_t*>(data);
-		uint64_t nIndices = *(reinterpret_cast<const uint64_t*>(data) + 1);
+		nVertices = *reinterpret_cast<const uint64_t*>(data);
+		nIndices = *(reinterpret_cast<const uint64_t*>(data) + 1);
 		printf("\nn vertices: %lu, n indices: %lu\n", nVertices, nIndices);
 		//for (size_t i = 0; i < nVertices; ++i)
 			//std::cerr << "v[" << i << "] = "
 				//<< *((Vertex*)(data + 20 + sizeof(Vertex)*i)) << std::endl;
 
-		vertices.resize(nVertices);
-		const auto vOff = 2 * sizeof(uint64_t);
-		for (unsigned i = 0; i < nVertices; ++i)
-			vertices[i] = *(Vertex*)(data + vOff + i * sizeof(Vertex));
-		std::cerr << "begin vertices\n";
-		/*for (auto& v : vertices) {
-			std::cerr << v << std::endl;
-			//v.pos.x += 0.001;
-			//if (v.pos.x > 1) v.pos.x = 0;
-		}*/
-		std::cerr << "end vertices (" << vertices.size() << ")\n";
+		//vertices.resize(nVertices);
+		//const auto vOff = 2 * sizeof(uint64_t);
+		//for (unsigned i = 0; i < nVertices; ++i)
+			//vertices[i] = *(Vertex*)(data + vOff + i * sizeof(Vertex));
+		//std::cerr << "begin vertices\n";
+		//[>for (auto& v : vertices) {
+			//std::cerr << v << std::endl;
+			////v.pos.x += 0.001;
+			////if (v.pos.x > 1) v.pos.x = 0;
+		//}*/
+		//std::cerr << "end vertices (" << vertices.size() << ")\n";
 
-		indices.resize(nIndices);
-		//memcpy(indices.data(), data + 28 + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
-		const auto iOff = vOff + nVertices * sizeof(Vertex);
-		std::cerr << "iOff = " << iOff << "\n";
-		for (unsigned i = 0; i < nIndices; ++i)
-			indices[i] = *(Index*)(data + iOff + i * sizeof(Index));
+		//indices.resize(nIndices);
+		////memcpy(indices.data(), data + 28 + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
+		//const auto iOff = vOff + nVertices * sizeof(Vertex);
+		//std::cerr << "iOff = " << iOff << "\n";
+		//for (unsigned i = 0; i < nIndices; ++i)
+			//indices[i] = *(Index*)(data + iOff + i * sizeof(Index));
 
-		std::cerr << "begin indices\n";
-		/*for (auto& i : indices) {
-			std::cerr << i << ", ";
-		}*/
-		std::cerr << "\nend indices (" << indices.size() << ")\n";
+		//std::cerr << "begin indices\n";
+		//[>for (auto& i : indices) {
+			//std::cerr << i << ", ";
+		//}*/
+		//std::cerr << "\nend indices (" << indices.size() << ")\n";
 
-		printf("[%ld] raw data:\n", curFrame);
-		for (int i = 0; i < 150; ++i) {
-			if (i == vOff) printf("|> ");
-			if (i == iOff) printf("<| ");
-			printf("%hhx ", data[i]);
-		}
-		printf("\n");
+		//printf("[%ld] raw data:\n", curFrame);
+		//for (int i = 0; i < 150; ++i) {
+			//if (i == vOff) printf("|> ");
+			//if (i == iOff) printf("<| ");
+			//printf("%hhx ", data[i]);
+		//}
+		//printf("\n");
 
 
-		memcpy(streamingBufferData, vertices.data(), vertices.size() * sizeof(Vertex));
-		memcpy((uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE,
-				indices.data(), indices.size() * sizeof(Index));
+		constexpr auto HEADER_SIZE = 2 * sizeof(uint64_t);
+		memcpy(streamingBufferData, data + HEADER_SIZE, nVertices * sizeof(Vertex));
+		memcpy(streamingBufferData + VERTEX_BUFFER_SIZE, data + HEADER_SIZE + nVertices * sizeof(Vertex),
+				nIndices * sizeof(Index));
 
-		if (curFrame == 1) {
-			std::ofstream of("sb.data", std::ios::binary);
-			for (int i = 0; i < vertices.size() * sizeof(Vertex) + indices.size() * sizeof(Index); ++i)
-				of << ((uint8_t*)streamingBufferData)[i];
-		}
+		//if (curFrame == 1) {
+			//std::ofstream of("sb.data", std::ios::binary);
+			//for (int i = 0; i < vertices.size() * sizeof(Vertex) + indices.size() * sizeof(Index); ++i)
+				//of << ((uint8_t*)streamingBufferData)[i];
+		//}
 	}
 
 	void cleanupSwapChain() {
@@ -569,81 +577,6 @@ private:
 		VLKCHECK(vkCreateSampler(app.device, &samplerInfo, nullptr, &app.textureImage.sampler));
 	}
 
-	/*
-	void createVertexBuffer() {
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				stagingBuffer, stagingBufferMemory);
-
-		void *data;
-		vkMapMemory(app.device, stagingBufferMemory, 0, bufferSize, 0, &data);
-		memcpy(data, vertices.data(), bufferSize);
-		vkUnmapMemory(app.device, stagingBufferMemory);
-
-		createBuffer(bufferSize,
-				VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBuffer.memory);
-
-		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-		vkDestroyBuffer(app.device, stagingBuffer, nullptr);
-		vkFreeMemory(app.device, stagingBufferMemory, nullptr);
-	}
-	*/
-
-	void createVertexBuffer() {
-		VkDeviceSize bufferSize = VERTEX_BUFFER_SIZE;
-
-		vertexBuffer = createBuffer(app, bufferSize,
-				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	}
-
-	/*
-	void createIndexBuffer() {
-		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				stagingBuffer, stagingBufferMemory);
-
-		void *data;
-		vkMapMemory(app.device, stagingBufferMemory, 0, bufferSize, 0, &data);
-		memcpy(data, indices.data(), bufferSize);
-		vkUnmapMemory(app.device, stagingBufferMemory);
-
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				indexBuffer, indexBuffer.memory);
-
-		copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-		vkDestroyBuffer(app.device, stagingBuffer, nullptr);
-		vkFreeMemory(app.device, stagingBufferMemory, nullptr);
-	}
-	*/
-
-	void createIndexBuffer() {
-		VkDeviceSize bufferSize = INDEX_BUFFER_SIZE;
-
-		indexBuffer = createBuffer(app, bufferSize,
-				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	}
-
-	void createUniformBuffer() {
-		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-		uniformBuffer = createBuffer(app, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	}
-
 	void createDescriptorPool() {
 		std::array<VkDescriptorPoolSize, 2> poolSizes = {};
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -739,9 +672,9 @@ private:
 			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 					pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-			vkCmdDrawIndexed(commandBuffers[i], indices.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
 			std::cerr << "recreating command buffer with v = "
-				<< vertices.size() << ", i = " << indices.size() << "\n";
+				<< nVertices << ", i = " << nIndices << "\n";
 			vkCmdEndRenderPass(commandBuffers[i]);
 
 			VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
@@ -770,7 +703,7 @@ private:
 		void *data;
 		vkMapMemory(app.device, indexBuffer.memory, 0, INDEX_BUFFER_SIZE, 0, &data);
 		// Copy host memory to device
-		memcpy(data, (uint8_t*)streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
+		memcpy(data, streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
 		vkUnmapMemory(app.device, indexBuffer.memory);
 	}
 

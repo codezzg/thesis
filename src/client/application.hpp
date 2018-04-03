@@ -5,6 +5,7 @@
 #include "validation.hpp"
 #include "swap.hpp"
 #include "images.hpp"
+#include "memory.hpp"
 
 struct Queues final {
 	VkQueue graphics;
@@ -12,6 +13,8 @@ struct Queues final {
 };
 
 struct Application final {
+
+	ApplicationMemory memory;
 
 	GLFWwindow* window;
 
