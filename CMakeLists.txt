@@ -8,6 +8,10 @@ include(${CMAKE_MODULE_PATH}/my_functions.cmake)
 
 detect_arch()
 message(STATUS "Target arch = ${TARGET_ARCH}bit")
+if (${TARGET_ARCH} STREQUAL "64")
+else()
+	message(FATAL_ERROR "Target arch should be 64 bit. If you're 100% positive you want 32 bit, comment me and go ahead.")
+endif()
 
 add_subdirectory(src/common build/common)
 add_subdirectory(src/client build/client)
