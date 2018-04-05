@@ -25,7 +25,7 @@
  *  the buffer, or it will copy the unused garbage bytes too!
  */
 template <size_t N>
-static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
+static auto writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 		int nVertices, int nIndices, size_t offset)
 {
 	const auto srcSize = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
@@ -164,7 +164,7 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 		//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
 		//dumpPacket("server.dump", packet);
 		if (::send(socket, reinterpret_cast<const char*>(&packet), sizeof(packet), 0) < 0) {
-			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
+			std::cerr << "could not write to remote: " << xplatGetErrorString() << "\n";
 		}
 		totSent += packet.payload.size();
 		++nPacketsSent;

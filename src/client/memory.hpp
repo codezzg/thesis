@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <cstddef>
+
 class ApplicationMemory final {
 	uint8_t *mem = nullptr;
 	std::size_t memsize = 0;

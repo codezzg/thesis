@@ -1,6 +1,6 @@
 #include "endpoint_xplatform.hpp"
+#include <cstring>
 #ifndef _WIN32
-	#include <cstring>
 	#include <cerrno>
 #endif
 
@@ -34,7 +34,7 @@ int xplatSockClose(socket_t sock) {
 }
 
 const char* xplatGetErrorString() {
-	return strerror(xplatGetError());
+	return std::strerror(xplatGetError());
 }
 
 int xplatGetError() {

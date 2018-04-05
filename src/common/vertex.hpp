@@ -8,6 +8,7 @@
 #define GLM_ENABLE_EXPERIMENTAL // for hash function
 #include <glm/gtx/hash.hpp>
 
+
 struct Vertex final {
 	glm::vec3 pos;
 	glm::vec3 color;

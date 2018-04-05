@@ -11,7 +11,7 @@ file(GLOB SRC ${MAIN_FILE}
 	../third_party/*.cpp
 )
 
-add_library(${PROJECT_NAME} SHARED ${SRC})
+add_library(${PROJECT_NAME} STATIC ${SRC})
 set_target_properties(${PROJECT_NAME} PROPERTIES
 	CXX_STANDARD 14
 	CXX_STANDARD_REQUIRED YES

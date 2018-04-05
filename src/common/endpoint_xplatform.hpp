@@ -42,4 +42,5 @@ bool xplatSocketCleanup();
 int xplatSockClose(socket_t sock);
 
 const char* xplatGetErrorString();
+
 int xplatGetError();

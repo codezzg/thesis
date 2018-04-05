@@ -16,7 +16,7 @@ bool ApplicationMemory::reserve(std::size_t size) {
 }
 
 uint8_t* ApplicationMemory::alloc(std::size_t size) {
-	if (firstFree + size > mem + memsize) {
+	if (firstFree + size > mem + memsize)
 		throw std::bad_alloc{};
 
 	auto address = firstFree;

@@ -9,7 +9,7 @@ class Clock {
 	using clock = std::chrono::high_resolution_clock;
 
 	static constexpr uint64_t secondsToCycles(float seconds) {
-		return seconds * clock::period::den;
+		return static_cast<uint64_t>(seconds * clock::period::den);
 	}
 
 	static constexpr float cyclesToSeconds(uint64_t cycles) {

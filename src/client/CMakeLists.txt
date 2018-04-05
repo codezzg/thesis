@@ -44,6 +44,9 @@ include_directories(${GLM_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GLM_LIBRARIES})
 add_definitions(-DGLM_FORCE_CXX14)
 
+if(WIN32)
+	target_link_libraries(${PROJECT_NAME} legacy_stdio_definitions.lib) 
+endif()
 
 #####################
 
