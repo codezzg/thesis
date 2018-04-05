@@ -18,3 +18,13 @@ build/
 *.dump
 *.data
 *.data.*
+*.filters
+*.user
+*.sln
+*.vcxproj
+*.exe
+Debug/
+.vs
+*.db
+x64/
+compile.bat

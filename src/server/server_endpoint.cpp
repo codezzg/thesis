@@ -144,9 +144,9 @@ void ServerActiveEndpoint::loopFunc() {
 
 void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int nVertices, int nIndices) {
 	// Start new frame
-	int totSent = 0;
+	size_t totSent = 0;
 	int nPacketsSent = 0;
-	auto offset = 0lu;
+	size_t offset = 0;
 	int32_t packetId = 0;
 
 	const size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);

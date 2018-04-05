@@ -217,7 +217,7 @@ private:
 		// data is [(64b)nVertices|(64b)nIndices|vertices|indices]
 		nVertices = *reinterpret_cast<const uint64_t*>(data);
 		nIndices = *(reinterpret_cast<const uint64_t*>(data) + 1);
-		printf("\nn vertices: %lu, n indices: %lu\n", nVertices, nIndices);
+		std::cerr << "\nn vertices: " << nVertices << ", n indices: " << nIndices << "\n";
 		//for (size_t i = 0; i < nVertices; ++i)
 			//std::cerr << "v[" << i << "] = "
 				//<< *((Vertex*)(data + 20 + sizeof(Vertex)*i)) << std::endl;

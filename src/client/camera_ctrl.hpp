@@ -10,7 +10,7 @@ public:
 	enum Direction { FWD, BACK, RIGHT, LEFT };
 
 	float cameraSpeed = 100.f;
-	float sensitivity = 0.005;
+	float sensitivity = 0.005f;
 
 	explicit CameraController(Camera& camera) : camera(camera) {}
 

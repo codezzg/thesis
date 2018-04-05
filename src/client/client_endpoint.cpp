@@ -88,7 +88,7 @@ const uint8_t* ClientPassiveEndpoint::peek() const {
 /////////////////////// Active EP
 void ClientActiveEndpoint::loopFunc() {
 	int64_t frameId = 0;
-	uint64_t packetId = 0;
+	uint32_t packetId = 0;
 
 	using namespace std::literals::chrono_literals;
 
@@ -106,7 +106,7 @@ void ClientActiveEndpoint::loopFunc() {
 		 * [0] CameraData (28 B)
 		 */
 		if (camera)
-			serializeCamera(data.payload.data(), *camera);
+			serializeCamera(data.payload, *camera);
 
 		if (::send(socket, reinterpret_cast<const char*>(&data), sizeof(data), 0) < 0) {
 			std::cerr << "could not write to remote: " << strerror(errno) << "\n";

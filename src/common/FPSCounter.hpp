@@ -3,6 +3,17 @@
 #include <chrono>
 #include <iostream>
 
+/** A simple FPS counter, designed to output to a stream. Use like this:
+ *
+ *  auto& myostream = std::cout;
+ *  FPSCounter counter;
+ *  counter.start();
+ *  while (...) {
+ *  	// do frame
+ *  	counter.addFrame();
+ *  	counter.report(myostream);
+ *  }
+ */
 class FPSCounter final {
 	using clock = std::chrono::high_resolution_clock;
 

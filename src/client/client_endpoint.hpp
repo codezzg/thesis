@@ -2,7 +2,7 @@
 
 #include "endpoint.hpp"
 
-class Camera;
+struct Camera;
 
 class ClientPassiveEndpoint : public Endpoint {
 	uint8_t *buffer = nullptr;

@@ -18,7 +18,7 @@ static void wiggle(Model& model, const Camera& camera) {
 		model.vertices[i].pos += std::cos(t * 10 + i * 0.01);
 		model.vertices[i].color = glm::normalize(camera.position);
 	}
-	t += 0.033;
+	t += 0.033f;
 }
 
 static Sphere calcBoundingSphere(const Model& model) {
@@ -67,7 +67,7 @@ static Sphere calcBoundingSphere(const Model& model) {
 
 void transformVertices(Model& model, const std::array<uint8_t, FrameData().payload.size()>& clientData,
 		uint8_t *buffer, int& nVertices, int& nIndices) {
-	const auto camera = deserializeCamera(clientData.data());
+	const auto camera = deserializeCamera(clientData);
 
 	// STUB
 	//wiggle(model, camera);
