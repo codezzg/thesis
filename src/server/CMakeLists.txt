@@ -28,17 +28,9 @@ find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${Vulkan_LIBRARIES})
 
-#find_package(GLFW REQUIRED)
-#include_directories(${GLFW_INCLUDE_DIR})
-#target_link_libraries(${PROJECT_NAME} ${GLFW_LIBRARIES})
-
-#find_package(Sparsehash REQUIRED)
-#include_directories(${Sparsehash_INCLUDE_DIRS})
-
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 include_directories(${Threads_INCLUDE_DIRS})
-#target_link_libraries(${PROJECT_NAME} ${Threads_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
 
 find_package(GLM REQUIRED)
