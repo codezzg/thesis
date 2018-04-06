@@ -7,7 +7,7 @@
 #include "endpoint_xplatform.hpp"
 
 // Common functions
-bool receivePacket(socket_t socket, uint8_t *buffer, size_t len);
+bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len);
 
 bool validatePacket(uint8_t *packetBuf, int64_t frameId);
 

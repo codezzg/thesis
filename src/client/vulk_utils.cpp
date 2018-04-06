@@ -8,7 +8,7 @@ std::vector<char> readFile(const std::string& filename) {
 	if (!file.is_open())
 		throw std::runtime_error("failed to open file " + filename + "!");
 
-	const size_t fileSize = static_cast<size_t>(file.tellg());
+	const auto fileSize = static_cast<std::size_t>(file.tellg());
 	std::vector<char> buffer(fileSize);
 
 	file.seekg(0);

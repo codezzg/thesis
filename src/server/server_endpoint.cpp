@@ -24,9 +24,9 @@
  *  memcpy(dst, buffer, buffer.size()), but it must calculate the exact amount of bytes to pick from
  *  the buffer, or it will copy the unused garbage bytes too!
  */
-template <size_t N>
-static auto writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
-		int nVertices, int nIndices, size_t offset)
+template <std::size_t N>
+static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
+		int nVertices, int nIndices, std::size_t offset)
 {
 	const auto srcSize = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 	auto srcIdx = offset;
@@ -60,7 +60,7 @@ static auto writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 	return srcIdx;
 }
 
-static constexpr size_t MEMSIZE = 1<<24;
+static constexpr std::size_t MEMSIZE = 1<<24;
 
 static uint8_t* allocServerMemory() {
 	return new uint8_t[MEMSIZE];
@@ -149,7 +149,7 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 	size_t offset = 0;
 	int32_t packetId = 0;
 
-	const size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
+	const std::size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 	while (offset < totBytes) {
 		// Create new packet
 		FrameData packet;

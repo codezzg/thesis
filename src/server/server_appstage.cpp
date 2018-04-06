@@ -70,7 +70,7 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 	const auto camera = deserializeCamera(clientData);
 
 	// STUB
-	//wiggle(model, camera);
+	wiggle(model, camera);
 
 	const auto& frustum = calcFrustum(camera.projMatrix());
 	// TODO ugly af caching, works as long as we have only 1 model
@@ -87,12 +87,12 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 		auto verticesBuffer = reinterpret_cast<Vertex*>(buffer);
 		for (int i = 0; i < model.nVertices; ++i) {
 			const auto& v = model.vertices[i];
-			const auto vv = camera.viewMatrix() * glm::vec4{v.pos.x, v.pos.y, v.pos.z, 1.0};
+			const auto vv = camera.viewMatrix() * glm::vec4{ v.pos.x, v.pos.y, v.pos.z, 1.0 };
 			if (true || sphereInFrustum(vv, sphere.radius * 2, frustum)) {
 				verticesBuffer[vertexIdx] = v;
 				indexRemap[i] = vertexIdx;
-				if (!sphereInFrustum(vv, sphere.radius, frustum))
-					verticesBuffer[vertexIdx].color = glm::vec3{ 1.f, 0.f, 0.f };
+				//if (!sphereInFrustum(vv, sphere.radius, frustum))
+					//verticesBuffer[vertexIdx].color = glm::vec3{ 1.f, 0.f, 0.f };
 				++vertexIdx;
 			}
 		}

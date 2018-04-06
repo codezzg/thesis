@@ -10,7 +10,7 @@ constexpr auto TEXTURE_PATH = "textures/chalet.jpg";
 //constexpr auto TEXTURE_PATH = "textures/texture.jpg";
 
 constexpr uint32_t PACKET_MAGIC = 0x14101991;
-constexpr size_t PACKET_SIZE_BYTES = 512;
+constexpr std::size_t PACKET_SIZE_BYTES = 512;
 
 constexpr const char *CLIENT_PASSIVE_IP = "127.0.0.1";
 constexpr int CLIENT_PASSIVE_PORT = 1234;

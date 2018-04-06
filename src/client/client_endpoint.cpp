@@ -53,7 +53,7 @@ void ClientPassiveEndpoint::loopFunc() {
 		}
 
 		uint8_t *payload = packet->payload.data();
-		size_t payloadLen = packet->payload.size();
+		auto payloadLen = packet->payload.size();
 
 		//dumpPacket("client.dump", *packet);
 

@@ -110,7 +110,7 @@ SwapChain createSwapChain(const Application& app) {
 
 void createSwapChainImageViews(Application& app) {
 	app.swapChain.imageViews.resize(app.swapChain.images.size());
-	for (size_t i = 0; i < app.swapChain.images.size(); ++i) {
+	for (std::size_t i = 0; i < app.swapChain.images.size(); ++i) {
 		app.swapChain.imageViews[i] = createImageView(app,
 			app.swapChain.images[i], app.swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
@@ -118,7 +118,7 @@ void createSwapChainImageViews(Application& app) {
 
 void createSwapChainFramebuffers(Application& app) {
 	app.swapChain.framebuffers.resize(app.swapChain.imageViews.size());
-	for (size_t i = 0; i < app.swapChain.imageViews.size(); ++i) {
+	for (std::size_t i = 0; i < app.swapChain.imageViews.size(); ++i) {
 		const std::array<VkImageView, 2> attachments = {
 			app.swapChain.imageViews[i],
 			app.depthImage.view

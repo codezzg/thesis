@@ -92,7 +92,7 @@ void Endpoint::close() {
 	loopThread.reset(nullptr);
 }
 
-bool receivePacket(socket_t socket, uint8_t *buffer, size_t len) {
+bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 	auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
 
 	if (count < 0) {

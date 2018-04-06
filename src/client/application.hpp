@@ -14,7 +14,7 @@ struct Queues final {
 
 struct Application final {
 
-	ApplicationMemory memory;
+	//ApplicationMemory memory;
 
 	GLFWwindow* window;
 

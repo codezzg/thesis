@@ -12,7 +12,7 @@
 #endif
 
 #ifdef USE_EXPERIMENTAL_TINYOBJ
-static const char* mmap_file(size_t *len, const char *filename) {
+static const char* mmap_file(std::size_t *len, const char *filename) {
 	*len = 0;
 	FILE* f = fopen(filename, "rb" );
 	if (!f) {
@@ -84,7 +84,7 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 
 	const auto load_t_begin = std::chrono::high_resolution_clock::now();
 #ifdef USE_EXPERIMENTAL_TINYOBJ
-	size_t data_len = 0;
+	std::size_t data_len = 0;
 	const char* data = mmap_file(&data_len, modelPath);
 	if (data == nullptr) {
 		printf("failed to load file\n");

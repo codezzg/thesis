@@ -45,6 +45,7 @@
 #undef min
 
 using namespace std::literals::string_literals;
+using std::size_t;
 
 struct UniformBufferObject final {
 	glm::mat4 model;
@@ -93,6 +94,7 @@ private:
 	Buffer indexBuffer;
 	Buffer uniformBuffer;
 
+	/** Pointer to the memory area staging vertices and indices coming from the server */
 	uint8_t *streamingBufferData = nullptr;
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
@@ -102,8 +104,6 @@ private:
 
 
 	void initVulkan() {
-		app.memory.reserve(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE + UNIFORM_BUFFER_SIZE);
-
 		app.swapChain = createSwapChain(app);
 		createSwapChainImageViews(app);
 		app.renderPass = createRenderPass(app);
@@ -115,13 +115,10 @@ private:
 		createTextureImage();
 		createTextureSampler();
 
-		//vertices = VERTICES;
-		//indices = INDICES;
-		streamingBufferData = reinterpret_cast<uint8_t*>(malloc(VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE));
+		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
 		camera = createCamera();
 		cameraCtrl = std::make_unique<CameraController>(camera);
 		activeEP.setCamera(&camera);
-		//loadModel(cfg::MODEL_PATH, vertices, indices);
 
 		vertexBuffer = createBuffer(app, VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
