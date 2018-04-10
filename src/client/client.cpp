@@ -18,8 +18,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 #include <chrono>
-#define STB_IMAGE_IMPLEMENTATION
-#include "third_party/stb_image.h"
 #include "FPSCounter.hpp"
 #include "vertex.hpp"
 #include "validation.hpp"
@@ -40,6 +38,7 @@
 #include "images.hpp"
 #include "renderpass.hpp"
 #include "gbuffer.hpp"
+#include "textures.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -107,15 +106,20 @@ private:
 	void initVulkan() {
 		app.swapChain = createSwapChain(app);
 		createSwapChainImageViews(app);
-		app.geomRenderPass = createRenderPass(app);
+
+		// Create the gbuffer for the geometry pass
+		const auto gBufAttachments = createGBufferAttachments(app);
+		app.geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
+		app.gBuffer = createGBuffer(app, gBufAttachments);
+
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		app.commandPool = createCommandPool(app.device, app.physicalDevice, app.surface);
 		createDepthResources();
+		// Create a framebuffer for each image in the swap chain for the presentation
 		createSwapChainFramebuffers(app);
-		app.gBuffer = createGBuffer(app);
-		createTextureImage();
-		createTextureSampler();
+		app.textureImage = createTextureImage(app, cfg::TEXTURE_PATH);
+		app.textureImage.sampler = createTextureSampler(app);
 
 		// Prepare buffer memory
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
@@ -402,7 +406,7 @@ private:
 		fragShaderStageInfo.module = fragShaderModule;
 		fragShaderStageInfo.pName = "main";
 
-		VkPipelineShaderStageCreateInfo shaderStages[] = {
+		const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
 			vertShaderStageInfo,
 			fragShaderStageInfo
 		};
@@ -450,9 +454,6 @@ private:
 		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizer.depthBiasEnable = VK_FALSE;
-		rasterizer.depthBiasConstantFactor = 0.f;
-		rasterizer.depthBiasClamp = 0.f;
-		rasterizer.depthBiasSlopeFactor = 0.f;
 
 		VkPipelineMultisampleStateCreateInfo multisampling = {};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -496,8 +497,8 @@ private:
 
 		VkGraphicsPipelineCreateInfo pipelineInfo = {};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		pipelineInfo.stageCount = 2;
-		pipelineInfo.pStages = shaderStages;
+		pipelineInfo.stageCount = shaderStages.size();
+		pipelineInfo.pStages = shaderStages.data();
 		pipelineInfo.pVertexInputState = &vertexInputInfo;
 		pipelineInfo.pInputAssemblyState = &inputAssembly;
 		pipelineInfo.pViewportState = &viewportState;
@@ -530,58 +531,6 @@ private:
 
 		transitionImageLayout(app, app.depthImage.handle, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-	}
-
-	void createTextureImage() {
-		int texWidth, texHeight, texChannels;
-		auto pixels = stbi_load(cfg::TEXTURE_PATH, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-		VkDeviceSize imageSize = texWidth * texHeight * 4;
-
-		if (!pixels)
-			throw std::runtime_error("failed to load texture image!");
-
-		const auto stagingBuffer = createBuffer(app, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-		void *data;
-		vkMapMemory(app.device, stagingBuffer.memory, 0, imageSize, 0, &data);
-		memcpy(data, pixels, static_cast<size_t>(imageSize));
-		vkUnmapMemory(app.device, stagingBuffer.memory);
-
-		stbi_image_free(pixels);
-
-		app.textureImage = createImage(app, texWidth, texHeight,
-				VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		app.textureImage.view = createImageView(app, app.textureImage.handle,
-				VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
-		transitionImageLayout(app, app.textureImage.handle, VK_FORMAT_R8G8B8A8_UNORM,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		copyBufferToImage(app, stagingBuffer.handle, app.textureImage.handle, texWidth, texHeight);
-		transitionImageLayout(app, app.textureImage.handle, VK_FORMAT_R8G8B8A8_UNORM,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		vkDestroyBuffer(app.device, stagingBuffer.handle, nullptr);
-		vkFreeMemory(app.device, stagingBuffer.memory, nullptr);
-	}
-
-	void createTextureSampler() {
-		VkSamplerCreateInfo samplerInfo = {};
-		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerInfo.magFilter = VK_FILTER_LINEAR;
-		samplerInfo.minFilter = VK_FILTER_LINEAR;
-		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-		samplerInfo.anisotropyEnable = VK_TRUE;
-		samplerInfo.maxAnisotropy = 16;
-		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		samplerInfo.unnormalizedCoordinates = VK_FALSE;
-		samplerInfo.compareEnable = VK_FALSE;
-		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-		VLKCHECK(vkCreateSampler(app.device, &samplerInfo, nullptr, &app.textureImage.sampler));
 	}
 
 	void createDescriptorPool() {

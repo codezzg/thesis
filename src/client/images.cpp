@@ -10,7 +10,7 @@ VkImageView createImageView(const Application& app, VkImage image, VkFormat form
 	createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	createInfo.image = image;
 	createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	createInfo.format = format;;
+	createInfo.format = format;
 	createInfo.subresourceRange.aspectMask = aspectFlags;
 	createInfo.subresourceRange.baseMipLevel = 0;
 	createInfo.subresourceRange.levelCount = 1;

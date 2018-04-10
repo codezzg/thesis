@@ -126,7 +126,7 @@ void createSwapChainFramebuffers(Application& app) {
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = app.lightRenderPass;
+		framebufferInfo.renderPass = app.geomRenderPass; // FIXME
 		framebufferInfo.attachmentCount = attachments.size();
 		framebufferInfo.pAttachments = attachments.data();
 		framebufferInfo.width = app.swapChain.extent.width;

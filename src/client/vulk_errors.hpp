@@ -44,10 +44,14 @@ constexpr const char* vlkResultStr(VkResult res) {
 	return "UNKNOWN_ERROR";
 }
 
-#define VLKCHECK(expr) \
-do { \
-	const auto res = expr; \
-	if (res != VK_SUCCESS) \
-		throw std::runtime_error(std::string("Failure at line ") + \
-				std::to_string(__LINE__) + ": " + vlkResultStr(res)); \
-} while (false)
+#ifndef NDEBUG
+	#define VLKCHECK(expr) \
+	do { \
+		const auto res = expr; \
+		if (res != VK_SUCCESS) \
+			throw std::runtime_error(std::string("Failure at ") + __FILE__ + ":" + \
+					std::to_string(__LINE__) + ": " + vlkResultStr(res)); \
+	} while (false)
+#else
+	#define VLKCHECK(x) x
+#endif

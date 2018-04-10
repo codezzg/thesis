@@ -6,6 +6,7 @@
 #include "swap.hpp"
 #include "images.hpp"
 #include "memory.hpp"
+#include "gbuffer.hpp"
 
 struct Queues final {
 	VkQueue graphics;
@@ -32,7 +33,7 @@ struct Application final {
 
 	SwapChain swapChain;
 
-	VkFramebuffer gBuffer;
+	GBuffer gBuffer;
 
 	VkRenderPass geomRenderPass;
 	VkRenderPass lightRenderPass;
