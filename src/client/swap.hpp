@@ -15,5 +15,12 @@ struct SwapChain final {
 };
 
 SwapChain createSwapChain(const Application& app);
+
 void createSwapChainImageViews(Application& app);
+
 void createSwapChainFramebuffers(Application& app);
+
+/** Returns the index of the next swapchain image, or -1 in case of failure.
+ *  Will also signal the given semaphore.
+ */
+uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore);

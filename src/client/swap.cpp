@@ -126,7 +126,7 @@ void createSwapChainFramebuffers(Application& app) {
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = app.renderPass;
+		framebufferInfo.renderPass = app.lightRenderPass;
 		framebufferInfo.attachmentCount = attachments.size();
 		framebufferInfo.pAttachments = attachments.data();
 		framebufferInfo.width = app.swapChain.extent.width;
@@ -138,3 +138,17 @@ void createSwapChainFramebuffers(Application& app) {
 	}
 }
 
+uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore) {
+	uint32_t imageIndex;
+	const auto result = vkAcquireNextImageKHR(app.device, app.swapChain.handle,
+			std::numeric_limits<uint64_t>::max(),
+			imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+		return -1;
+	} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+		throw std::runtime_error("failed to acquire swap chain image!");
+	}
+
+	return imageIndex;
+}

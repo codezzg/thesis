@@ -32,7 +32,10 @@ struct Application final {
 
 	SwapChain swapChain;
 
-	VkRenderPass renderPass;
+	VkFramebuffer gBuffer;
+
+	VkRenderPass geomRenderPass;
+	VkRenderPass lightRenderPass;
 
 	Image textureImage;
 	Image depthImage;

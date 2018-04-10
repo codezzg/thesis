@@ -9,6 +9,7 @@ struct Image final {
 	VkDeviceMemory memory;
 	VkImageView view;
 	VkSampler sampler;
+	VkFormat format;
 };
 
 VkImageView createImageView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);

@@ -39,6 +39,7 @@
 #include "vulk_errors.hpp"
 #include "images.hpp"
 #include "renderpass.hpp"
+#include "gbuffer.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -106,19 +107,18 @@ private:
 	void initVulkan() {
 		app.swapChain = createSwapChain(app);
 		createSwapChainImageViews(app);
-		app.renderPass = createRenderPass(app);
+		app.geomRenderPass = createRenderPass(app);
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		app.commandPool = createCommandPool(app.device, app.physicalDevice, app.surface);
 		createDepthResources();
 		createSwapChainFramebuffers(app);
+		app.gBuffer = createGBuffer(app);
 		createTextureImage();
 		createTextureSampler();
 
+		// Prepare buffer memory
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
-		camera = createCamera();
-		cameraCtrl = std::make_unique<CameraController>(camera);
-		activeEP.setCamera(&camera);
 
 		vertexBuffer = createBuffer(app, VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -126,6 +126,11 @@ private:
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		uniformBuffer = createBuffer(app, UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		// Prepare camera
+		camera = createCamera();
+		cameraCtrl = std::make_unique<CameraController>(camera);
+		activeEP.setCamera(&camera);
 
 		createDescriptorPool();
 		createDescriptorSet();
@@ -147,26 +152,15 @@ private:
 		updateIndexBuffer();
 		updateUniformBuffer();
 
-		auto beginTime = std::chrono::high_resolution_clock::now();
 		auto& clock = Clock::instance();
+		auto beginTime = std::chrono::high_resolution_clock::now();
+
 		while (!glfwWindowShouldClose(app.window)) {
 			glfwPollEvents();
 
 			runFrame();
 
-			// Time calculation and stuff
-			const auto endTime = std::chrono::high_resolution_clock::now();
-			float dt = std::chrono::duration_cast<std::chrono::microseconds>(
-					endTime - beginTime).count() / 1'000'000.f;
-			if (dt > 1.f)
-				dt = clock.targetDeltaTime;
-			clock.update(dt);
-			beginTime = endTime;
-			//std::cerr << "dt = " << clock.deltaTime() << " (estimate FPS = " <<
-				//1 / clock.deltaTime() << ")\n";
-
-			fps.addFrame();
-			fps.report();
+			calcTimeStats(fps, beginTime);
 		}
 
 		passiveEP.close();
@@ -265,6 +259,22 @@ private:
 		//}
 	}
 
+	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime) {
+		auto& clock = Clock::instance();
+		const auto endTime = std::chrono::high_resolution_clock::now();
+		float dt = std::chrono::duration_cast<std::chrono::microseconds>(
+				endTime - beginTime).count() / 1'000'000.f;
+		if (dt > 1.f)
+			dt = clock.targetDeltaTime;
+		clock.update(dt);
+		beginTime = endTime;
+		//std::cerr << "dt = " << clock.deltaTime() << " (estimate FPS = " <<
+			//1 / clock.deltaTime() << ")\n";
+
+		fps.addFrame();
+		fps.report();
+	}
+
 	void cleanupSwapChain() {
 		vkDestroyImageView(app.device, app.depthImage.view, nullptr);
 		vkDestroyImage(app.device, app.depthImage.handle, nullptr);
@@ -279,7 +289,7 @@ private:
 
 		vkDestroyPipeline(app.device, graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(app.device, pipelineLayout, nullptr);
-		vkDestroyRenderPass(app.device, app.renderPass, nullptr);
+		vkDestroyRenderPass(app.device, app.geomRenderPass, nullptr);
 
 		for (auto imageView : app.swapChain.imageViews)
 			vkDestroyImageView(app.device, imageView, nullptr);
@@ -338,7 +348,7 @@ private:
 
 		app.swapChain = createSwapChain(app);
 		createSwapChainImageViews(app);
-		app.renderPass = createRenderPass(app);
+		app.geomRenderPass = createRenderPass(app);
 		createGraphicsPipeline();
 		createDepthResources();
 		createSwapChainFramebuffers(app);
@@ -497,7 +507,7 @@ private:
 		pipelineInfo.pDepthStencilState = &depthStencil;
 		pipelineInfo.pDynamicState = nullptr;
 		pipelineInfo.layout = pipelineLayout;
-		pipelineInfo.renderPass = app.renderPass;
+		pipelineInfo.renderPass = app.geomRenderPass;
 		pipelineInfo.subpass = 0;
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineInfo.basePipelineIndex = -1;
@@ -651,7 +661,7 @@ private:
 
 			VkRenderPassBeginInfo renderPassInfo = {};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassInfo.renderPass = app.renderPass;
+			renderPassInfo.renderPass = app.geomRenderPass;
 			renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
 			renderPassInfo.renderArea.offset = {0, 0};
 			renderPassInfo.renderArea.extent = app.swapChain.extent;
@@ -729,45 +739,39 @@ private:
 
 
 	void drawFrame() {
-
-		uint32_t imageIndex;
-		auto result = vkAcquireNextImageKHR(app.device, app.swapChain.handle,
-				std::numeric_limits<uint64_t>::max(),
-				imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-
-		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+		const auto imageIndex = acquireNextSwapImage(app, imageAvailableSemaphore);
+		if (imageIndex < 0) {
 			recreateSwapChain();
 			return;
-		} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-			throw std::runtime_error("failed to acquire swap chain image!");
 		}
 
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
-		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = waitSemaphores;
-		submitInfo.pWaitDstStageMask = waitStages;
+		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
+		const std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		static_assert(waitStages.size() == waitSemaphores.size());
+		submitInfo.waitSemaphoreCount = waitSemaphores.size();
+		submitInfo.pWaitSemaphores = waitSemaphores.data();
+		submitInfo.pWaitDstStageMask = waitStages.data();
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
-		VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = signalSemaphores;
+		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
+		submitInfo.signalSemaphoreCount = signalSemaphores.size();
+		submitInfo.pSignalSemaphores = signalSemaphores.data();
 
 		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
 
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = signalSemaphores;
-		VkSwapchainKHR swapChains[] = { app.swapChain.handle };
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = swapChains;
+		presentInfo.waitSemaphoreCount = signalSemaphores.size();
+		presentInfo.pWaitSemaphores = signalSemaphores.data();
+		const std::array<VkSwapchainKHR, 1> swapChains = { app.swapChain.handle };
+		presentInfo.swapchainCount = swapChains.size();
+		presentInfo.pSwapchains = swapChains.data();
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 
-		result = vkQueuePresentKHR(app.queues.present, &presentInfo);
+		const auto result = vkQueuePresentKHR(app.queues.present, &presentInfo);
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 			recreateSwapChain();

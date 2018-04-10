@@ -4,6 +4,22 @@
 #include "formats.hpp"
 #include <array>
 
+VkRenderPass createGeometryRenderPass(const Application& app) {
+	VkAttachmentDescription posAttachment = {};
+	posAttachment.format = VK_FORMAT_R8G8B8_SNORM;
+	posAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	posAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // XXX: dont care?
+	posAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	posAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	posAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	posAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	posAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference posAttachmentRef = {};
+	posAttachmentRef.attachment = 0;
+	posAttachmentRef.layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+}
+
 VkRenderPass createRenderPass(const Application& app) {
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = app.swapChain.imageFormat;

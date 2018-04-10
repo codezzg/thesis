@@ -67,6 +67,7 @@ Image createImage(
 	Image image;
 	image.handle = imageHandle;
 	image.memory = imageMemory;
+	image.format = format;
 
 	return image;
 }
