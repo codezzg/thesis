@@ -2,6 +2,7 @@
 #include "clock.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
+#include <immintrin.h>
 
 Camera createCamera() {
 	Camera camera;

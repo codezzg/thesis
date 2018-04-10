@@ -2,6 +2,7 @@
 #include <cstring>
 #include <iostream>
 #include <algorithm>
+#include "vulk_errors.hpp"
 
 bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers) {
 	uint32_t layerCount;
@@ -66,8 +67,7 @@ static VkDebugReportCallbackEXT createDebugCallback(VkInstance instance) {
 	createInfo.pfnCallback = debugCallback;
 
 	VkDebugReportCallbackEXT callback;
-	if (createDebugReportCallbackEXT(instance, &createInfo, nullptr, &callback) != VK_SUCCESS)
-		throw std::runtime_error("failed to set up debug callback!");
+	VLKCHECK(createDebugReportCallbackEXT(instance, &createInfo, nullptr, &callback));
 
 	return callback;
 }
@@ -79,11 +79,13 @@ void Validation::requestLayers(const std::vector<const char*>& layers) {
 
 void Validation::init(VkInstance _instance) {
 	instance = _instance;
-	debugReportCallback = createDebugCallback(instance);
+	if (enabled())
+		debugReportCallback = createDebugCallback(instance);
 }
 
 void Validation::cleanup() {
-	destroyDebugReportCallbackEXT(instance, debugReportCallback, nullptr);
+	if (debugReportCallback)
+		destroyDebugReportCallbackEXT(instance, debugReportCallback, nullptr);
 }
 
 bool Validation::enabled() const {
