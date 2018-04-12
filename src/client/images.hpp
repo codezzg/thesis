@@ -29,3 +29,5 @@ Image createImage(
 void transitionImageLayout(const Application& app,
 		VkImage image, VkFormat format,
 		VkImageLayout oldLayout, VkImageLayout newLayout);
+
+Image createDepthImage(const Application& app);

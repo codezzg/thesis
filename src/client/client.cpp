@@ -11,6 +11,7 @@
 #include <fstream>
 #include <cstring>
 #include <cstdio>
+#include <utility>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -81,7 +82,6 @@ private:
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
-	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 
@@ -93,6 +93,9 @@ private:
 	Buffer vertexBuffer;
 	Buffer indexBuffer;
 	Buffer uniformBuffer;
+
+	Image texDiffuseImage;
+	Image texSpecularImage;
 
 	/** Pointer to the memory area staging vertices and indices coming from the server */
 	uint8_t *streamingBufferData = nullptr;
@@ -112,14 +115,27 @@ private:
 		app.geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
 		app.gBuffer = createGBuffer(app, gBufAttachments);
 
-		createDescriptorSetLayout();
-		createGraphicsPipeline();
-		app.commandPool = createCommandPool(app.device, app.physicalDevice, app.surface);
-		createDepthResources();
+		app.gBuffer.descriptorSetLayout = createGBufferDescriptorSetLayout(app);
+
+		std::tie(graphicsPipeline, pipelineLayout) = createGBufferPipeline(app);
+
+		app.commandPool = createCommandPool(app);
+
+		app.depthImage = createDepthImage(app);
+
 		// Create a framebuffer for each image in the swap chain for the presentation
 		createSwapChainFramebuffers(app);
-		app.textureImage = createTextureImage(app, cfg::TEXTURE_PATH);
-		app.textureImage.sampler = createTextureSampler(app);
+
+		texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
+		texDiffuseImage.sampler = createTextureSampler(app);
+		texSpecularImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::GREY);
+		texSpecularImage.sampler = createTextureSampler(app);
+
+		createDescriptorPool();
+		createDescriptorSet();
+		createCommandBuffers();
+		createSemaphores();
+
 
 		// Prepare buffer memory
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
@@ -135,11 +151,6 @@ private:
 		camera = createCamera();
 		cameraCtrl = std::make_unique<CameraController>(camera);
 		activeEP.setCamera(&camera);
-
-		createDescriptorPool();
-		createDescriptorSet();
-		createCommandBuffers();
-		createSemaphores();
 	}
 
 	void mainLoop() {
@@ -304,13 +315,13 @@ private:
 	void cleanup() {
 		cleanupSwapChain();
 
-		vkDestroySampler(app.device, app.textureImage.sampler, nullptr);
-		vkDestroyImageView(app.device, app.textureImage.view, nullptr);
-		vkDestroyImage(app.device, app.textureImage.handle, nullptr);
-		vkFreeMemory(app.device, app.textureImage.memory, nullptr);
+		vkDestroySampler(app.device, texDiffuseImage.sampler, nullptr);
+		vkDestroyImageView(app.device, texDiffuseImage.view, nullptr);
+		vkDestroyImage(app.device, texDiffuseImage.handle, nullptr);
+		vkFreeMemory(app.device, texDiffuseImage.memory, nullptr);
 
 		vkDestroyDescriptorPool(app.device, descriptorPool, nullptr);
-		vkDestroyDescriptorSetLayout(app.device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(app.device, app.gBuffer.descriptorSetLayout, nullptr);
 
 		vkDestroyBuffer(app.device, uniformBuffer.handle, nullptr);
 		vkFreeMemory(app.device, uniformBuffer.memory, nullptr);
@@ -322,6 +333,8 @@ private:
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
 		vkDestroyCommandPool(app.device, app.commandPool, nullptr);
+
+		delete [] streamingBufferData;
 
 		app.cleanup();
 	}
@@ -353,184 +366,10 @@ private:
 		app.swapChain = createSwapChain(app);
 		createSwapChainImageViews(app);
 		app.geomRenderPass = createRenderPass(app);
-		createGraphicsPipeline();
-		createDepthResources();
+		std::tie(graphicsPipeline, pipelineLayout) = createGBufferPipeline(app);
+		app.depthImage = createDepthImage(app);
 		createSwapChainFramebuffers(app);
 		createCommandBuffers();
-	}
-
-	void createDescriptorSetLayout() {
-		VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-		uboLayoutBinding.binding = 0;
-		uboLayoutBinding.descriptorCount = 1;
-		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		uboLayoutBinding.pImmutableSamplers = nullptr;
-		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-		VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-		samplerLayoutBinding.binding = 1;
-		samplerLayoutBinding.descriptorCount = 1;
-		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		samplerLayoutBinding.pImmutableSamplers = nullptr;
-		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-		std::array<VkDescriptorSetLayoutBinding, 2> bindings = {
-			uboLayoutBinding,
-			samplerLayoutBinding
-		};
-
-		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutInfo.bindingCount = bindings.size();
-		layoutInfo.pBindings = bindings.data();
-
-		VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
-	}
-
-	void createGraphicsPipeline() {
-		auto vertShaderCode = readFile("shaders/3d.vert.spv");
-		auto fragShaderCode = readFile("shaders/3d.frag.spv");
-
-		auto vertShaderModule = createShaderModule(vertShaderCode);
-		auto fragShaderModule = createShaderModule(fragShaderCode);
-
-		VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
-		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertShaderStageInfo.module = vertShaderModule;
-		vertShaderStageInfo.pName = "main";
-
-		VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
-		fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragShaderStageInfo.module = fragShaderModule;
-		fragShaderStageInfo.pName = "main";
-
-		const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
-			vertShaderStageInfo,
-			fragShaderStageInfo
-		};
-
-		// Configure fixed pipeline
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
-		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		auto bindingDescription = Vertex::getBindingDescription();
-		auto attributeDescriptions = Vertex::getAttributeDescriptions();
-		vertexInputInfo.vertexBindingDescriptionCount = 1;
-		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-		vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
-		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-		VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
-		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		inputAssembly.topology= VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-		VkViewport viewport = {};
-		viewport.x = 0.f;
-		viewport.y = 0.f;
-		viewport.width = static_cast<float>(app.swapChain.extent.width);
-		viewport.height = static_cast<float>(app.swapChain.extent.height);
-		viewport.minDepth = 0.f;
-		viewport.maxDepth = 1.f;
-
-		VkRect2D scissor = {};
-		scissor.offset = {0, 0};
-		scissor.extent = app.swapChain.extent;
-
-		VkPipelineViewportStateCreateInfo viewportState = {};
-		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		viewportState.viewportCount = 1;
-		viewportState.pViewports = &viewport;
-		viewportState.scissorCount = 1;
-		viewportState.pScissors = &scissor;
-
-		VkPipelineRasterizationStateCreateInfo rasterizer = {};
-		rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rasterizer.depthClampEnable = VK_FALSE;
-		rasterizer.rasterizerDiscardEnable = VK_FALSE;
-		rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterizer.lineWidth = 1.f;
-		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rasterizer.depthBiasEnable = VK_FALSE;
-
-		VkPipelineMultisampleStateCreateInfo multisampling = {};
-		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisampling.sampleShadingEnable = VK_FALSE;
-		multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-		VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-		colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
-						| VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		colorBlendAttachment.blendEnable = VK_FALSE;
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-		VkPipelineColorBlendStateCreateInfo colorBlending = {};
-		colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		colorBlending.logicOpEnable = VK_FALSE;
-		colorBlending.logicOp = VK_LOGIC_OP_COPY;
-		colorBlending.attachmentCount = 1;
-		colorBlending.pAttachments = &colorBlendAttachment;
-
-		VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencil.depthTestEnable = VK_TRUE;
-		depthStencil.depthWriteEnable = VK_TRUE;
-		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-		depthStencil.depthBoundsTestEnable = VK_FALSE;
-		depthStencil.stencilTestEnable = VK_FALSE;
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = 1;
-		pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-		pipelineLayoutInfo.pushConstantRangeCount = 0;
-		pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-		VLKCHECK(vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
-
-		VkGraphicsPipelineCreateInfo pipelineInfo = {};
-		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		pipelineInfo.stageCount = shaderStages.size();
-		pipelineInfo.pStages = shaderStages.data();
-		pipelineInfo.pVertexInputState = &vertexInputInfo;
-		pipelineInfo.pInputAssemblyState = &inputAssembly;
-		pipelineInfo.pViewportState = &viewportState;
-		pipelineInfo.pRasterizationState = &rasterizer;
-		pipelineInfo.pMultisampleState = &multisampling;
-		pipelineInfo.pColorBlendState = &colorBlending;
-		pipelineInfo.pDepthStencilState = &depthStencil;
-		pipelineInfo.pDynamicState = nullptr;
-		pipelineInfo.layout = pipelineLayout;
-		pipelineInfo.renderPass = app.geomRenderPass;
-		pipelineInfo.subpass = 0;
-		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-		pipelineInfo.basePipelineIndex = -1;
-
-		VLKCHECK(vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1,
-					&pipelineInfo, nullptr, &graphicsPipeline));
-
-		// Cleanup
-		vkDestroyShaderModule(app.device, fragShaderModule, nullptr);
-		vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
-	}
-
-	void createDepthResources() {
-		const auto depthFormat = findDepthFormat(app.physicalDevice);
-		app.depthImage = createImage(app, app.swapChain.extent.width, app.swapChain.extent.height, depthFormat,
-				VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		app.depthImage.view = createImageView(app, app.depthImage.handle,
-				depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-		transitionImageLayout(app, app.depthImage.handle, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 	}
 
 	void createDescriptorPool() {
@@ -538,7 +377,7 @@ private:
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = 1;
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[1].descriptorCount = 1;
+		poolSizes[1].descriptorCount = 2;
 
 		VkDescriptorPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -550,7 +389,7 @@ private:
 	}
 
 	void createDescriptorSet() {
-		VkDescriptorSetLayout layouts[] = { descriptorSetLayout };
+		VkDescriptorSetLayout layouts[] = { app.gBuffer.descriptorSetLayout };
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = descriptorPool;
@@ -564,10 +403,15 @@ private:
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
-		VkDescriptorImageInfo imageInfo = {};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = app.textureImage.view;
-		imageInfo.sampler = app.textureImage.sampler;
+		VkDescriptorImageInfo texDiffuseInfo = {};
+		texDiffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		texDiffuseInfo.imageView = texDiffuseImage.view;
+		texDiffuseInfo.sampler = texDiffuseImage.sampler;
+
+		VkDescriptorImageInfo texSpecularInfo = {};
+		texSpecularInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		texSpecularInfo.imageView = texSpecularImage.view;
+		texSpecularInfo.sampler = texSpecularImage.sampler;
 
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -584,7 +428,15 @@ private:
 		descriptorWrites[1].dstArrayElement = 0;
 		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].pImageInfo = &imageInfo;
+		descriptorWrites[1].pImageInfo = &texDiffuseInfo;
+
+		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[2].dstSet = descriptorSet;
+		descriptorWrites[2].dstBinding = 2;
+		descriptorWrites[2].dstArrayElement = 0;
+		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[2].descriptorCount = 1;
+		descriptorWrites[2].pImageInfo = &texSpecularInfo;
 
 		vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 	}
@@ -728,18 +580,6 @@ private:
 			throw std::runtime_error("failed to present swap chain image!");
 
 		vkQueueWaitIdle(app.queues.present);
-	}
-
-	VkShaderModule createShaderModule(const std::vector<char>& code) const {
-		VkShaderModuleCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = code.size();
-		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-		VkShaderModule shaderModule;
-		VLKCHECK(vkCreateShaderModule(app.device, &createInfo, nullptr, &shaderModule));
-
-		return shaderModule;
 	}
 };
 

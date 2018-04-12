@@ -137,3 +137,19 @@ void transitionImageLayout(const Application& app, VkImage image, VkFormat forma
 			1, &barrier);
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }
+
+Image createDepthImage(const Application& app) {
+	const auto depthFormat = findDepthFormat(app.physicalDevice);
+	auto depthImage = createImage(app,
+			app.swapChain.extent.width, app.swapChain.extent.height,
+			depthFormat,
+			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	depthImage.view = createImageView(app, depthImage.handle,
+			depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+	transitionImageLayout(app, depthImage.handle, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+	return depthImage;
+}

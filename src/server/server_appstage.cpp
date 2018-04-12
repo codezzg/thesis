@@ -16,7 +16,6 @@ static void wiggle(Model& model, const Camera& camera) {
 	static float t = 0;
 	for (int i = 0; i < model.nVertices; ++i) {
 		model.vertices[i].pos += std::cos(t * 10 + i * 0.01);
-		model.vertices[i].color = glm::normalize(camera.position);
 	}
 	t += 0.033f;
 }

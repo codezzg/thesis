@@ -38,7 +38,6 @@ struct Application final {
 	VkRenderPass geomRenderPass;
 	VkRenderPass lightRenderPass;
 
-	Image textureImage;
 	Image depthImage;
 
 	void init();

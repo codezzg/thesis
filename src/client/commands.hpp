@@ -2,7 +2,9 @@
 
 #include <vulkan/vulkan.h>
 
-VkCommandPool createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+struct Application;
+
+VkCommandPool createCommandPool(const Application& app);
 
 VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPool);
 

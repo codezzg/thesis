@@ -11,7 +11,7 @@
 
 struct Vertex final {
 	glm::vec3 pos;
-	glm::vec3 color;
+	glm::vec3 norm;
 	glm::vec2 texCoord;
 
 	static VkVertexInputBindingDescription getBindingDescription();
@@ -27,7 +27,7 @@ namespace std {
 	template<> struct hash<Vertex> {
 		std::size_t operator ()(const Vertex& vertex) const {
 			return ((hash<glm::vec3>()(vertex.pos) ^
-				(hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+				(hash<glm::vec3>()(vertex.norm) << 1)) >> 1) ^
 				(hash<glm::vec2>()(vertex.texCoord) << 1);
 		}
 	};
@@ -49,6 +49,6 @@ inline std::ostream& operator <<(std::ostream& s, const glm::vec4& v) {
 }
 
 inline std::ostream& operator <<(std::ostream& s, const Vertex& v) {
-	s << v.pos << ", " << v.color << ", " << v.texCoord;
+	s << v.pos << ", " << v.norm << ", " << v.texCoord;
 	return s;
 }

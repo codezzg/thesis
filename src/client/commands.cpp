@@ -1,16 +1,18 @@
 #include "commands.hpp"
 #include "phys_device.hpp"
+#include "vulk_errors.hpp"
+#include "application.hpp"
 #include <stdexcept>
 
-VkCommandPool createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
-	auto queueFamilyIndices = findQueueFamilies(physicalDevice, surface);
+VkCommandPool createCommandPool(const Application& app) {
+	auto queueFamilyIndices = findQueueFamilies(app.physicalDevice, app.surface);
 
 	VkCommandPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
 
 	VkCommandPool commandPool;
-	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+	if (vkCreateCommandPool(app.device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
 		throw std::runtime_error("failed to create graphics command pool!");
 
 	return commandPool;

@@ -2,14 +2,18 @@
 #include "application.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb_image.h"
+#include "formats.hpp"
 #include "buffers.hpp"
 #include "vulk_errors.hpp"
 #include <vulkan/vulkan.h>
 
-Image createTextureImage(const Application& app, const char *texturePath) {
+Image createTextureImage(const Application& app, const char *texturePath, TextureFormat format) {
 	int texWidth, texHeight, texChannels;
-	auto pixels = stbi_load(texturePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	VkDeviceSize imageSize = texWidth * texHeight * 4;
+	auto pixels = stbi_load(texturePath, &texWidth, &texHeight, &texChannels,
+			format == TextureFormat::RGBA
+				? STBI_rgb_alpha
+				: STBI_grey);
+	VkDeviceSize imageSize = texWidth * texHeight * (format == TextureFormat::RGBA ? 4 : 1);
 
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
@@ -24,18 +28,20 @@ Image createTextureImage(const Application& app, const char *texturePath) {
 
 	stbi_image_free(pixels);
 
+	const auto vkFormat = format == TextureFormat::RGBA ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8_UNORM;
+
 	auto textureImage = createImage(app, texWidth, texHeight,
-			VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+			vkFormat, VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	textureImage.view = createImageView(app, app.textureImage.handle,
+	textureImage.view = createImageView(app, textureImage.handle,
 			textureImage.format, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	// Transfer the loaded buffer into the image
-	transitionImageLayout(app, textureImage.handle, VK_FORMAT_R8G8B8A8_UNORM,
+	transitionImageLayout(app, textureImage.handle, vkFormat,
 			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(app, stagingBuffer.handle, textureImage.handle, texWidth, texHeight);
-	transitionImageLayout(app, textureImage.handle, VK_FORMAT_R8G8B8A8_UNORM,
+	transitionImageLayout(app, textureImage.handle, vkFormat,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(app.device, stagingBuffer.handle, nullptr);
@@ -65,4 +71,3 @@ VkSampler createTextureSampler(const Application& app) {
 
 	return sampler;
 }
-
