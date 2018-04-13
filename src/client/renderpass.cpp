@@ -6,32 +6,32 @@
 
 VkRenderPass createGeometryRenderPass(const Application& app, const std::vector<Image>& attachments) {
 
-	std::vector<VkAttachmentDescription> attachDesc{ attachments.size() };
+	std::vector<VkAttachmentDescription> colorAttachDesc{ attachments.size() };
 
 	// 1- world space position
 	// 2- world space normal
 	// 3- albedo + specular
 	// 4- depth
 	constexpr auto depthIdx = 3;
-	for (unsigned i = 0; i < attachDesc.size(); ++i) {
+	for (unsigned i = 0; i < colorAttachDesc.size(); ++i) {
 		if (i < attachments.size())
-			attachDesc[i].format = attachments[i].format;
-		attachDesc[i].samples = VK_SAMPLE_COUNT_1_BIT;
-		attachDesc[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attachDesc[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachDesc[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachDesc[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachDesc[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		attachDesc[i].finalLayout = (i == depthIdx)
+			colorAttachDesc[i].format = attachments[i].format;
+		colorAttachDesc[i].samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachDesc[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachDesc[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachDesc[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachDesc[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachDesc[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachDesc[i].finalLayout = (i == depthIdx)
 			? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 			: VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	}
 
-	VkAttachmentReference depthAttachmentRef = {};
-	depthAttachmentRef.attachment = depthIdx;
-	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	VkAttachmentReference depthAttachRef = {};
+	depthAttachRef.attachment = depthIdx;
+	depthAttachRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-	const std::array<VkAttachmentReference, 3> attachRefs = {
+	const std::array<VkAttachmentReference, 3> colorAttachRefs = {
 		VkAttachmentReference{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 		VkAttachmentReference{ 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 		VkAttachmentReference{ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
@@ -39,9 +39,9 @@ VkRenderPass createGeometryRenderPass(const Application& app, const std::vector<
 
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = attachRefs.size();
-	subpass.pColorAttachments = attachRefs.data();
-	subpass.pDepthStencilAttachment = &depthAttachmentRef;
+	subpass.colorAttachmentCount = colorAttachRefs.size();
+	subpass.pColorAttachments = colorAttachRefs.data();
+	subpass.pDepthStencilAttachment = &depthAttachRef;
 
 	std::array<VkSubpassDependency, 2> deps;
 
@@ -63,8 +63,8 @@ VkRenderPass createGeometryRenderPass(const Application& app, const std::vector<
 
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = attachDesc.size();
-	renderPassInfo.pAttachments = attachDesc.data();
+	renderPassInfo.attachmentCount = colorAttachDesc.size();
+	renderPassInfo.pAttachments = colorAttachDesc.data();
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 	renderPassInfo.dependencyCount = deps.size();
@@ -76,7 +76,7 @@ VkRenderPass createGeometryRenderPass(const Application& app, const std::vector<
 	return renderPassHandle;
 }
 
-VkRenderPass createRenderPass(const Application& app) {
+VkRenderPass createLightingRenderPass(const Application& app) {
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = app.swapChain.imageFormat;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;

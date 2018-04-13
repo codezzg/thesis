@@ -90,6 +90,11 @@ void Application::init() {
 	instance = createInstance(validation);
 	validation.init(instance);
 
+	//resources.pipelineLayouts = std::make_unique<PipelineLayoutMap>(device);
+	//resources.pipelines = std::make_unique<PipelineMap>(device);
+	//resources.descriptorSetLayouts = std::make_unique<DescriptorSetLayoutMap>(device);
+	//resources.descriptorSets = std::make_unique<DescriptorSetMap>(device, descriptorPool);
+
 	surface = createSurface(instance, window);
 	physicalDevice = pickPhysicalDevice(instance, surface);
 	createLogicalDevice(*this);

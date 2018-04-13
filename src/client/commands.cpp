@@ -52,3 +52,4 @@ void endSingleTimeCommands(VkDevice device, VkQueue graphicsQueue,
 
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
+

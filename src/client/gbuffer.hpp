@@ -23,3 +23,6 @@ GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachme
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app);
 
 std::pair<VkPipeline, VkPipelineLayout> createGBufferPipeline(const Application& app);
+
+VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nIndices,
+		const Buffer& vBuffer, const Buffer& iBuffer, const Buffer& uBuffer, VkDescriptorSet descSet);

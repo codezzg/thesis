@@ -223,29 +223,29 @@ std::pair<VkPipeline, VkPipelineLayout> createGBufferPipeline(const Application&
 	multisampling.sampleShadingEnable = VK_FALSE;
 	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
 					| VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	colorBlendAttachment.blendEnable = VK_FALSE;
-	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.blendEnable = VK_FALSE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
 
-	const std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachments = {
-		colorBlendAttachment,
-		colorBlendAttachment,
-		colorBlendAttachment,
+	const std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachmentStates = {
+		colorBlendAttachmentState,
+		colorBlendAttachmentState,
+		colorBlendAttachmentState,
 	};
 
 	VkPipelineColorBlendStateCreateInfo colorBlending = {};
 	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	colorBlending.logicOpEnable = VK_FALSE;
 	colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	colorBlending.attachmentCount = colorBlendAttachments.size();
-	colorBlending.pAttachments = colorBlendAttachments.data();
+	colorBlending.attachmentCount = colorBlendAttachmentStates.size();
+	colorBlending.pAttachments = colorBlendAttachmentStates.data();
 
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -291,4 +291,45 @@ std::pair<VkPipeline, VkPipelineLayout> createGBufferPipeline(const Application&
 	vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
 
 	return std::make_pair(pipeline, pipelineLayout);
+}
+
+VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nIndices,
+		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
+		VkDescriptorSet descSet)
+{
+	std::array<VkClearValue, 4> clearValues = {};
+	clearValues[0].color = {{ 0, 0, 0, 0 }};
+	clearValues[1].color = {{ 0, 0, 0, 0 }};
+	clearValues[2].color = {{ 0, 0, 0, 0 }};
+	clearValues[3].depthStencil = { 1, 0 };
+
+	VkRenderPassBeginInfo renderPassBeginInfo = {};
+	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassBeginInfo.renderPass = app.geomRenderPass;
+	renderPassBeginInfo.framebuffer = app.gBuffer.handle;
+	renderPassBeginInfo.renderArea.extent.width = app.swapChain.extent.width;
+	renderPassBeginInfo.renderArea.extent.height = app.swapChain.extent.height;
+	renderPassBeginInfo.clearValueCount = clearValues.size();
+	renderPassBeginInfo.pClearValues = clearValues.data();
+
+	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
+
+	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphicsPipeline);
+
+	const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
+	const std::array<VkDeviceSize, 1> offsets = { 0 };
+	static_assert(vertexBuffers.size() == offsets.size(),
+			"offsets should be the same amount of vertexBuffers!");
+	vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers.size(),
+			vertexBuffers.data(), offsets.data());
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			app.graphicsPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+	vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
+	vkCmdEndRenderPass(commandBuffer);
+
+	VLKCHECK(vkEndCommandBuffer(commandBuffer));
+
+	return commandBuffer;
 }

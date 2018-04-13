@@ -2,6 +2,7 @@
 #include <limits>
 #include <algorithm>
 #include <array>
+#include "buffers.hpp"
 #include "application.hpp"
 #include "phys_device.hpp"
 #include "vulk_errors.hpp"
@@ -108,16 +109,20 @@ SwapChain createSwapChain(const Application& app) {
 	return swapChain;
 }
 
-void createSwapChainImageViews(Application& app) {
-	app.swapChain.imageViews.resize(app.swapChain.images.size());
+std::vector<VkImageView> createSwapChainImageViews(const Application& app) {
+	std::vector<VkImageView> imageViews{ app.swapChain.images.size() };
+
 	for (std::size_t i = 0; i < app.swapChain.images.size(); ++i) {
-		app.swapChain.imageViews[i] = createImageView(app,
+		imageViews[i] = createImageView(app,
 			app.swapChain.images[i], app.swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
+
+	return imageViews;
 }
 
-void createSwapChainFramebuffers(Application& app) {
-	app.swapChain.framebuffers.resize(app.swapChain.imageViews.size());
+std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app) {
+	std::vector<VkFramebuffer> framebuffers{ app.swapChain.imageViews.size() };
+
 	for (std::size_t i = 0; i < app.swapChain.imageViews.size(); ++i) {
 		const std::array<VkImageView, 2> attachments = {
 			app.swapChain.imageViews[i],
@@ -133,9 +138,10 @@ void createSwapChainFramebuffers(Application& app) {
 		framebufferInfo.height = app.swapChain.extent.height;
 		framebufferInfo.layers = 1;
 
-		VLKCHECK(vkCreateFramebuffer(app.device, &framebufferInfo, nullptr,
-					&app.swapChain.framebuffers[i]));
+		VLKCHECK(vkCreateFramebuffer(app.device, &framebufferInfo, nullptr, &framebuffers[i]));
 	}
+
+	return framebuffers;
 }
 
 uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore) {
@@ -151,4 +157,60 @@ uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailable
 	}
 
 	return imageIndex;
+}
+
+std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, uint32_t nIndices,
+		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
+		VkDescriptorSet descriptorSet)
+{
+	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
+
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = app.commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+
+	VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
+
+	for (size_t i = 0; i < commandBuffers.size(); ++i) {
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+		beginInfo.pInheritanceInfo = nullptr;
+
+		vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
+
+		VkRenderPassBeginInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = app.geomRenderPass;
+		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
+		renderPassInfo.renderArea.offset = {0, 0};
+		renderPassInfo.renderArea.extent = app.swapChain.extent;
+		std::array<VkClearValue, 2> clearValues = {};
+		clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
+		clearValues[1].depthStencil = {1.f, 0};
+		renderPassInfo.clearValueCount = clearValues.size();
+		renderPassInfo.pClearValues = clearValues.data();
+
+		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphicsPipeline);
+		const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
+		const std::array<VkDeviceSize, 1> offsets = { 0 };
+		static_assert(vertexBuffers.size() == offsets.size(),
+				"offsets should be the same amount of vertexBuffers!");
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, vertexBuffers.size(),
+				vertexBuffers.data(), offsets.data());
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+				app.graphicsPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
+		//std::cerr << "recreating command buffer with v = "
+			//<< nVertices << ", i = " << nIndices << "\n";
+		vkCmdEndRenderPass(commandBuffers[i]);
+
+		VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
+	}
+
+	return commandBuffers;
 }

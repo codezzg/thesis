@@ -7,4 +7,4 @@
 struct Application;
 
 VkRenderPass createGeometryRenderPass(const Application& app, const std::vector<Image>& attachments);
-VkRenderPass createRenderPass(const Application& app);
+VkRenderPass createLightingRenderPass(const Application& app);

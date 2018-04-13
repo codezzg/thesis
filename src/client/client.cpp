@@ -79,10 +79,6 @@ private:
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
 
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
-
-	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
 
 	std::vector<VkCommandBuffer> commandBuffers;
@@ -108,34 +104,29 @@ private:
 
 	void initVulkan() {
 		app.swapChain = createSwapChain(app);
-		createSwapChainImageViews(app);
+		app.swapChain.imageViews = createSwapChainImageViews(app);
 
 		// Create the gbuffer for the geometry pass
 		const auto gBufAttachments = createGBufferAttachments(app);
 		app.geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
 		app.gBuffer = createGBuffer(app, gBufAttachments);
-
 		app.gBuffer.descriptorSetLayout = createGBufferDescriptorSetLayout(app);
 
-		std::tie(graphicsPipeline, pipelineLayout) = createGBufferPipeline(app);
+		std::tie(app.graphicsPipeline, app.graphicsPipelineLayout) = createGBufferPipeline(app);
 
 		app.commandPool = createCommandPool(app);
 
 		app.depthImage = createDepthImage(app);
 
+		app.lightRenderPass = createLightingRenderPass(app);
+
 		// Create a framebuffer for each image in the swap chain for the presentation
-		createSwapChainFramebuffers(app);
+		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 
 		texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
 		texDiffuseImage.sampler = createTextureSampler(app);
 		texSpecularImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::GREY);
 		texSpecularImage.sampler = createTextureSampler(app);
-
-		createDescriptorPool();
-		createDescriptorSet();
-		createCommandBuffers();
-		createSemaphores();
-
 
 		// Prepare buffer memory
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
@@ -146,6 +137,12 @@ private:
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		uniformBuffer = createBuffer(app, UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		createDescriptorPool();
+		createDescriptorSet();
+		commandBuffers = createSwapChainCommandBuffers(app, nIndices,
+				vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
+		createSemaphores();
 
 		// Prepare camera
 		camera = createCamera();
@@ -195,7 +192,8 @@ private:
 			vkDeviceWaitIdle(app.device);
 			vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(commandBuffers.size()),
 				commandBuffers.data());
-			createCommandBuffers();
+			commandBuffers = createSwapChainCommandBuffers(app, nIndices,
+					vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
 		}
 
 		updateVertexBuffer();
@@ -302,8 +300,8 @@ private:
 		vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(commandBuffers.size()),
 				commandBuffers.data());
 
-		vkDestroyPipeline(app.device, graphicsPipeline, nullptr);
-		vkDestroyPipelineLayout(app.device, pipelineLayout, nullptr);
+		vkDestroyPipeline(app.device, app.graphicsPipeline, nullptr);
+		vkDestroyPipelineLayout(app.device, app.graphicsPipelineLayout, nullptr);
 		vkDestroyRenderPass(app.device, app.geomRenderPass, nullptr);
 
 		for (auto imageView : app.swapChain.imageViews)
@@ -320,7 +318,7 @@ private:
 		vkDestroyImage(app.device, texDiffuseImage.handle, nullptr);
 		vkFreeMemory(app.device, texDiffuseImage.memory, nullptr);
 
-		vkDestroyDescriptorPool(app.device, descriptorPool, nullptr);
+		vkDestroyDescriptorPool(app.device, app.descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(app.device, app.gBuffer.descriptorSetLayout, nullptr);
 
 		vkDestroyBuffer(app.device, uniformBuffer.handle, nullptr);
@@ -364,12 +362,14 @@ private:
 		cleanupSwapChain();
 
 		app.swapChain = createSwapChain(app);
-		createSwapChainImageViews(app);
-		app.geomRenderPass = createRenderPass(app);
-		std::tie(graphicsPipeline, pipelineLayout) = createGBufferPipeline(app);
+		app.swapChain.imageViews = createSwapChainImageViews(app);
+		const auto gBufAttachments = createGBufferAttachments(app);
+		app.geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
+		std::tie(app.graphicsPipeline, app.graphicsPipelineLayout) = createGBufferPipeline(app);
 		app.depthImage = createDepthImage(app);
-		createSwapChainFramebuffers(app);
-		createCommandBuffers();
+		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		commandBuffers = createSwapChainCommandBuffers(app, nIndices,
+				vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
 	}
 
 	void createDescriptorPool() {
@@ -385,14 +385,14 @@ private:
 		poolInfo.pPoolSizes = poolSizes.data();
 		poolInfo.maxSets = 1;
 
-		VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool));
+		VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &app.descriptorPool));
 	}
 
 	void createDescriptorSet() {
 		VkDescriptorSetLayout layouts[] = { app.gBuffer.descriptorSetLayout };
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorPool = app.descriptorPool;
 		allocInfo.descriptorSetCount = 1;
 		allocInfo.pSetLayouts = layouts;
 
@@ -413,7 +413,7 @@ private:
 		texSpecularInfo.imageView = texSpecularImage.view;
 		texSpecularInfo.sampler = texSpecularImage.sampler;
 
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+		std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = descriptorSet;
 		descriptorWrites[0].dstBinding = 0;
@@ -441,60 +441,11 @@ private:
 		vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 	}
 
-	void createCommandBuffers() {
-		commandBuffers.resize(app.swapChain.framebuffers.size());
-
-		VkCommandBufferAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.commandPool = app.commandPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
-
-		VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
-
-		for (size_t i = 0; i < commandBuffers.size(); ++i) {
-			VkCommandBufferBeginInfo beginInfo = {};
-			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-			beginInfo.pInheritanceInfo = nullptr;
-
-			vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
-
-			VkRenderPassBeginInfo renderPassInfo = {};
-			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassInfo.renderPass = app.geomRenderPass;
-			renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
-			renderPassInfo.renderArea.offset = {0, 0};
-			renderPassInfo.renderArea.extent = app.swapChain.extent;
-			std::array<VkClearValue, 2> clearValues = {};
-			clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
-			clearValues[1].depthStencil = {1.f, 0};
-			renderPassInfo.clearValueCount = clearValues.size();
-			renderPassInfo.pClearValues = clearValues.data();
-
-			vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-			VkBuffer vertexBuffers[] = { vertexBuffer.handle };
-			VkDeviceSize offsets[] = { 0 };
-			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-					pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-			vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
-			std::cerr << "recreating command buffer with v = "
-				<< nVertices << ", i = " << nIndices << "\n";
-			vkCmdEndRenderPass(commandBuffers[i]);
-
-			VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
-		}
-	}
-
 	void createSemaphores() {
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		if (vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS
-			|| vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS)
-			throw std::runtime_error("failed to create semaphores!");
+		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &imageAvailableSemaphore));
+		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &renderFinishedSemaphore));
 	}
 
 	void updateVertexBuffer() {
@@ -549,8 +500,11 @@ private:
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
-		const std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		static_assert(waitStages.size() == waitSemaphores.size());
+		const std::array<VkPipelineStageFlags, 1> waitStages = {
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+		};
+		static_assert(waitStages.size() == waitSemaphores.size(),
+				"Wait stages number should be == waitSemaphores.size()!");
 		submitInfo.waitSemaphoreCount = waitSemaphores.size();
 		submitInfo.pWaitSemaphores = waitSemaphores.data();
 		submitInfo.pWaitDstStageMask = waitStages.data();
