@@ -9,7 +9,6 @@
 #include "gbuffer.hpp"
 //#include "resources.hpp"
 
-
 struct Queues final {
 	VkQueue graphics;
 	VkQueue present;

@@ -1,6 +1,7 @@
 #include "buffers.hpp"
 #include "commands.hpp"
 #include "phys_device.hpp"
+#include "application.hpp"
 
 Buffer createBuffer(
 		const Application& app,
@@ -35,6 +36,7 @@ Buffer createBuffer(
 	Buffer buffer;
 	buffer.handle = bufferHandle;
 	buffer.memory = bufferMemory;
+	buffer.size = size;
 
 	return buffer;
 }

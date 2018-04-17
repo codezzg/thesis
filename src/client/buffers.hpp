@@ -1,11 +1,18 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include "application.hpp"
+
+struct Application;
 
 struct Buffer final {
 	VkBuffer handle;
 	VkDeviceMemory memory;
+	VkDeviceSize size;
+
+	void destroy(VkDevice device) {
+		vkDestroyBuffer(device, handle, nullptr);
+		vkFreeMemory(device, memory, nullptr);
+	}
 };
 
 Buffer createBuffer(

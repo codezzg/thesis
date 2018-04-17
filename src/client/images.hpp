@@ -8,8 +8,16 @@ struct Image final {
 	VkImage handle;
 	VkDeviceMemory memory;
 	VkImageView view;
-	VkSampler sampler;
+	VkSampler sampler = VK_NULL_HANDLE;
 	VkFormat format;
+
+	void destroy(VkDevice device) {
+		vkDestroyImageView(device, view, nullptr);
+		vkDestroyImage(device, handle, nullptr);
+		if (sampler != VK_NULL_HANDLE)
+			vkDestroySampler(device, sampler, nullptr);
+		vkFreeMemory(device, memory, nullptr);
+	}
 };
 
 VkImageView createImageView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);

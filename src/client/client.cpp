@@ -40,6 +40,7 @@
 #include "renderpass.hpp"
 #include "gbuffer.hpp"
 #include "textures.hpp"
+#include "descriptors.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -81,7 +82,8 @@ private:
 
 	VkDescriptorSet descriptorSet;
 
-	std::vector<VkCommandBuffer> commandBuffers;
+	std::vector<VkCommandBuffer> swapCommandBuffers;
+	VkCommandBuffer gbufCommandBuffer;
 
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
@@ -117,9 +119,7 @@ private:
 		app.commandPool = createCommandPool(app);
 
 		app.depthImage = createDepthImage(app);
-
 		app.lightRenderPass = createLightingRenderPass(app);
-
 		// Create a framebuffer for each image in the swap chain for the presentation
 		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 
@@ -138,9 +138,13 @@ private:
 		uniformBuffer = createBuffer(app, UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		createDescriptorPool();
-		createDescriptorSet();
-		commandBuffers = createSwapChainCommandBuffers(app, nIndices,
+		app.descriptorPool = createDescriptorPool(app.device);
+		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
+				uniformBuffer, texDiffuseImage, texSpecularImage);
+
+		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices, vertexBuffer,
+				indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
+		swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 				vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
 		createSemaphores();
 
@@ -151,11 +155,7 @@ private:
 	}
 
 	void mainLoop() {
-		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT);
-		passiveEP.runLoop();
-
-		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT);
-		activeEP.runLoop();
+		startNetwork();
 
 		FPSCounter fps;
 		fps.start();
@@ -179,6 +179,14 @@ private:
 		vkDeviceWaitIdle(app.device);
 	}
 
+	void startNetwork() {
+		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT);
+		passiveEP.runLoop();
+
+		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT);
+		activeEP.runLoop();
+	}
+
 	void runFrame() {
 		static size_t pvs = nVertices,
 		              pis = nIndices;
@@ -190,9 +198,9 @@ private:
 			pvs = nVertices;
 			pis = nIndices;
 			vkDeviceWaitIdle(app.device);
-			vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(commandBuffers.size()),
-				commandBuffers.data());
-			commandBuffers = createSwapChainCommandBuffers(app, nIndices,
+			vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(swapCommandBuffers.size()),
+				swapCommandBuffers.data());
+			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 					vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
 		}
 
@@ -289,20 +297,21 @@ private:
 	}
 
 	void cleanupSwapChain() {
-		vkDestroyImageView(app.device, app.depthImage.view, nullptr);
-		vkDestroyImage(app.device, app.depthImage.handle, nullptr);
-		vkFreeMemory(app.device, app.depthImage.memory, nullptr);
+		app.depthImage.destroy(app.device);
 
-		for (auto framebuffer : app.swapChain.framebuffers) {
+		for (auto framebuffer : app.swapChain.framebuffers)
 			vkDestroyFramebuffer(app.device, framebuffer, nullptr);
-		}
 
-		vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(commandBuffers.size()),
-				commandBuffers.data());
+		app.gBuffer.destroy(app.device); // this doesn't destroy the descriptorSetLayout
+
+		vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(swapCommandBuffers.size()),
+				swapCommandBuffers.data());
+		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
 
 		vkDestroyPipeline(app.device, app.graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(app.device, app.graphicsPipelineLayout, nullptr);
 		vkDestroyRenderPass(app.device, app.geomRenderPass, nullptr);
+		vkDestroyRenderPass(app.device, app.lightRenderPass, nullptr);
 
 		for (auto imageView : app.swapChain.imageViews)
 			vkDestroyImageView(app.device, imageView, nullptr);
@@ -313,20 +322,15 @@ private:
 	void cleanup() {
 		cleanupSwapChain();
 
-		vkDestroySampler(app.device, texDiffuseImage.sampler, nullptr);
-		vkDestroyImageView(app.device, texDiffuseImage.view, nullptr);
-		vkDestroyImage(app.device, texDiffuseImage.handle, nullptr);
-		vkFreeMemory(app.device, texDiffuseImage.memory, nullptr);
+		texDiffuseImage.destroy(app.device);
+		texSpecularImage.destroy(app.device);
 
 		vkDestroyDescriptorPool(app.device, app.descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(app.device, app.gBuffer.descriptorSetLayout, nullptr);
 
-		vkDestroyBuffer(app.device, uniformBuffer.handle, nullptr);
-		vkFreeMemory(app.device, uniformBuffer.memory, nullptr);
-		vkDestroyBuffer(app.device, indexBuffer.handle, nullptr);
-		vkFreeMemory(app.device, indexBuffer.memory, nullptr);
-		vkDestroyBuffer(app.device, vertexBuffer.handle, nullptr);
-		vkFreeMemory(app.device, vertexBuffer.memory, nullptr);
+		uniformBuffer.destroy(app.device);
+		indexBuffer.destroy(app.device);
+		vertexBuffer.destroy(app.device);
 
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
@@ -365,80 +369,16 @@ private:
 		app.swapChain.imageViews = createSwapChainImageViews(app);
 		const auto gBufAttachments = createGBufferAttachments(app);
 		app.geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
+		app.gBuffer = createGBuffer(app, gBufAttachments);
+		// gBuffer.descriptorSetLayout is the same as before
 		std::tie(app.graphicsPipeline, app.graphicsPipelineLayout) = createGBufferPipeline(app);
 		app.depthImage = createDepthImage(app);
+		app.lightRenderPass = createLightingRenderPass(app);
 		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
-		commandBuffers = createSwapChainCommandBuffers(app, nIndices,
+		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices,
+				vertexBuffer, indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
+		swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 				vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
-	}
-
-	void createDescriptorPool() {
-		std::array<VkDescriptorPoolSize, 2> poolSizes = {};
-		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSizes[0].descriptorCount = 1;
-		poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSizes[1].descriptorCount = 2;
-
-		VkDescriptorPoolCreateInfo poolInfo = {};
-		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		poolInfo.poolSizeCount = poolSizes.size();
-		poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.maxSets = 1;
-
-		VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &app.descriptorPool));
-	}
-
-	void createDescriptorSet() {
-		VkDescriptorSetLayout layouts[] = { app.gBuffer.descriptorSetLayout };
-		VkDescriptorSetAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = app.descriptorPool;
-		allocInfo.descriptorSetCount = 1;
-		allocInfo.pSetLayouts = layouts;
-
-		VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
-
-		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = uniformBuffer.handle;
-		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(UniformBufferObject);
-
-		VkDescriptorImageInfo texDiffuseInfo = {};
-		texDiffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		texDiffuseInfo.imageView = texDiffuseImage.view;
-		texDiffuseInfo.sampler = texDiffuseImage.sampler;
-
-		VkDescriptorImageInfo texSpecularInfo = {};
-		texSpecularInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		texSpecularInfo.imageView = texSpecularImage.view;
-		texSpecularInfo.sampler = texSpecularImage.sampler;
-
-		std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
-		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[0].dstSet = descriptorSet;
-		descriptorWrites[0].dstBinding = 0;
-		descriptorWrites[0].dstArrayElement = 0;
-		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrites[0].descriptorCount = 1;
-		descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[1].dstSet = descriptorSet;
-		descriptorWrites[1].dstBinding = 1;
-		descriptorWrites[1].dstArrayElement = 0;
-		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].pImageInfo = &texDiffuseInfo;
-
-		descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[2].dstSet = descriptorSet;
-		descriptorWrites[2].dstBinding = 2;
-		descriptorWrites[2].dstArrayElement = 0;
-		descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[2].descriptorCount = 1;
-		descriptorWrites[2].pImageInfo = &texSpecularInfo;
-
-		vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 	}
 
 	void createSemaphores() {
@@ -497,24 +437,10 @@ private:
 			return;
 		}
 
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
-		const std::array<VkPipelineStageFlags, 1> waitStages = {
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-		};
-		static_assert(waitStages.size() == waitSemaphores.size(),
-				"Wait stages number should be == waitSemaphores.size()!");
-		submitInfo.waitSemaphoreCount = waitSemaphores.size();
-		submitInfo.pWaitSemaphores = waitSemaphores.data();
-		submitInfo.pWaitDstStageMask = waitStages.data();
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
-		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
-		submitInfo.signalSemaphoreCount = signalSemaphores.size();
-		submitInfo.pSignalSemaphores = signalSemaphores.data();
+		// TODO
+		drawGBuffer();
 
-		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
+		drawSwap();
 
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -534,6 +460,48 @@ private:
 			throw std::runtime_error("failed to present swap chain image!");
 
 		vkQueueWaitIdle(app.queues.present);
+	}
+
+	void drawGBuffer() {
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
+		const std::array<VkPipelineStageFlags, 1> waitStages = {
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+		};
+		static_assert(waitStages.size() == waitSemaphores.size(),
+				"Wait stages number should be == waitSemaphores.size()!");
+		submitInfo.waitSemaphoreCount = waitSemaphores.size();
+		submitInfo.pWaitSemaphores = waitSemaphores.data();
+		submitInfo.pWaitDstStageMask = waitStages.data();
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &gbufCommandBuffer;
+		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
+		submitInfo.signalSemaphoreCount = signalSemaphores.size();
+		submitInfo.pSignalSemaphores = signalSemaphores.data();
+
+		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
+	}
+
+	void drawSwap() {
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
+		const std::array<VkPipelineStageFlags, 1> waitStages = {
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+		};
+		static_assert(waitStages.size() == waitSemaphores.size(),
+				"Wait stages number should be == waitSemaphores.size()!");
+		submitInfo.waitSemaphoreCount = waitSemaphores.size();
+		submitInfo.pWaitSemaphores = waitSemaphores.data();
+		submitInfo.pWaitDstStageMask = waitStages.data();
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &swapCommandBuffers[imageIndex];
+		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
+		submitInfo.signalSemaphoreCount = signalSemaphores.size();
+		submitInfo.pSignalSemaphores = signalSemaphores.data();
+
+		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
 	}
 };
 

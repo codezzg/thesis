@@ -5,6 +5,7 @@
 #include "formats.hpp"
 #include "shaders.hpp"
 #include "vertex.hpp"
+#include "commands.hpp"
 #include <array>
 
 static Image createPosAttachment(const Application& app) {
@@ -151,6 +152,64 @@ VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
 	VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
 
 	return descriptorSetLayout;
+}
+
+VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
+		const Buffer& uniformBuffer, const Image& texDiffuseImage, const Image& texSpecularImage)
+{
+	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = app.descriptorPool;
+	allocInfo.descriptorSetCount = layouts.size();
+	allocInfo.pSetLayouts = layouts.data();
+
+	VkDescriptorSet descriptorSet;
+	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
+
+	VkDescriptorBufferInfo bufferInfo = {};
+	bufferInfo.buffer = uniformBuffer.handle;
+	bufferInfo.offset = 0;
+	bufferInfo.range = uniformBuffer.size;
+
+	VkDescriptorImageInfo texDiffuseInfo = {};
+	texDiffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	texDiffuseInfo.imageView = texDiffuseImage.view;
+	texDiffuseInfo.sampler = texDiffuseImage.sampler;
+
+	VkDescriptorImageInfo texSpecularInfo = {};
+	texSpecularInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	texSpecularInfo.imageView = texSpecularImage.view;
+	texSpecularInfo.sampler = texSpecularImage.sampler;
+
+	std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
+	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[0].dstSet = descriptorSet;
+	descriptorWrites[0].dstBinding = 0;
+	descriptorWrites[0].dstArrayElement = 0;
+	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrites[0].descriptorCount = 1;
+	descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[1].dstSet = descriptorSet;
+	descriptorWrites[1].dstBinding = 1;
+	descriptorWrites[1].dstArrayElement = 0;
+	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrites[1].descriptorCount = 1;
+	descriptorWrites[1].pImageInfo = &texDiffuseInfo;
+
+	descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[2].dstSet = descriptorSet;
+	descriptorWrites[2].dstBinding = 2;
+	descriptorWrites[2].dstArrayElement = 0;
+	descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrites[2].descriptorCount = 1;
+	descriptorWrites[2].pImageInfo = &texSpecularInfo;
+
+	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+
+	return descriptorSet;
 }
 
 std::pair<VkPipeline, VkPipelineLayout> createGBufferPipeline(const Application& app) {
@@ -312,7 +371,7 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 	renderPassBeginInfo.clearValueCount = clearValues.size();
 	renderPassBeginInfo.pClearValues = clearValues.data();
 
-	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
+	auto commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphicsPipeline);
@@ -325,7 +384,7 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 			vertexBuffers.data(), offsets.data());
 	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			app.graphicsPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+			app.graphicsPipelineLayout, 0, 1, &app.gBuffer.descriptorSet, 0, nullptr);
 	vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 
