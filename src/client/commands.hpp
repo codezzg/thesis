@@ -6,7 +6,7 @@ struct Application;
 
 VkCommandPool createCommandPool(const Application& app);
 
-VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPool);
+VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool commandPool);
 
 void endSingleTimeCommands(VkDevice device, VkQueue graphicsQueue,
 		VkCommandPool commandPool, VkCommandBuffer commandBuffer);

@@ -55,7 +55,7 @@ uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailable
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, uint32_t nIndices,
 		const Buffer& vBuffer, const Buffer& iBuffer, const Buffer& uBuffer, VkDescriptorSet descSet);
 
-VkDescriptorPool createSwapChainDescriptorPool(VkDevice device);
+VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer);

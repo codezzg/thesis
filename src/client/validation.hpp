@@ -3,6 +3,10 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 #include <stdexcept>
+#ifndef NDEBUG
+	#include <string>
+	#include <unordered_map>
+#endif
 
 bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers);
 
@@ -27,6 +31,12 @@ public:
 		createInfo.enabledLayerCount = enabledLayers.size();
 		createInfo.ppEnabledLayerNames = enabledLayers.data();
 	}
+
+#ifndef NDEBUG
+	// Maps vulkan object => file:line of its creation
+	mutable std::unordered_map<uint64_t, std::string> objectsInfo;
+#endif
+	void addObjectInfo(void *handle, const char *file, int line) const;
 };
 
 //VkResult createDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,

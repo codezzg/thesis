@@ -72,6 +72,7 @@ VkRenderPass createGeometryRenderPass(const Application& app, const std::vector<
 
 	VkRenderPass renderPassHandle;
 	VLKCHECK(vkCreateRenderPass(app.device, &renderPassInfo, nullptr, &renderPassHandle));
+	app.validation.addObjectInfo(renderPassHandle, __FILE__, __LINE__);
 
 	return renderPassHandle;
 }
@@ -133,8 +134,8 @@ VkRenderPass createLightingRenderPass(const Application& app) {
 	renderPassInfo.pDependencies = &dependency;
 
 	VkRenderPass renderPass;
-
 	VLKCHECK(vkCreateRenderPass(app.device, &renderPassInfo, nullptr, &renderPass));
+	app.validation.addObjectInfo(renderPass, __FILE__, __LINE__);
 
 	return renderPass;
 }

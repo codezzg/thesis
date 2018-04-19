@@ -12,13 +12,13 @@ VkCommandPool createCommandPool(const Application& app) {
 	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
 
 	VkCommandPool commandPool;
-	if (vkCreateCommandPool(app.device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-		throw std::runtime_error("failed to create graphics command pool!");
+	VLKCHECK(vkCreateCommandPool(app.device, &poolInfo, nullptr, &commandPool));
+	app.validation.addObjectInfo(commandPool, __FILE__, __LINE__);
 
 	return commandPool;
 }
 
-VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPool) {
+VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool commandPool) {
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -26,7 +26,8 @@ VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPo
 	allocInfo.commandBufferCount = 1;
 
 	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+	vkAllocateCommandBuffers(app.device, &allocInfo, &commandBuffer);
+	app.validation.addObjectInfo(commandBuffer, __FILE__, __LINE__);
 
 	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

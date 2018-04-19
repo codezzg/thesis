@@ -107,6 +107,7 @@ GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachme
 
 	VkFramebuffer gBufferHandle;
 	VLKCHECK(vkCreateFramebuffer(app.device, &fbInfo, nullptr, &gBufferHandle));
+	app.validation.addObjectInfo(gBufferHandle, __FILE__, __LINE__);
 
 	GBuffer gBuffer;
 	gBuffer.handle = gBufferHandle;
@@ -116,7 +117,7 @@ GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachme
 	return gBuffer;
 }
 
-VkDescriptorPool createGBufferDescriptorPool(VkDevice device) {
+VkDescriptorPool createGBufferDescriptorPool(const Application& app) {
 	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 1;
@@ -130,7 +131,8 @@ VkDescriptorPool createGBufferDescriptorPool(VkDevice device) {
 	poolInfo.maxSets = 1;
 
 	VkDescriptorPool descriptorPool;
-	VLKCHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+	VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool));
+	app.validation.addObjectInfo(descriptorPool, __FILE__, __LINE__);
 
 	return descriptorPool;
 }
@@ -170,6 +172,7 @@ VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
 
 	VkDescriptorSetLayout descriptorSetLayout;
 	VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
+	app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
 
 	return descriptorSetLayout;
 }
@@ -186,6 +189,7 @@ VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorS
 
 	VkDescriptorSet descriptorSet;
 	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
+	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
 
 	VkDescriptorBufferInfo bufferInfo = {};
 	bufferInfo.buffer = uniformBuffer.handle;
@@ -343,6 +347,7 @@ std::pair<VkPipeline, VkPipelineLayout> createGBufferPipeline(const Application&
 
 	VkPipelineLayout pipelineLayout;
 	VLKCHECK(vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+	app.validation.addObjectInfo(pipelineLayout, __FILE__, __LINE__);
 
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -364,6 +369,7 @@ std::pair<VkPipeline, VkPipelineLayout> createGBufferPipeline(const Application&
 
 	VkPipeline pipeline;
 	VLKCHECK(vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+	app.validation.addObjectInfo(pipeline, __FILE__, __LINE__);
 
 	// Cleanup
 	vkDestroyShaderModule(app.device, fragShaderModule, nullptr);
@@ -391,7 +397,7 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 	renderPassBeginInfo.clearValueCount = clearValues.size();
 	renderPassBeginInfo.pClearValues = clearValues.data();
 
-	auto commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
+	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);

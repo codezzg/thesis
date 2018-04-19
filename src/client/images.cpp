@@ -19,6 +19,7 @@ VkImageView createImageView(const Application& app, VkImage image, VkFormat form
 
 	VkImageView imageView;
 	VLKCHECK(vkCreateImageView(app.device, &createInfo, nullptr, &imageView));
+	app.validation.addObjectInfo(imageView, __FILE__, __LINE__);
 
 	return imageView;
 }
@@ -48,8 +49,8 @@ Image createImage(
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkImage imageHandle;
-
 	VLKCHECK(vkCreateImage(app.device, &imageInfo, nullptr, &imageHandle));
+	app.validation.addObjectInfo(imageHandle, __FILE__, __LINE__);
 
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(app.device, imageHandle, &memRequirements);
@@ -75,7 +76,7 @@ Image createImage(
 void transitionImageLayout(const Application& app, VkImage image, VkFormat format,
 		VkImageLayout oldLayout, VkImageLayout newLayout)
 {
-	auto commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
+	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	VkImageMemoryBarrier barrier = {};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;

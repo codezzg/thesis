@@ -68,6 +68,7 @@ VkSampler createTextureSampler(const Application& app) {
 
 	VkSampler sampler;
 	VLKCHECK(vkCreateSampler(app.device, &samplerInfo, nullptr, &sampler));
+	app.validation.addObjectInfo(sampler, __FILE__, __LINE__);
 
 	return sampler;
 }

@@ -2,6 +2,7 @@
 #include "commands.hpp"
 #include "phys_device.hpp"
 #include "application.hpp"
+#include "vulk_errors.hpp"
 
 Buffer createBuffer(
 		const Application& app,
@@ -16,8 +17,8 @@ Buffer createBuffer(
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	VkBuffer bufferHandle;
-	if (vkCreateBuffer(app.device, &bufferInfo, nullptr, &bufferHandle) != VK_SUCCESS)
-		throw std::runtime_error("failed to create bufferHandle!");
+	VLKCHECK(vkCreateBuffer(app.device, &bufferInfo, nullptr, &bufferHandle));
+	app.validation.addObjectInfo(bufferHandle, __FILE__, __LINE__);
 
 	VkMemoryRequirements memRequirements;
 	vkGetBufferMemoryRequirements(app.device, bufferHandle, &memRequirements);
@@ -28,8 +29,7 @@ Buffer createBuffer(
 	allocInfo.memoryTypeIndex = findMemoryType(app.physicalDevice, memRequirements.memoryTypeBits, properties);
 
 	VkDeviceMemory bufferMemory;
-	if (vkAllocateMemory(app.device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-		throw std::runtime_error("failed to allocate bufferHandle memory!");
+	VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &bufferMemory));
 
 	vkBindBufferMemory(app.device, bufferHandle, bufferMemory, 0);
 
@@ -42,7 +42,7 @@ Buffer createBuffer(
 }
 
 void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-	auto commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
+	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	VkBufferCopy copyRegion = {};
 	copyRegion.srcOffset = 0;
@@ -54,7 +54,7 @@ void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, 
 }
 
 void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	VkBufferImageCopy region = {};
 	region.bufferOffset = 0;

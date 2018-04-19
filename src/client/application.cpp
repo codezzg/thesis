@@ -1,6 +1,7 @@
 #include "application.hpp"
 #include "phys_device.hpp"
 #include "window.hpp"
+#include "vulk_errors.hpp"
 #include <set>
 
 static VkInstance createInstance(const Validation& validation) {
@@ -23,17 +24,14 @@ static VkInstance createInstance(const Validation& validation) {
 		validation.enableOn(createInfo);
 
 	VkInstance instance;
-	if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create instance!");
-	}
+	VLKCHECK(vkCreateInstance(&createInfo, nullptr, &instance));
 
 	return instance;
 }
 
 static VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow *window) {
 	VkSurfaceKHR surface;
-	if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
-		throw std::runtime_error("failed to create window surface!");
+	VLKCHECK(glfwCreateWindowSurface(instance, window, nullptr, &surface));
 
 	return surface;
 }
@@ -70,9 +68,7 @@ static void createLogicalDevice(Application& app) {
 	if (app.validation.enabled())
 		app.validation.enableOn(createInfo);
 
-	if (vkCreateDevice(app.physicalDevice, &createInfo, nullptr, &app.device) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create logical device!");
-	}
+	VLKCHECK(vkCreateDevice(app.physicalDevice, &createInfo, nullptr, &app.device));
 
 	vkGetDeviceQueue(app.device, indices.graphicsFamily, 0, &app.queues.graphics);
 	vkGetDeviceQueue(app.device, indices.presentFamily, 0, &app.queues.present);

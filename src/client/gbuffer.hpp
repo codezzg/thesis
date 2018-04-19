@@ -39,7 +39,7 @@ std::vector<Image> createGBufferAttachments(const Application& app);
 GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachments, VkRenderPass renderPass);
 
 /** Creates a DescriptorPool fit for containing the g-buffer's descriptor set */
-VkDescriptorPool createGBufferDescriptorPool(VkDevice device);
+VkDescriptorPool createGBufferDescriptorPool(const Application& app);
 
 /** Creates a VkDescriptorSetLayout for the gbuffer shaders. */
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app);

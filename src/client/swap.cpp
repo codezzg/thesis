@@ -217,7 +217,7 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 	return commandBuffers;
 }
 
-VkDescriptorPool createSwapChainDescriptorPool(VkDevice device) {
+VkDescriptorPool createSwapChainDescriptorPool(const Application& app) {
 	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 1;
@@ -231,7 +231,8 @@ VkDescriptorPool createSwapChainDescriptorPool(VkDevice device) {
 	poolInfo.maxSets = 1;
 
 	VkDescriptorPool descriptorPool;
-	VLKCHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+	VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool));
+	app.validation.addObjectInfo(descriptorPool, __FILE__, __LINE__);
 
 	return descriptorPool;
 }
@@ -299,6 +300,7 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 
 	VkDescriptorSet descriptorSet;
 	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
+	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
 
 	VkDescriptorImageInfo gPositionInfo = {};
 	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

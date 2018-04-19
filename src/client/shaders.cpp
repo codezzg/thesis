@@ -14,6 +14,7 @@ VkShaderModule createShaderModule(const Application& app, const char *fname) {
 
 	VkShaderModule shaderModule;
 	VLKCHECK(vkCreateShaderModule(app.device, &createInfo, nullptr, &shaderModule));
+	app.validation.addObjectInfo(shaderModule, __FILE__, __LINE__);
 
 	return shaderModule;
 }

@@ -3,6 +3,9 @@
 #include <iostream>
 #include <algorithm>
 #include "vulk_errors.hpp"
+#ifndef NDEBUG
+	#include <sstream>
+#endif
 
 bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers) {
 	uint32_t layerCount;
@@ -27,14 +30,18 @@ bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugReportFlagsEXT /*flags*/,
 		VkDebugReportObjectTypeEXT /*objType*/,
-		uint64_t /*obj*/,
+		uint64_t obj,
 		std::size_t /*location*/,
 		int32_t /*code*/,
 		const char* /*layerPrefix*/,
 		const char* msg,
-		void* /*userData*/)
+		void* userData)
 {
-	std::cerr << "validation layer: " << msg << std::endl;
+	auto& objectsInfo = reinterpret_cast<Validation*>(userData)->objectsInfo;
+	auto it = objectsInfo.find(obj);
+	if (it != objectsInfo.end())
+		std::cerr << "[Object created near " << it->second << "]\n";
+	std::cerr << "validation layer: " << msg << "\n" << std::endl;
 
 	return VK_FALSE;
 }
@@ -60,11 +67,12 @@ static void destroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCall
 		func(instance, callback, pAllocator);
 }
 
-static VkDebugReportCallbackEXT createDebugCallback(VkInstance instance) {
+static VkDebugReportCallbackEXT createDebugCallback(VkInstance instance, Validation *validation) {
 	VkDebugReportCallbackCreateInfoEXT createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 	createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
 	createInfo.pfnCallback = debugCallback;
+	createInfo.pUserData = validation;
 
 	VkDebugReportCallbackEXT callback;
 	VLKCHECK(createDebugReportCallbackEXT(instance, &createInfo, nullptr, &callback));
@@ -80,7 +88,7 @@ void Validation::requestLayers(const std::vector<const char*>& layers) {
 void Validation::init(VkInstance _instance) {
 	instance = _instance;
 	if (enabled())
-		debugReportCallback = createDebugCallback(instance);
+		debugReportCallback = createDebugCallback(instance, this);
 }
 
 void Validation::cleanup() {
@@ -90,4 +98,13 @@ void Validation::cleanup() {
 
 bool Validation::enabled() const {
 	return enabledLayers.size() > 0;
+}
+
+void Validation::addObjectInfo(void *handle, const char *file, int line) const {
+#ifndef NDEBUG
+	std::stringstream ss;
+	ss << file << ":" << line;
+	//std::cerr << "added " << std::hex << "0x" << reinterpret_cast<uint64_t>(handle) << " -> " << ss.str() << std::endl;
+	objectsInfo[reinterpret_cast<uint64_t>(handle)] = ss.str();
+#endif
 }

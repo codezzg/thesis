@@ -148,7 +148,7 @@ private:
 
 		{
 			// Create descriptor sets and command buffers for G-Buffer
-			app.gBuffer.descriptorPool = createGBufferDescriptorPool(app.device);
+			app.gBuffer.descriptorPool = createGBufferDescriptorPool(app);
 			app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
 					uniformBuffer, texDiffuseImage, texSpecularImage);
 			gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices, vertexBuffer,
@@ -157,7 +157,7 @@ private:
 
 		{
 			// Create descriptor sets and command buffers for lighting pass
-			app.swapChain.descriptorPool = createSwapChainDescriptorPool(app.device);
+			app.swapChain.descriptorPool = createSwapChainDescriptorPool(app);
 			app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
 							app.swapChain.descriptorSetLayout,
 							uniformBuffer);
