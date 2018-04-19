@@ -9,14 +9,24 @@
 struct GBuffer final {
 	VkFramebuffer handle;
 	std::vector<Image> attachments;
+
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorSet descriptorSet;
+	VkDescriptorPool descriptorPool;
+
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+
+	VkRenderPass renderPass;
 
 	void destroy(VkDevice device) {
-		//vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 		for (auto& img : attachments)
 			img.destroy(device);
 		vkDestroyFramebuffer(device, handle, nullptr);
+
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyRenderPass(device, renderPass, nullptr);
 	}
 };
 
@@ -26,7 +36,10 @@ struct Application;
 std::vector<Image> createGBufferAttachments(const Application& app);
 
 /** Creates a GBuffer, fills it with the given attachments and returns it. */
-GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachments);
+GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachments, VkRenderPass renderPass);
+
+/** Creates a DescriptorPool fit for containing the g-buffer's descriptor set */
+VkDescriptorPool createGBufferDescriptorPool(VkDevice device);
 
 /** Creates a VkDescriptorSetLayout for the gbuffer shaders. */
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app);

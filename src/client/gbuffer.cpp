@@ -30,8 +30,8 @@ static Image createPosAttachment(const Application& app) {
 
 static Image createNormalAttachment(const Application& app) {
 	auto bestNormFormat = findSupportedFormat(app.physicalDevice, {
-		VK_FORMAT_R8G8B8_UNORM,
-		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_FORMAT_R32G32B32_SFLOAT,
+		VK_FORMAT_R32G32B32A32_SFLOAT,
 	}, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 	auto normalImg = createImage(app,
 		app.swapChain.extent.width, app.swapChain.extent.height,
@@ -49,7 +49,7 @@ static Image createNormalAttachment(const Application& app) {
 
 static Image createAlbedoSpecAttachment(const Application& app) {
 	auto bestASFormat = findSupportedFormat(app.physicalDevice, {
-		VK_FORMAT_R32G32B32A32_SFLOAT,
+		VK_FORMAT_R8G8B8A8_UNORM,
 	}, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 	auto albedoSpecImg = createImage(app,
 		app.swapChain.extent.width, app.swapChain.extent.height,
@@ -90,7 +90,7 @@ std::vector<Image> createGBufferAttachments(const Application& app) {
 	return { position, normal, albedoSpec, depth };
 }
 
-GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachments) {
+GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachments, VkRenderPass renderPass) {
 
 	std::vector<VkImageView> attachViews{ attachments.size() };
 	for (unsigned i = 0; i < attachments.size(); ++i)
@@ -98,7 +98,7 @@ GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachme
 
 	VkFramebufferCreateInfo fbInfo = {};
 	fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-	fbInfo.renderPass = app.geomRenderPass;
+	fbInfo.renderPass = renderPass;
 	fbInfo.attachmentCount = attachViews.size();
 	fbInfo.pAttachments = attachViews.data();
 	fbInfo.width = app.swapChain.extent.width;
@@ -111,8 +111,28 @@ GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachme
 	GBuffer gBuffer;
 	gBuffer.handle = gBufferHandle;
 	gBuffer.attachments = attachments;
+	gBuffer.renderPass = renderPass;
 
 	return gBuffer;
+}
+
+VkDescriptorPool createGBufferDescriptorPool(VkDevice device) {
+	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = 1;
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[1].descriptorCount = 2;
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = poolSizes.size();
+	poolInfo.pPoolSizes = poolSizes.data();
+	poolInfo.maxSets = 1;
+
+	VkDescriptorPool descriptorPool;
+	VLKCHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+
+	return descriptorPool;
 }
 
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
@@ -137,7 +157,7 @@ VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
 	texSpecularLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texSpecularLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+	const std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
 		uboLayoutBinding,
 		texDiffuseLayoutBinding,
 		texSpecularLayoutBinding,
@@ -160,7 +180,7 @@ VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorS
 	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = app.descriptorPool;
+	allocInfo.descriptorPool = app.gBuffer.descriptorPool;
 	allocInfo.descriptorSetCount = layouts.size();
 	allocInfo.pSetLayouts = layouts.data();
 
@@ -337,7 +357,7 @@ std::pair<VkPipeline, VkPipelineLayout> createGBufferPipeline(const Application&
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pDynamicState = nullptr;
 	pipelineInfo.layout = pipelineLayout;
-	pipelineInfo.renderPass = app.geomRenderPass;
+	pipelineInfo.renderPass = app.gBuffer.renderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	pipelineInfo.basePipelineIndex = -1;
@@ -364,7 +384,7 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 
 	VkRenderPassBeginInfo renderPassBeginInfo = {};
 	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassBeginInfo.renderPass = app.geomRenderPass;
+	renderPassBeginInfo.renderPass = app.gBuffer.renderPass;
 	renderPassBeginInfo.framebuffer = app.gBuffer.handle;
 	renderPassBeginInfo.renderArea.extent.width = app.swapChain.extent.width;
 	renderPassBeginInfo.renderArea.extent.height = app.swapChain.extent.height;
@@ -374,7 +394,7 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 	auto commandBuffer = beginSingleTimeCommands(app.device, app.commandPool);
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphicsPipeline);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
 
 	const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
 	const std::array<VkDeviceSize, 1> offsets = { 0 };
@@ -384,7 +404,7 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 			vertexBuffers.data(), offsets.data());
 	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			app.graphicsPipelineLayout, 0, 1, &app.gBuffer.descriptorSet, 0, nullptr);
+			app.gBuffer.pipelineLayout, 0, 1, &app.gBuffer.descriptorSet, 0, nullptr);
 	vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 

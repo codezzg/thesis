@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
 
 struct Application;
 
@@ -13,6 +14,16 @@ struct Buffer final {
 		vkDestroyBuffer(device, handle, nullptr);
 		vkFreeMemory(device, memory, nullptr);
 	}
+};
+
+struct MVPUniformBufferObject final {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
+};
+
+struct CompositionUniformBufferObject final {
+	glm::vec4 viewPos;
 };
 
 Buffer createBuffer(

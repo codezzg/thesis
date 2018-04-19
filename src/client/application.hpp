@@ -30,20 +30,13 @@ struct Application final {
 
 	Validation validation;
 
-	VkDescriptorPool descriptorPool;
 	VkCommandPool commandPool;
 
 	SwapChain swapChain;
 
 	GBuffer gBuffer;
 
-	VkRenderPass geomRenderPass;
-	VkRenderPass lightRenderPass;
-
 	Image depthImage;
-
-	VkPipeline graphicsPipeline;
-	VkPipelineLayout graphicsPipelineLayout;
 
 	void init();
 	void cleanup();

@@ -40,7 +40,6 @@
 #include "renderpass.hpp"
 #include "gbuffer.hpp"
 #include "textures.hpp"
-#include "descriptors.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -48,12 +47,6 @@
 
 using namespace std::literals::string_literals;
 using std::size_t;
-
-struct UniformBufferObject final {
-	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 proj;
-};
 
 class HelloTriangleApplication final {
 public:
@@ -85,6 +78,7 @@ private:
 	std::vector<VkCommandBuffer> swapCommandBuffers;
 	VkCommandBuffer gbufCommandBuffer;
 
+	VkSemaphore gBufRenderFinishedSemaphore;
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 
@@ -101,57 +95,84 @@ private:
 	uint64_t nIndices = 0;
 	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
 	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
-	static constexpr size_t UNIFORM_BUFFER_SIZE = sizeof(UniformBufferObject);
+	static constexpr size_t UNIFORM_BUFFER_SIZE = sizeof(MVPUniformBufferObject);
 
 
 	void initVulkan() {
 		app.swapChain = createSwapChain(app);
-		app.swapChain.imageViews = createSwapChainImageViews(app);
 
-		// Create the gbuffer for the geometry pass
-		const auto gBufAttachments = createGBufferAttachments(app);
-		app.geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
-		app.gBuffer = createGBuffer(app, gBufAttachments);
-		app.gBuffer.descriptorSetLayout = createGBufferDescriptorSetLayout(app);
+		{
+			// Create the gbuffer for the geometry pass
 
-		std::tie(app.graphicsPipeline, app.graphicsPipelineLayout) = createGBufferPipeline(app);
+			const auto gBufAttachments = createGBufferAttachments(app);
+			const auto geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
+			app.gBuffer = createGBuffer(app, gBufAttachments, geomRenderPass);
+			app.gBuffer.descriptorSetLayout = createGBufferDescriptorSetLayout(app);
+			std::tie(app.gBuffer.pipeline, app.gBuffer.pipelineLayout) = createGBufferPipeline(app);
+		}
 
 		app.commandPool = createCommandPool(app);
 
-		app.depthImage = createDepthImage(app);
-		app.lightRenderPass = createLightingRenderPass(app);
-		// Create a framebuffer for each image in the swap chain for the presentation
-		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		{
+			// Setup the deferred lighting pass
 
-		texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
-		texDiffuseImage.sampler = createTextureSampler(app);
-		texSpecularImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::GREY);
-		texSpecularImage.sampler = createTextureSampler(app);
+			app.depthImage = createDepthImage(app);
+			app.swapChain.imageViews = createSwapChainImageViews(app);
+			const auto lightRenderPass = createLightingRenderPass(app);
+			app.swapChain.renderPass = lightRenderPass;
+			// Create a framebuffer for each image in the swap chain for the presentation
+			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+			app.swapChain.descriptorSetLayout = createSwapChainDescriptorSetLayout(app);
+		}
 
-		// Prepare buffer memory
-		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
+		{
+			// Load textures
 
-		vertexBuffer = createBuffer(app, VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		indexBuffer = createBuffer(app, INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		uniformBuffer = createBuffer(app, UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
+			texDiffuseImage.sampler = createTextureSampler(app);
+			texSpecularImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::GREY);
+			texSpecularImage.sampler = createTextureSampler(app);
+		}
 
-		app.descriptorPool = createDescriptorPool(app.device);
-		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
-				uniformBuffer, texDiffuseImage, texSpecularImage);
+		{
+			// Prepare buffer memory
+			streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
 
-		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices, vertexBuffer,
-				indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
-		swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-				vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
+			vertexBuffer = createBuffer(app, VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			indexBuffer = createBuffer(app, INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			uniformBuffer = createBuffer(app, UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		}
+
+		{
+			// Create descriptor sets and command buffers for G-Buffer
+			app.gBuffer.descriptorPool = createGBufferDescriptorPool(app.device);
+			app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
+					uniformBuffer, texDiffuseImage, texSpecularImage);
+			gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices, vertexBuffer,
+					indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
+		}
+
+		{
+			// Create descriptor sets and command buffers for lighting pass
+			app.swapChain.descriptorPool = createSwapChainDescriptorPool(app.device);
+			app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
+							app.swapChain.descriptorSetLayout,
+							uniformBuffer);
+			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
+					vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
+		}
+
 		createSemaphores();
 
-		// Prepare camera
-		camera = createCamera();
-		cameraCtrl = std::make_unique<CameraController>(camera);
-		activeEP.setCamera(&camera);
+		{
+			// Prepare camera
+			camera = createCamera();
+			cameraCtrl = std::make_unique<CameraController>(camera);
+			activeEP.setCamera(&camera);
+		}
 	}
 
 	void mainLoop() {
@@ -299,24 +320,14 @@ private:
 	void cleanupSwapChain() {
 		app.depthImage.destroy(app.device);
 
-		for (auto framebuffer : app.swapChain.framebuffers)
-			vkDestroyFramebuffer(app.device, framebuffer, nullptr);
+		// this doesn't destroy the descriptorSetLayout/Pool
+		app.gBuffer.destroy(app.device);
+		app.swapChain.destroy(app.device);
 
-		app.gBuffer.destroy(app.device); // this doesn't destroy the descriptorSetLayout
-
-		vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(swapCommandBuffers.size()),
+		vkFreeCommandBuffers(app.device, app.commandPool,
+				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
 		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
-
-		vkDestroyPipeline(app.device, app.graphicsPipeline, nullptr);
-		vkDestroyPipelineLayout(app.device, app.graphicsPipelineLayout, nullptr);
-		vkDestroyRenderPass(app.device, app.geomRenderPass, nullptr);
-		vkDestroyRenderPass(app.device, app.lightRenderPass, nullptr);
-
-		for (auto imageView : app.swapChain.imageViews)
-			vkDestroyImageView(app.device, imageView, nullptr);
-
-		vkDestroySwapchainKHR(app.device, app.swapChain.handle, nullptr);
 	}
 
 	void cleanup() {
@@ -325,8 +336,11 @@ private:
 		texDiffuseImage.destroy(app.device);
 		texSpecularImage.destroy(app.device);
 
-		vkDestroyDescriptorPool(app.device, app.descriptorPool, nullptr);
+		vkDestroyDescriptorPool(app.device, app.gBuffer.descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(app.device, app.gBuffer.descriptorSetLayout, nullptr);
+
+		vkDestroyDescriptorPool(app.device, app.swapChain.descriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(app.device, app.swapChain.descriptorSetLayout, nullptr);
 
 		uniformBuffer.destroy(app.device);
 		indexBuffer.destroy(app.device);
@@ -334,6 +348,7 @@ private:
 
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
+		vkDestroySemaphore(app.device, gBufRenderFinishedSemaphore, nullptr);
 		vkDestroyCommandPool(app.device, app.commandPool, nullptr);
 
 		delete [] streamingBufferData;
@@ -367,14 +382,19 @@ private:
 
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app);
+
 		const auto gBufAttachments = createGBufferAttachments(app);
-		app.geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
-		app.gBuffer = createGBuffer(app, gBufAttachments);
+		const auto geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
+		app.gBuffer = createGBuffer(app, gBufAttachments, geomRenderPass);
 		// gBuffer.descriptorSetLayout is the same as before
-		std::tie(app.graphicsPipeline, app.graphicsPipelineLayout) = createGBufferPipeline(app);
+		std::tie(app.gBuffer.pipeline, app.gBuffer.pipelineLayout) = createGBufferPipeline(app);
+
 		app.depthImage = createDepthImage(app);
-		app.lightRenderPass = createLightingRenderPass(app);
+
+		const auto lightRenderPass = createLightingRenderPass(app);
 		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		app.swapChain.renderPass = lightRenderPass;
+
 		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices,
 				vertexBuffer, indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
@@ -386,6 +406,7 @@ private:
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &imageAvailableSemaphore));
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &renderFinishedSemaphore));
+		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &gBufRenderFinishedSemaphore));
 	}
 
 	void updateVertexBuffer() {
@@ -413,7 +434,7 @@ private:
 		//float time = std::chrono::duration<float, std::chrono::seconds::period>(
 				//currentTime - startTime).count();
 
-		UniformBufferObject ubo = {};
+		MVPUniformBufferObject ubo = {};
 		ubo.model = glm::mat4{1.0f};
 		//ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
 		//std::cerr << "view mat = " << glm::to_string(camera.viewMatrix()) << "\n";
@@ -440,7 +461,9 @@ private:
 		// TODO
 		drawGBuffer();
 
-		drawSwap();
+		drawSwap(imageIndex);
+
+		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
 
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -465,7 +488,7 @@ private:
 	void drawGBuffer() {
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
+		/*const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
 		const std::array<VkPipelineStageFlags, 1> waitStages = {
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 		};
@@ -473,21 +496,25 @@ private:
 				"Wait stages number should be == waitSemaphores.size()!");
 		submitInfo.waitSemaphoreCount = waitSemaphores.size();
 		submitInfo.pWaitSemaphores = waitSemaphores.data();
-		submitInfo.pWaitDstStageMask = waitStages.data();
+		submitInfo.pWaitDstStageMask = waitStages.data();*/
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &gbufCommandBuffer;
-		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
+		const std::array<VkSemaphore, 1> signalSemaphores = { gBufRenderFinishedSemaphore };
 		submitInfo.signalSemaphoreCount = signalSemaphores.size();
 		submitInfo.pSignalSemaphores = signalSemaphores.data();
 
 		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
 	}
 
-	void drawSwap() {
+	void drawSwap(uint32_t imageIndex) {
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
-		const std::array<VkPipelineStageFlags, 1> waitStages = {
+		const std::array<VkSemaphore, 2> waitSemaphores = {
+			gBufRenderFinishedSemaphore,
+			imageAvailableSemaphore
+		};
+		const std::array<VkPipelineStageFlags, 2> waitStages = {
+			VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 		};
 		static_assert(waitStages.size() == waitSemaphores.size(),
