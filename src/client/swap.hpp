@@ -27,6 +27,8 @@ struct SwapChain final {
 	VkRenderPass renderPass;
 
 	void destroy(VkDevice device) {
+		vkResetDescriptorPool(device, descriptorPool, 0);
+
 		for (auto framebuffer : framebuffers)
 			vkDestroyFramebuffer(device, framebuffer, nullptr);
 

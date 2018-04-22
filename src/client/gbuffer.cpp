@@ -138,31 +138,31 @@ VkDescriptorPool createGBufferDescriptorPool(const Application& app) {
 }
 
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
-	// ubo: { model, view, proj }
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-	uboLayoutBinding.binding = 0;
-	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
 	// texDiffuse: sampler2D
 	VkDescriptorSetLayoutBinding texDiffuseLayoutBinding = {};
-	texDiffuseLayoutBinding.binding = 1;
+	texDiffuseLayoutBinding.binding = 0;
 	texDiffuseLayoutBinding.descriptorCount = 1;
 	texDiffuseLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texDiffuseLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	// texSpecular: sampler2D
 	VkDescriptorSetLayoutBinding texSpecularLayoutBinding = {};
-	texSpecularLayoutBinding.binding = 2;
+	texSpecularLayoutBinding.binding = 1;
 	texSpecularLayoutBinding.descriptorCount = 1;
 	texSpecularLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texSpecularLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+	// ubo: { model, view, proj }
+	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+	uboLayoutBinding.binding = 2;
+	uboLayoutBinding.descriptorCount = 1;
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
 	const std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
-		uboLayoutBinding,
 		texDiffuseLayoutBinding,
 		texSpecularLayoutBinding,
+		uboLayoutBinding,
 	};
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
@@ -211,9 +211,9 @@ VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorS
 	descriptorWrites[0].dstSet = descriptorSet;
 	descriptorWrites[0].dstBinding = 0;
 	descriptorWrites[0].dstArrayElement = 0;
-	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	descriptorWrites[0].descriptorCount = 1;
-	descriptorWrites[0].pBufferInfo = &bufferInfo;
+	descriptorWrites[0].pImageInfo = &texDiffuseInfo;
 
 	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWrites[1].dstSet = descriptorSet;
@@ -221,15 +221,15 @@ VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorS
 	descriptorWrites[1].dstArrayElement = 0;
 	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	descriptorWrites[1].descriptorCount = 1;
-	descriptorWrites[1].pImageInfo = &texDiffuseInfo;
+	descriptorWrites[1].pImageInfo = &texSpecularInfo;
 
 	descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWrites[2].dstSet = descriptorSet;
 	descriptorWrites[2].dstBinding = 2;
 	descriptorWrites[2].dstArrayElement = 0;
-	descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	descriptorWrites[2].descriptorCount = 1;
-	descriptorWrites[2].pImageInfo = &texSpecularInfo;
+	descriptorWrites[2].pBufferInfo = &bufferInfo;
 
 	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
@@ -397,7 +397,13 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 	renderPassBeginInfo.clearValueCount = clearValues.size();
 	renderPassBeginInfo.pClearValues = clearValues.data();
 
-	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	beginInfo.pInheritanceInfo = nullptr;
+
+	auto commandBuffer = allocCommandBuffer(app, app.commandPool);
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);

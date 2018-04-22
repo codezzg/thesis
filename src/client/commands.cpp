@@ -18,7 +18,7 @@ VkCommandPool createCommandPool(const Application& app) {
 	return commandPool;
 }
 
-VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool commandPool) {
+VkCommandBuffer allocCommandBuffer(const Application& app, VkCommandPool commandPool) {
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -29,6 +29,11 @@ VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool co
 	vkAllocateCommandBuffers(app.device, &allocInfo, &commandBuffer);
 	app.validation.addObjectInfo(commandBuffer, __FILE__, __LINE__);
 
+	return commandBuffer;
+}
+
+VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool commandPool) {
+	auto commandBuffer = allocCommandBuffer(app, commandPool);
 	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;

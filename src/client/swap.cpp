@@ -280,6 +280,7 @@ VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app)
 
 	VkDescriptorSetLayout descriptorSetLayout;
 	VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
+	app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
 
 	return descriptorSetLayout;
 }
@@ -326,7 +327,7 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 
 	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWrites[0].dstSet = descriptorSet;
-	descriptorWrites[0].dstBinding = 1;
+	descriptorWrites[0].dstBinding = 0;
 	descriptorWrites[0].dstArrayElement = 0;
 	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	descriptorWrites[0].descriptorCount = 1;
@@ -350,7 +351,7 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 
 	descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWrites[3].dstSet = descriptorSet;
-	descriptorWrites[3].dstBinding = 0;
+	descriptorWrites[3].dstBinding = 3;
 	descriptorWrites[3].dstArrayElement = 0;
 	descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	descriptorWrites[3].descriptorCount = 1;

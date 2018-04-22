@@ -73,8 +73,6 @@ private:
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
 
-	VkDescriptorSet descriptorSet;
-
 	std::vector<VkCommandBuffer> swapCommandBuffers;
 	VkCommandBuffer gbufCommandBuffer;
 
@@ -103,7 +101,6 @@ private:
 
 		{
 			// Create the gbuffer for the geometry pass
-
 			const auto gBufAttachments = createGBufferAttachments(app);
 			const auto geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
 			app.gBuffer = createGBuffer(app, gBufAttachments, geomRenderPass);
@@ -115,7 +112,6 @@ private:
 
 		{
 			// Setup the deferred lighting pass
-
 			app.depthImage = createDepthImage(app);
 			app.swapChain.imageViews = createSwapChainImageViews(app);
 			const auto lightRenderPass = createLightingRenderPass(app);
@@ -123,11 +119,11 @@ private:
 			// Create a framebuffer for each image in the swap chain for the presentation
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 			app.swapChain.descriptorSetLayout = createSwapChainDescriptorSetLayout(app);
+			std::tie(app.swapChain.pipeline, app.swapChain.pipelineLayout) = createSwapChainPipeline(app);
 		}
 
 		{
 			// Load textures
-
 			texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
 			texDiffuseImage.sampler = createTextureSampler(app);
 			texSpecularImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::GREY);
@@ -156,13 +152,19 @@ private:
 		}
 
 		{
+			// Create samplers for gbuffer attachments
+			for (auto& atch : app.gBuffer.attachments)
+				atch.sampler = createTextureSampler(app);
+		}
+
+		{
 			// Create descriptor sets and command buffers for lighting pass
 			app.swapChain.descriptorPool = createSwapChainDescriptorPool(app);
 			app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
 							app.swapChain.descriptorSetLayout,
 							uniformBuffer);
 			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-					vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
+					vertexBuffer, indexBuffer, uniformBuffer, app.swapChain.descriptorSet);
 		}
 
 		createSemaphores();
@@ -222,7 +224,7 @@ private:
 			vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
 			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-					vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
+					vertexBuffer, indexBuffer, uniformBuffer, app.swapChain.descriptorSet);
 		}
 
 		updateVertexBuffer();
@@ -380,25 +382,48 @@ private:
 
 		cleanupSwapChain();
 
-		app.swapChain = createSwapChain(app);
-		app.swapChain.imageViews = createSwapChainImageViews(app);
+		{
+			auto descSetLayout = app.swapChain.descriptorSetLayout;
+			auto descPool = app.swapChain.descriptorPool;
+			app.swapChain = createSwapChain(app);
+			app.swapChain.imageViews = createSwapChainImageViews(app);
+			app.swapChain.descriptorSetLayout = descSetLayout;
+			app.swapChain.descriptorPool = descPool;
+		}
 
-		const auto gBufAttachments = createGBufferAttachments(app);
-		const auto geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
-		app.gBuffer = createGBuffer(app, gBufAttachments, geomRenderPass);
-		// gBuffer.descriptorSetLayout is the same as before
-		std::tie(app.gBuffer.pipeline, app.gBuffer.pipelineLayout) = createGBufferPipeline(app);
+		{
+			const auto gBufAttachments = createGBufferAttachments(app);
+			const auto geomRenderPass = createGeometryRenderPass(app, gBufAttachments);
+			auto descSetLayout = app.gBuffer.descriptorSetLayout;
+			auto descPool = app.gBuffer.descriptorPool;
+			app.gBuffer = createGBuffer(app, gBufAttachments, geomRenderPass);
+			// gBuffer.descriptorSetLayout is the same as before
+			app.gBuffer.descriptorSetLayout = descSetLayout;
+			app.gBuffer.descriptorPool = descPool;
+			std::tie(app.gBuffer.pipeline, app.gBuffer.pipelineLayout) = createGBufferPipeline(app);
+		}
+		{
+			// Create samplers for gbuffer attachments
+			for (auto& atch : app.gBuffer.attachments)
+				atch.sampler = createTextureSampler(app);
+		}
 
 		app.depthImage = createDepthImage(app);
 
 		const auto lightRenderPass = createLightingRenderPass(app);
-		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 		app.swapChain.renderPass = lightRenderPass;
+		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		std::tie(app.swapChain.pipeline, app.swapChain.pipelineLayout) = createSwapChainPipeline(app);
 
+		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
+				uniformBuffer, texDiffuseImage, texSpecularImage);
 		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices,
 				vertexBuffer, indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
+
+		app.swapChain.descriptorSet = createSwapChainDescriptorSet(app, app.swapChain.descriptorSetLayout,
+				uniformBuffer);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-				vertexBuffer, indexBuffer, uniformBuffer, descriptorSet);
+				vertexBuffer, indexBuffer, uniformBuffer, app.swapChain.descriptorSet);
 	}
 
 	void createSemaphores() {

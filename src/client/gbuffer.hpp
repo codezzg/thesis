@@ -20,6 +20,8 @@ struct GBuffer final {
 	VkRenderPass renderPass;
 
 	void destroy(VkDevice device) {
+		vkResetDescriptorPool(device, descriptorPool, 0);
+
 		for (auto& img : attachments)
 			img.destroy(device);
 		vkDestroyFramebuffer(device, handle, nullptr);
