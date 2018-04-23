@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 /** Platform independence layer for sockets */
 #ifdef _WIN32
 	#include <WinSock2.h>
@@ -51,3 +52,5 @@ const char* xplatGetErrorString();
 
 /** Returns the latest error code */
 int xplatGetError();
+
+std::string xplatGetCwd();

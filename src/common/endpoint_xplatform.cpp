@@ -44,3 +44,46 @@ int xplatGetError() {
 	return errno;
 #endif
 }
+
+std::string xplatGetCwd() {
+	char buf[256];
+#ifdef _WIN32
+	int bytes = GetModuleFileName(nullptr, buf, 256);
+	if (bytes == 0)
+		return "[UNKNOWN]";
+
+	const auto DIRSEP = '\\';
+
+#else
+	ssize_t bytes = 0;
+	if (access("/proc/self/exe", F_OK) != -1) {
+		// Linux
+		bytes = readlink("/proc/self/exe", buf, 255);
+
+	} else if (access("/proc/curproc/file", F_OK) != -1) {
+		// BSD
+		bytes = readlink("/proc/curproc/file", buf, 255);
+	}
+
+	if (bytes < 1) 
+		return "[UNKNOWN]";
+
+	buf[bytes] = '\0';
+
+	const auto DIRSEP = '/';
+#endif
+
+	int len = strlen(buf);
+	if (len < 1)
+		return "[UNKNOWN]";
+
+	// strip executable name
+	for (int i = len - 1; i > -1; --i) {
+		if (buf[i] == DIRSEP) {
+			buf[i] = '\0';
+			break;
+		}
+	}
+
+	return std::string{ buf };
+}

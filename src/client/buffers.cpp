@@ -1,7 +1,9 @@
 #include "buffers.hpp"
+#include <array>
 #include "commands.hpp"
 #include "phys_device.hpp"
 #include "application.hpp"
+#include "vertex.hpp"
 #include "vulk_errors.hpp"
 
 Buffer createBuffer(
@@ -70,4 +72,31 @@ void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, u
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
+}
+
+static const std::array<Vertex, 4> quadVertices = {
+	Vertex{ glm::vec3{ -1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 1.0f } },
+	Vertex{ glm::vec3{ -1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 0.0f } },
+	Vertex{ glm::vec3{  1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f } },
+	Vertex{ glm::vec3{  1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 0.0f } },
+};
+
+Buffer createScreenQuadVertexBuffer(const Application& app) {
+	auto stagingBuffer = createBuffer(app, sizeof(Vertex) * quadVertices.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	void* data;
+	vkMapMemory(app.device, stagingBuffer.memory, 0, stagingBuffer.size, 0, &data);
+	memcpy(data, quadVertices.data(), stagingBuffer.size);
+	vkUnmapMemory(app.device, stagingBuffer.memory);
+
+	auto buffer = createBuffer(app, sizeof(Vertex) * quadVertices.size(), 
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	copyBuffer(app, stagingBuffer.handle, buffer.handle, buffer.size);
+
+	stagingBuffer.destroy(app.device);
+
+	return buffer;
 }

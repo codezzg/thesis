@@ -13,6 +13,11 @@ else()
 	message(FATAL_ERROR "Target arch should be 64 bit. If you're 100% positive you want 32 bit, comment me and go ahead.")
 endif()
 
+if (WIN32)
+	add_definitions(-DWIN32_LEAN_AND_MEAN)
+	add_definitions(-DVC_EXTRALEAN)
+endif()
+
 add_subdirectory(src/common build/common)
 add_subdirectory(src/client build/client)
 add_subdirectory(src/server build/server)

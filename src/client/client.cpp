@@ -111,7 +111,7 @@ private:
 		app.commandPool = createCommandPool(app);
 
 		{
-			// Setup the deferred lighting pass
+			// Setup the deferred lighting pass and the swapchain
 			app.depthImage = createDepthImage(app);
 			app.swapChain.imageViews = createSwapChainImageViews(app);
 			const auto lightRenderPass = createLightingRenderPass(app);
@@ -119,6 +119,7 @@ private:
 			// Create a framebuffer for each image in the swap chain for the presentation
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 			app.swapChain.descriptorSetLayout = createSwapChainDescriptorSetLayout(app);
+			app.swapChain.screenQuadBuffer = createScreenQuadVertexBuffer(app);
 			std::tie(app.swapChain.pipeline, app.swapChain.pipelineLayout) = createSwapChainPipeline(app);
 		}
 
@@ -323,8 +324,8 @@ private:
 		app.depthImage.destroy(app.device);
 
 		// this doesn't destroy the descriptorSetLayout/Pool
-		app.gBuffer.destroy(app.device);
-		app.swapChain.destroy(app.device);
+		app.gBuffer.destroyTransient(app.device);
+		app.swapChain.destroyTransient(app.device);
 
 		vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
@@ -338,11 +339,8 @@ private:
 		texDiffuseImage.destroy(app.device);
 		texSpecularImage.destroy(app.device);
 
-		vkDestroyDescriptorPool(app.device, app.gBuffer.descriptorPool, nullptr);
-		vkDestroyDescriptorSetLayout(app.device, app.gBuffer.descriptorSetLayout, nullptr);
-
-		vkDestroyDescriptorPool(app.device, app.swapChain.descriptorPool, nullptr);
-		vkDestroyDescriptorSetLayout(app.device, app.swapChain.descriptorSetLayout, nullptr);
+		app.gBuffer.destroyPersistent(app.device);
+		app.swapChain.destroyPersistent(app.device);
 
 		uniformBuffer.destroy(app.device);
 		indexBuffer.destroy(app.device);
@@ -385,10 +383,12 @@ private:
 		{
 			auto descSetLayout = app.swapChain.descriptorSetLayout;
 			auto descPool = app.swapChain.descriptorPool;
+			auto& screenQuadBuffer = app.swapChain.screenQuadBuffer;
 			app.swapChain = createSwapChain(app);
 			app.swapChain.imageViews = createSwapChainImageViews(app);
 			app.swapChain.descriptorSetLayout = descSetLayout;
 			app.swapChain.descriptorPool = descPool;
+			app.swapChain.screenQuadBuffer = screenQuadBuffer;
 		}
 
 		{

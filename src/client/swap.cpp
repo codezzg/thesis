@@ -9,6 +9,7 @@
 #include "vertex.hpp"
 #include "vulk_errors.hpp"
 #include "images.hpp"
+#include "buffers.hpp"
 
 // Windows, really...
 #undef max
@@ -53,6 +54,28 @@ static VkExtent2D chooseSwapExtent(GLFWwindow *window, const VkSurfaceCapabiliti
 						std::min(capabilities.maxImageExtent.height, actualExtent.height));
 		return actualExtent;
 	}
+}
+
+void SwapChain::destroyTransient(VkDevice device) {
+	vkResetDescriptorPool(device, descriptorPool, 0);
+
+	for (auto framebuffer : framebuffers)
+		vkDestroyFramebuffer(device, framebuffer, nullptr);
+
+	for (auto imageView : imageViews)
+		vkDestroyImageView(device, imageView, nullptr);
+
+	vkDestroySwapchainKHR(device, handle, nullptr);
+
+	vkDestroyPipeline(device, pipeline, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
+}
+
+void SwapChain::destroyPersistent(VkDevice device) {
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+	screenQuadBuffer.destroy(device);
 }
 
 SwapChain createSwapChain(const Application& app) {
@@ -197,16 +220,17 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
-		const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
+		const std::array<VkBuffer, 1> vertexBuffers = { app.swapChain.screenQuadBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
 		static_assert(vertexBuffers.size() == offsets.size(),
 				"offsets should be the same amount of vertexBuffers!");
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, vertexBuffers.size(),
 				vertexBuffers.data(), offsets.data());
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+		//vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 				app.swapChain.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
+		//vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
+		vkCmdDraw(commandBuffers[i], app.swapChain.screenQuadBuffer.size / sizeof(Vertex), 1, 0, 0);
 		//std::cerr << "recreating command buffer with v = "
 			//<< nVertices << ", i = " << nIndices << "\n";
 		vkCmdEndRenderPass(commandBuffers[i]);

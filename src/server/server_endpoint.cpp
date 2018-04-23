@@ -87,7 +87,8 @@ void ServerActiveEndpoint::loopFunc() {
 	// This is used for storing the data to send, varying each frame.
 	uint8_t *tmpMemory = serverMemory + MEMSIZE * 2 / 3;
 
-	auto model = loadModel("models/mill.obj", serverMemory);
+	std::cerr << "cwd: " << xplatGetCwd() << std::endl;
+	auto model = loadModel((xplatGetCwd() + "/models/mill.obj").c_str(), serverMemory);
 	if (model.vertices == nullptr) {
 		std::cerr << "Failed to load model.\n";
 		return;

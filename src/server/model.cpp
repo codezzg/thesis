@@ -32,31 +32,31 @@ static const char* mmap_file(std::size_t *len, const char *filename) {
 	char *p;
 	int fd;
 
-	fd = open (filename, O_RDONLY);
+	fd = open(filename, O_RDONLY);
 	if (fd == -1) {
-		perror ("open");
+		perror("open");
 		return nullptr;
 	}
 
 	if (fstat (fd, &sb) == -1) {
-		perror ("fstat");
+		perror("fstat");
 		return nullptr;
 	}
 
 	if (!S_ISREG (sb.st_mode)) {
-		fprintf (stderr, "%s is not a file\n", "lineitem.tbl");
+		fprintf(stderr, "%s is not a file\n", "lineitem.tbl");
 		return nullptr;
 	}
 
-	p = (char*)mmap (0, fileSize, PROT_READ, MAP_SHARED, fd, 0);
+	p = (char*)mmap(0, fileSize, PROT_READ, MAP_SHARED, fd, 0);
 
 	if (p == MAP_FAILED) {
-		perror ("mmap");
+		perror("mmap");
 		return nullptr;
 	}
 
 	if (close (fd) == -1) {
-		perror ("close");
+		perror("close");
 		return nullptr;
 	}
 
@@ -130,11 +130,16 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 				attrib.vertices[3 * index.vertex_index + 1],
 				attrib.vertices[3 * index.vertex_index + 2],
 			};
-			vertex.norm = {
-				attrib.normals[3 * index.vertex_index + 0],
-				attrib.normals[3 * index.vertex_index + 1],
-				attrib.normals[3 * index.vertex_index + 2],
-			};
+			if (index.normal_index >= 0) {
+				vertex.norm = {
+					attrib.normals[3 * index.normal_index + 0],
+					attrib.normals[3 * index.normal_index + 1],
+					attrib.normals[3 * index.normal_index + 2],
+				};
+			}
+			else {
+				vertex.norm = {};
+			}
 			vertex.texCoord = {
 				attrib.texcoords[2 * index.texcoord_index + 0],
 				1.0f - attrib.texcoords[2 * index.texcoord_index + 1],

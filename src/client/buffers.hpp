@@ -34,3 +34,4 @@ Buffer createBuffer(
 
 void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+Buffer createScreenQuadVertexBuffer(const Application& app);

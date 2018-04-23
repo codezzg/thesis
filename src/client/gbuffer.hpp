@@ -19,7 +19,7 @@ struct GBuffer final {
 
 	VkRenderPass renderPass;
 
-	void destroy(VkDevice device) {
+	void destroyTransient(VkDevice device) {
 		vkResetDescriptorPool(device, descriptorPool, 0);
 
 		for (auto& img : attachments)
@@ -29,6 +29,11 @@ struct GBuffer final {
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyRenderPass(device, renderPass, nullptr);
+	}
+
+	void destroyPersistent(VkDevice device) {
+		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 	}
 };
 

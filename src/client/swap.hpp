@@ -3,9 +3,9 @@
 #include <vector>
 #include <tuple>
 #include <vulkan/vulkan.h>
+#include "buffers.hpp"
 
 struct Application;
-struct Buffer;
 struct Image;
 
 struct SwapChain final {
@@ -26,21 +26,10 @@ struct SwapChain final {
 
 	VkRenderPass renderPass;
 
-	void destroy(VkDevice device) {
-		vkResetDescriptorPool(device, descriptorPool, 0);
+	Buffer screenQuadBuffer;
 
-		for (auto framebuffer : framebuffers)
-			vkDestroyFramebuffer(device, framebuffer, nullptr);
-
-		for (auto imageView : imageViews)
-			vkDestroyImageView(device, imageView, nullptr);
-
-		vkDestroySwapchainKHR(device, handle, nullptr);
-
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyRenderPass(device, renderPass, nullptr);
-	}
+	void destroyTransient(VkDevice device);
+	void destroyPersistent(VkDevice device);
 };
 
 SwapChain createSwapChain(const Application& app);
