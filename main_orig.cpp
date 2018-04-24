@@ -222,6 +222,10 @@ class HelloTriangleApplication {
 			createTextureImageView();
 			createTextureSampler();
 			loadModel();
+			//vertices.push_back(Vertex{glm::vec3{ -1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 1.0f }});
+			//vertices.push_back(Vertex{ glm::vec3{ -1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 0.0f } });
+			//vertices.push_back(Vertex{ glm::vec3{  1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f } });
+			//vertices.push_back(Vertex{ glm::vec3{  1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 0.0f } });
 			createVertexBuffer();
 			createIndexBuffer();
 			createUniformBuffer();
@@ -1251,6 +1255,7 @@ class HelloTriangleApplication {
 				vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
 				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+				//vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
 
 				vkCmdEndRenderPass(commandBuffers[i]);
 

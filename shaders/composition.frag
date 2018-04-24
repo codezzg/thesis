@@ -33,4 +33,5 @@ void main() {
 	lighting += diffuse;
 
 	fragColor = vec4(lighting, 1.0);
+	/*fragColor = vec4(texCoords, 1.0, 1.0);*/
 }

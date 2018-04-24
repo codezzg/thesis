@@ -82,7 +82,8 @@ private:
 
 	Buffer vertexBuffer;
 	Buffer indexBuffer;
-	Buffer uniformBuffer;
+	Buffer mvpUniformBuffer;
+	Buffer compUniformBuffer;
 
 	Image texDiffuseImage;
 	Image texSpecularImage;
@@ -93,7 +94,6 @@ private:
 	uint64_t nIndices = 0;
 	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
 	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
-	static constexpr size_t UNIFORM_BUFFER_SIZE = sizeof(MVPUniformBufferObject);
 
 
 	void initVulkan() {
@@ -139,7 +139,11 @@ private:
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			indexBuffer = createBuffer(app, INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			uniformBuffer = createBuffer(app, UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			mvpUniformBuffer = createBuffer(app, sizeof(MVPUniformBufferObject),
+					VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			compUniformBuffer = createBuffer(app, sizeof(CompositionUniformBufferObject),
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		}
 
@@ -147,9 +151,9 @@ private:
 			// Create descriptor sets and command buffers for G-Buffer
 			app.gBuffer.descriptorPool = createGBufferDescriptorPool(app);
 			app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
-					uniformBuffer, texDiffuseImage, texSpecularImage);
+					mvpUniformBuffer, texDiffuseImage, texSpecularImage);
 			gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices, vertexBuffer,
-					indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
+					indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);
 		}
 
 		{
@@ -163,9 +167,9 @@ private:
 			app.swapChain.descriptorPool = createSwapChainDescriptorPool(app);
 			app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
 							app.swapChain.descriptorSetLayout,
-							uniformBuffer);
+							compUniformBuffer);
 			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-					vertexBuffer, indexBuffer, uniformBuffer, app.swapChain.descriptorSet);
+					compUniformBuffer, app.swapChain.descriptorSet);
 		}
 
 		createSemaphores();
@@ -186,7 +190,8 @@ private:
 
 		updateVertexBuffer();
 		updateIndexBuffer();
-		updateUniformBuffer();
+		updateMVPUniformBuffer();
+		updateCompUniformBuffer();
 
 		auto& clock = Clock::instance();
 		auto beginTime = std::chrono::high_resolution_clock::now();
@@ -222,15 +227,17 @@ private:
 			pvs = nVertices;
 			pis = nIndices;
 			vkDeviceWaitIdle(app.device);
-			vkFreeCommandBuffers(app.device, app.commandPool, static_cast<uint32_t>(swapCommandBuffers.size()),
+			vkFreeCommandBuffers(app.device, app.commandPool,
+				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
 			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-					vertexBuffer, indexBuffer, uniformBuffer, app.swapChain.descriptorSet);
+					compUniformBuffer, app.swapChain.descriptorSet);
 		}
 
 		updateVertexBuffer();
 		updateIndexBuffer();
-		updateUniformBuffer();
+		updateMVPUniformBuffer();
+		updateCompUniformBuffer();
 
 		cameraCtrl->processInput(app.window);
 
@@ -254,43 +261,6 @@ private:
 		nVertices = *reinterpret_cast<const uint64_t*>(data);
 		nIndices = *(reinterpret_cast<const uint64_t*>(data) + 1);
 		std::cerr << "\nn vertices: " << nVertices << ", n indices: " << nIndices << "\n";
-		//for (size_t i = 0; i < nVertices; ++i)
-			//std::cerr << "v[" << i << "] = "
-				//<< *((Vertex*)(data + 20 + sizeof(Vertex)*i)) << std::endl;
-
-		//vertices.resize(nVertices);
-		//const auto vOff = 2 * sizeof(uint64_t);
-		//for (unsigned i = 0; i < nVertices; ++i)
-			//vertices[i] = *(Vertex*)(data + vOff + i * sizeof(Vertex));
-		//std::cerr << "begin vertices\n";
-		//[>for (auto& v : vertices) {
-			//std::cerr << v << std::endl;
-			////v.pos.x += 0.001;
-			////if (v.pos.x > 1) v.pos.x = 0;
-		//}*/
-		//std::cerr << "end vertices (" << vertices.size() << ")\n";
-
-		//indices.resize(nIndices);
-		////memcpy(indices.data(), data + 28 + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
-		//const auto iOff = vOff + nVertices * sizeof(Vertex);
-		//std::cerr << "iOff = " << iOff << "\n";
-		//for (unsigned i = 0; i < nIndices; ++i)
-			//indices[i] = *(Index*)(data + iOff + i * sizeof(Index));
-
-		//std::cerr << "begin indices\n";
-		//[>for (auto& i : indices) {
-			//std::cerr << i << ", ";
-		//}*/
-		//std::cerr << "\nend indices (" << indices.size() << ")\n";
-
-		//printf("[%ld] raw data:\n", curFrame);
-		//for (int i = 0; i < 150; ++i) {
-			//if (i == vOff) printf("|> ");
-			//if (i == iOff) printf("<| ");
-			//printf("%hhx ", data[i]);
-		//}
-		//printf("\n");
-
 
 		constexpr auto HEADER_SIZE = 2 * sizeof(uint64_t);
 		memcpy(streamingBufferData, data + HEADER_SIZE, nVertices * sizeof(Vertex));
@@ -342,7 +312,8 @@ private:
 		app.gBuffer.destroyPersistent(app.device);
 		app.swapChain.destroyPersistent(app.device);
 
-		uniformBuffer.destroy(app.device);
+		mvpUniformBuffer.destroy(app.device);
+		compUniformBuffer.destroy(app.device);
 		indexBuffer.destroy(app.device);
 		vertexBuffer.destroy(app.device);
 
@@ -383,7 +354,7 @@ private:
 		{
 			auto descSetLayout = app.swapChain.descriptorSetLayout;
 			auto descPool = app.swapChain.descriptorPool;
-			auto& screenQuadBuffer = app.swapChain.screenQuadBuffer;
+			auto screenQuadBuffer = app.swapChain.screenQuadBuffer;
 			app.swapChain = createSwapChain(app);
 			app.swapChain.imageViews = createSwapChainImageViews(app);
 			app.swapChain.descriptorSetLayout = descSetLayout;
@@ -401,29 +372,31 @@ private:
 			app.gBuffer.descriptorSetLayout = descSetLayout;
 			app.gBuffer.descriptorPool = descPool;
 			std::tie(app.gBuffer.pipeline, app.gBuffer.pipelineLayout) = createGBufferPipeline(app);
-		}
-		{
+
 			// Create samplers for gbuffer attachments
 			for (auto& atch : app.gBuffer.attachments)
 				atch.sampler = createTextureSampler(app);
 		}
 
-		app.depthImage = createDepthImage(app);
+		{
+			app.depthImage = createDepthImage(app);
 
-		const auto lightRenderPass = createLightingRenderPass(app);
-		app.swapChain.renderPass = lightRenderPass;
-		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
-		std::tie(app.swapChain.pipeline, app.swapChain.pipelineLayout) = createSwapChainPipeline(app);
+			const auto lightRenderPass = createLightingRenderPass(app);
+			app.swapChain.renderPass = lightRenderPass;
+			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+			std::tie(app.swapChain.pipeline, app.swapChain.pipelineLayout) = createSwapChainPipeline(app);
+
+			app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
+					app.swapChain.descriptorSetLayout, compUniformBuffer);
+			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
+				compUniformBuffer, app.swapChain.descriptorSet);
+		}
 
 		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
-				uniformBuffer, texDiffuseImage, texSpecularImage);
+				mvpUniformBuffer, texDiffuseImage, texSpecularImage);
 		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices,
-				vertexBuffer, indexBuffer, uniformBuffer, app.gBuffer.descriptorSet);
+				vertexBuffer, indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);
 
-		app.swapChain.descriptorSet = createSwapChainDescriptorSet(app, app.swapChain.descriptorSetLayout,
-				uniformBuffer);
-		swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-				vertexBuffer, indexBuffer, uniformBuffer, app.swapChain.descriptorSet);
 	}
 
 	void createSemaphores() {
@@ -434,47 +407,54 @@ private:
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &gBufRenderFinishedSemaphore));
 	}
 
-	void updateVertexBuffer() {
-		// Acquire handle to device memory
-		void *data;
-		vkMapMemory(app.device, vertexBuffer.memory, 0, VERTEX_BUFFER_SIZE, 0, &data);
-		// Copy host memory to device
-		memcpy(data, streamingBufferData, VERTEX_BUFFER_SIZE);
-		vkUnmapMemory(app.device, vertexBuffer.memory);
+	void drawFrame2() {
+		const auto imageIndex = acquireNextSwapImage(app, imageAvailableSemaphore);
+		if (imageIndex < 0) {
+			recreateSwapChain();
+			return;
+		}
+
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+		VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+		VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.pWaitDstStageMask = waitStages;
+
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &swapCommandBuffers[imageIndex];
+
+		VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = signalSemaphores;
+
+		if (vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+			throw std::runtime_error("failed to submit draw command buffer!");
+		}
+
+		VkPresentInfoKHR presentInfo = {};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = signalSemaphores;
+
+		VkSwapchainKHR swapChains[] = {app.swapChain.handle};
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = swapChains;
+
+		presentInfo.pImageIndices = &imageIndex;
+
+		auto result = vkQueuePresentKHR(app.queues.present, &presentInfo);
+
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+			recreateSwapChain();
+		} else if (result != VK_SUCCESS) {
+			throw std::runtime_error("failed to present swap chain image!");
+		}
+
+		vkQueueWaitIdle(app.queues.present);
 	}
-
-	void updateIndexBuffer() {
-		// Acquire handle to device memory
-		void *data;
-		vkMapMemory(app.device, indexBuffer.memory, 0, INDEX_BUFFER_SIZE, 0, &data);
-		// Copy host memory to device
-		memcpy(data, streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
-		vkUnmapMemory(app.device, indexBuffer.memory);
-	}
-
-	void updateUniformBuffer() {
-		//static auto startTime = std::chrono::high_resolution_clock::now();
-
-		//auto currentTime = std::chrono::high_resolution_clock::now();
-		//float time = std::chrono::duration<float, std::chrono::seconds::period>(
-				//currentTime - startTime).count();
-
-		MVPUniformBufferObject ubo = {};
-		ubo.model = glm::mat4{1.0f};
-		//ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
-		//std::cerr << "view mat = " << glm::to_string(camera.viewMatrix()) << "\n";
-		ubo.view = camera.viewMatrix();
-			//glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
-		ubo.proj = glm::perspective(glm::radians(60.f),
-				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
-		ubo.proj[1][1] *= -1;
-
-		void *data;
-		vkMapMemory(app.device, uniformBuffer.memory, 0, sizeof(ubo), 0, &data);
-		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(app.device, uniformBuffer.memory);
-	}
-
 
 	void drawFrame() {
 		const auto imageIndex = acquireNextSwapImage(app, imageAvailableSemaphore);
@@ -554,6 +534,57 @@ private:
 		submitInfo.pSignalSemaphores = signalSemaphores.data();
 
 		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
+	}
+
+	void updateVertexBuffer() {
+		// Acquire handle to device memory
+		void *data;
+		vkMapMemory(app.device, vertexBuffer.memory, 0, VERTEX_BUFFER_SIZE, 0, &data);
+		// Copy host memory to device
+		memcpy(data, streamingBufferData, VERTEX_BUFFER_SIZE);
+		vkUnmapMemory(app.device, vertexBuffer.memory);
+	}
+
+	void updateIndexBuffer() {
+		// Acquire handle to device memory
+		void *data;
+		vkMapMemory(app.device, indexBuffer.memory, 0, INDEX_BUFFER_SIZE, 0, &data);
+		// Copy host memory to device
+		memcpy(data, streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
+		vkUnmapMemory(app.device, indexBuffer.memory);
+	}
+
+	void updateMVPUniformBuffer() {
+		//static auto startTime = std::chrono::high_resolution_clock::now();
+
+		//auto currentTime = std::chrono::high_resolution_clock::now();
+		//float time = std::chrono::duration<float, std::chrono::seconds::period>(
+				//currentTime - startTime).count();
+
+		MVPUniformBufferObject ubo = {};
+		ubo.model = glm::mat4{1.0f};
+		//ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
+		//std::cerr << "view mat = " << glm::to_string(camera.viewMatrix()) << "\n";
+		ubo.view = camera.viewMatrix();
+			//glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
+		ubo.proj = glm::perspective(glm::radians(60.f),
+				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
+		ubo.proj[1][1] *= -1;
+
+		void *data;
+		vkMapMemory(app.device, mvpUniformBuffer.memory, 0, sizeof(ubo), 0, &data);
+		memcpy(data, &ubo, sizeof(ubo));
+		vkUnmapMemory(app.device, mvpUniformBuffer.memory);
+	}
+
+	void updateCompUniformBuffer() {
+		CompositionUniformBufferObject ubo = {};
+		ubo.viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0 };
+
+		void *data;
+		vkMapMemory(app.device, compUniformBuffer.memory, 0, sizeof(ubo), 0, &data);
+		memcpy(data, &ubo, sizeof(ubo));
+		vkUnmapMemory(app.device, compUniformBuffer.memory);
 	}
 };
 

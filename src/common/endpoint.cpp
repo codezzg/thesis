@@ -127,7 +127,7 @@ void dumpPacket(const char *fname, const FrameData& packet) {
 	file << "\n--- packet " << packet.header.frameId << ":" << packet.header.packetId << "\n";
 	file << "Header:\n";
 	file << std::hex;
-	for (int i = 0; i < sizeof(FrameHeader); ++i)
+	for (unsigned i = 0; i < sizeof(FrameHeader); ++i)
 		file << (*(reinterpret_cast<const uint8_t*>(&packet.header) + i) & 0xFF) << " ";
 	file << "\nPayload:\n";
 	for (uint8_t byte : packet.payload) {

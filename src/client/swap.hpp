@@ -44,10 +44,14 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app);
 uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore);
 
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, uint32_t nIndices,
-		const Buffer& vBuffer, const Buffer& iBuffer, const Buffer& uBuffer, VkDescriptorSet descSet);
+		const Buffer& uBuffer, VkDescriptorSet descSet);
 
 VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer);
 std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Application& app);
+
+VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
+VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
+		const Buffer& uniformBuffer);

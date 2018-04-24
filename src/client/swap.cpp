@@ -10,6 +10,7 @@
 #include "vulk_errors.hpp"
 #include "images.hpp"
 #include "buffers.hpp"
+#include <iostream>
 
 // Windows, really...
 #undef max
@@ -185,8 +186,7 @@ uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailable
 }
 
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, uint32_t nIndices,
-		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
-		VkDescriptorSet descriptorSet)
+		const Buffer& uniformBuffer, VkDescriptorSet descriptorSet)
 {
 	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
 
@@ -230,7 +230,8 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 				app.swapChain.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 		//vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
-		vkCmdDraw(commandBuffers[i], app.swapChain.screenQuadBuffer.size / sizeof(Vertex), 1, 0, 0);
+		std::cerr << (app.swapChain.screenQuadBuffer.size / sizeof(Vertex)) << "\n";
+		vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
 		//std::cerr << "recreating command buffer with v = "
 			//<< nVertices << ", i = " << nIndices << "\n";
 		vkCmdEndRenderPass(commandBuffers[i]);
@@ -390,6 +391,8 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Application& app) {
 	auto vertShaderModule = createShaderModule(app, "shaders/composition.vert.spv");
 	auto fragShaderModule = createShaderModule(app, "shaders/composition.frag.spv");
+	//auto vertShaderModule = createShaderModule(app, "shaders/base.vert.spv");
+	//auto fragShaderModule = createShaderModule(app, "shaders/base.frag.spv");
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -420,7 +423,7 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology= VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.topology= VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	VkViewport viewport = {};
@@ -448,7 +451,7 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.cullMode = VK_CULL_MODE_NONE;//VK_CULL_MODE_BACK_BIT;
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -523,4 +526,35 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 	vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
 
 	return std::make_pair(pipeline, pipelineLayout);
+}
+
+VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app) {
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 0;
+	layoutInfo.pBindings = nullptr;
+
+	VkDescriptorSetLayout descriptorSetLayout;
+	VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
+	app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
+
+	return descriptorSetLayout;
+}
+
+VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout, const Buffer&) {
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = app.swapChain.descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &descriptorSetLayout;
+
+	VkDescriptorSet descriptorSet;
+	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
+	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
+
+	std::array<VkWriteDescriptorSet, 0> descriptorWrites = {};
+
+	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+
+	return descriptorSet;
 }
