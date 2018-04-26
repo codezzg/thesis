@@ -49,9 +49,12 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer);
+		const Buffer& uniformBuffer, const Image& texDiffuse);
 std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Application& app);
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer);
+		const Buffer& uniformBuffer, const Image& tex);
+std::vector<VkCommandBuffer> createSwapChainDebugCommandBuffers(const Application& app, uint32_t nIndices,
+		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
+		VkDescriptorSet descriptorSet);

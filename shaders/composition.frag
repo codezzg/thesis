@@ -32,6 +32,7 @@ void main() {
 	vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 	lighting += diffuse;
 
-	fragColor = vec4(lighting, 1.0);
-	/*fragColor = vec4(texCoords, 1.0, 1.0);*/
+	/*fragColor = vec4(lighting, 1.0);*/
+	fragColor = vec4(albedo, 1.0);
+	/*fragColor = vec4(texCoords, 0.0, 1.0);*/
 }

@@ -17,7 +17,8 @@ static Image createPosAttachment(const Application& app) {
 		app.swapChain.extent.width, app.swapChain.extent.height,
 		bestPosFormat,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto positionImgView = createImageView(app, positionImg.handle,
 			positionImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -37,7 +38,8 @@ static Image createNormalAttachment(const Application& app) {
 		app.swapChain.extent.width, app.swapChain.extent.height,
 		bestNormFormat,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto normalImgView = createImageView(app, normalImg.handle,
 			normalImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -55,7 +57,8 @@ static Image createAlbedoSpecAttachment(const Application& app) {
 		app.swapChain.extent.width, app.swapChain.extent.height,
 		bestASFormat,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto albedoSpecImgView = createImageView(app, albedoSpecImg.handle,
 			albedoSpecImg.format,

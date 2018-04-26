@@ -226,14 +226,10 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 				"offsets should be the same amount of vertexBuffers!");
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, vertexBuffers.size(),
 				vertexBuffers.data(), offsets.data());
-		//vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 				app.swapChain.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-		//vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
-		std::cerr << (app.swapChain.screenQuadBuffer.size / sizeof(Vertex)) << "\n";
 		vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
-		//std::cerr << "recreating command buffer with v = "
-			//<< nVertices << ", i = " << nIndices << "\n";
+
 		vkCmdEndRenderPass(commandBuffers[i]);
 
 		VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
@@ -311,11 +307,12 @@ VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app)
 }
 
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer)
+		const Buffer& uniformBuffer, const Image& texDiffuseImage)
 {
 	const auto& gPosition = app.gBuffer.attachments[0];
+	const auto& gAlbedoSpec = texDiffuseImage;
 	const auto& gNormal = app.gBuffer.attachments[1];
-	const auto& gAlbedoSpec = app.gBuffer.attachments[2];
+	//const auto& gAlbedoSpec = app.gBuffer.attachments[2];
 
 	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
 	VkDescriptorSetAllocateInfo allocInfo = {};
@@ -382,7 +379,6 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 	descriptorWrites[3].descriptorCount = 1;
 	descriptorWrites[3].pBufferInfo = &bufferInfo;
 
-
 	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
 	return descriptorSet;
@@ -393,6 +389,8 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 	auto fragShaderModule = createShaderModule(app, "shaders/composition.frag.spv");
 	//auto vertShaderModule = createShaderModule(app, "shaders/base.vert.spv");
 	//auto fragShaderModule = createShaderModule(app, "shaders/base.frag.spv");
+	//auto vertShaderModule = createShaderModule(app, "shaders/3d.vert.spv");
+	//auto fragShaderModule = createShaderModule(app, "shaders/3d.frag.spv");
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -423,7 +421,8 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology= VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+	//inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	VkViewport viewport = {};
@@ -529,10 +528,27 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 }
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app) {
+	VkDescriptorSetLayoutBinding uboBinding = {};
+	uboBinding.binding = 0;
+	uboBinding.descriptorCount = 1;
+	uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	VkDescriptorSetLayoutBinding texLayoutBinding = {};
+	texLayoutBinding.binding = 1;
+	texLayoutBinding.descriptorCount = 1;
+	texLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	const std::array<VkDescriptorSetLayoutBinding, 2> bindings = {
+		uboBinding,
+		texLayoutBinding
+	};
+
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = 0;
-	layoutInfo.pBindings = nullptr;
+	layoutInfo.bindingCount =  bindings.size();
+	layoutInfo.pBindings = bindings.data();
 
 	VkDescriptorSetLayout descriptorSetLayout;
 	VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
@@ -541,7 +557,18 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 	return descriptorSetLayout;
 }
 
-VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout, const Buffer&) {
+VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout, const Buffer& ubo, const Image& tex) {
+
+	VkDescriptorBufferInfo uboInfo = {};
+	uboInfo.buffer = ubo.handle;
+	uboInfo.offset = 0;
+	uboInfo.range = ubo.size;
+
+	VkDescriptorImageInfo texInfo = {};
+	texInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	texInfo.imageView = tex.view;
+	texInfo.sampler = tex.sampler;
+
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = app.swapChain.descriptorPool;
@@ -552,9 +579,82 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDesc
 	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
 	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
 
-	std::array<VkWriteDescriptorSet, 0> descriptorWrites = {};
+	std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[0].dstSet = descriptorSet;
+	descriptorWrites[0].dstBinding = 0;
+	descriptorWrites[0].dstArrayElement = 0;
+	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrites[0].descriptorCount = 1;
+	descriptorWrites[0].pBufferInfo = &uboInfo;
+
+	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[1].dstSet = descriptorSet;
+	descriptorWrites[1].dstBinding = 1;
+	descriptorWrites[1].dstArrayElement = 0;
+	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrites[1].descriptorCount = 1;
+	descriptorWrites[1].pImageInfo = &texInfo;
 
 	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
 	return descriptorSet;
+}
+
+std::vector<VkCommandBuffer> createSwapChainDebugCommandBuffers(const Application& app, uint32_t nIndices,
+		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
+		VkDescriptorSet descriptorSet)
+{
+	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
+
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = app.commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+
+	VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
+
+	for (size_t i = 0; i < commandBuffers.size(); ++i) {
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+		beginInfo.pInheritanceInfo = nullptr;
+
+		vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
+
+		VkRenderPassBeginInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = app.swapChain.renderPass;
+		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
+		renderPassInfo.renderArea.offset = {0, 0};
+		renderPassInfo.renderArea.extent = app.swapChain.extent;
+		std::array<VkClearValue, 2> clearValues = {};
+		clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
+		clearValues[1].depthStencil = {1.f, 0};
+		renderPassInfo.clearValueCount = clearValues.size();
+		renderPassInfo.pClearValues = clearValues.data();
+
+		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
+		const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
+		const std::array<VkDeviceSize, 1> offsets = { 0 };
+		static_assert(vertexBuffers.size() == offsets.size(),
+				"offsets should be the same amount of vertexBuffers!");
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, vertexBuffers.size(),
+				vertexBuffers.data(), offsets.data());
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+				app.swapChain.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
+		//std::cerr << (app.swapChain.screenQuadBuffer.size / sizeof(Vertex)) << "\n";
+		//vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
+		//std::cerr << "recreating command buffer with v = "
+			//<< nVertices << ", i = " << nIndices << "\n";
+		vkCmdEndRenderPass(commandBuffers[i]);
+
+		VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
+	}
+
+	return commandBuffers;
 }

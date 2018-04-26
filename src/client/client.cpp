@@ -48,6 +48,9 @@
 using namespace std::literals::string_literals;
 using std::size_t;
 
+// XXX: DEBUG
+bool useCamera = false;
+
 class HelloTriangleApplication final {
 public:
 	void run() {
@@ -118,6 +121,7 @@ private:
 			app.swapChain.renderPass = lightRenderPass;
 			// Create a framebuffer for each image in the swap chain for the presentation
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+			//app.swapChain.descriptorSetLayout = createSwapChainDebugDescriptorSetLayout(app);
 			app.swapChain.descriptorSetLayout = createSwapChainDescriptorSetLayout(app);
 			app.swapChain.screenQuadBuffer = createScreenQuadVertexBuffer(app);
 			std::tie(app.swapChain.pipeline, app.swapChain.pipelineLayout) = createSwapChainPipeline(app);
@@ -165,9 +169,15 @@ private:
 		{
 			// Create descriptor sets and command buffers for lighting pass
 			app.swapChain.descriptorPool = createSwapChainDescriptorPool(app);
+			//app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
+							//app.swapChain.descriptorSetLayout,
+							//mvpUniformBuffer, texDiffuseImage);
 			app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
 							app.swapChain.descriptorSetLayout,
-							compUniformBuffer);
+							compUniformBuffer, texDiffuseImage);
+			//swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
+					//vertexBuffer, indexBuffer,
+					//mvpUniformBuffer, app.swapChain.descriptorSet);
 			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 					compUniformBuffer, app.swapChain.descriptorSet);
 		}
@@ -230,6 +240,9 @@ private:
 			vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
+			//swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
+					//vertexBuffer, indexBuffer,
+					//mvpUniformBuffer, app.swapChain.descriptorSet);
 			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 					compUniformBuffer, app.swapChain.descriptorSet);
 		}
@@ -386,8 +399,15 @@ private:
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 			std::tie(app.swapChain.pipeline, app.swapChain.pipelineLayout) = createSwapChainPipeline(app);
 
+			//app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
+					//app.swapChain.descriptorSetLayout,
+					//mvpUniformBuffer, texDiffuseImage);
 			app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
-					app.swapChain.descriptorSetLayout, compUniformBuffer);
+					app.swapChain.descriptorSetLayout,
+					compUniformBuffer, texDiffuseImage);
+			//swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
+				//vertexBuffer, indexBuffer,
+				//mvpUniformBuffer, app.swapChain.descriptorSet);
 			swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 				compUniformBuffer, app.swapChain.descriptorSet);
 		}
@@ -463,17 +483,19 @@ private:
 			return;
 		}
 
-		// TODO
 		drawGBuffer();
-
 		drawSwap(imageIndex);
 
-		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
+		submitFrame(imageIndex);
+	}
+
+	void submitFrame(uint32_t imageIndex) {
+		const std::array<VkSemaphore, 1> waitSemaphores = { renderFinishedSemaphore };
 
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = signalSemaphores.size();
-		presentInfo.pWaitSemaphores = signalSemaphores.data();
+		presentInfo.waitSemaphoreCount = waitSemaphores.size();
+		presentInfo.pWaitSemaphores = waitSemaphores.data();
 		const std::array<VkSwapchainKHR, 1> swapChains = { app.swapChain.handle };
 		presentInfo.swapchainCount = swapChains.size();
 		presentInfo.pSwapchains = swapChains.data();
@@ -493,7 +515,9 @@ private:
 	void drawGBuffer() {
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		/*const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
+
+		// Wait for image
+		const std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
 		const std::array<VkPipelineStageFlags, 1> waitStages = {
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 		};
@@ -501,9 +525,12 @@ private:
 				"Wait stages number should be == waitSemaphores.size()!");
 		submitInfo.waitSemaphoreCount = waitSemaphores.size();
 		submitInfo.pWaitSemaphores = waitSemaphores.data();
-		submitInfo.pWaitDstStageMask = waitStages.data();*/
+		submitInfo.pWaitDstStageMask = waitStages.data();
+
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &gbufCommandBuffer;
+
+		// Signal semaphore when done
 		const std::array<VkSemaphore, 1> signalSemaphores = { gBufRenderFinishedSemaphore };
 		submitInfo.signalSemaphoreCount = signalSemaphores.size();
 		submitInfo.pSignalSemaphores = signalSemaphores.data();
@@ -514,12 +541,13 @@ private:
 	void drawSwap(uint32_t imageIndex) {
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		const std::array<VkSemaphore, 2> waitSemaphores = {
+
+		// Wait for G-buffer
+		const std::array<VkSemaphore, 1> waitSemaphores = {
 			gBufRenderFinishedSemaphore,
-			imageAvailableSemaphore
 		};
-		const std::array<VkPipelineStageFlags, 2> waitStages = {
-			VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+		const std::array<VkPipelineStageFlags, 1> waitStages = {
+			//VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 		};
 		static_assert(waitStages.size() == waitSemaphores.size(),
@@ -527,8 +555,11 @@ private:
 		submitInfo.waitSemaphoreCount = waitSemaphores.size();
 		submitInfo.pWaitSemaphores = waitSemaphores.data();
 		submitInfo.pWaitDstStageMask = waitStages.data();
+
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &swapCommandBuffers[imageIndex];
+
+		// Signal once done
 		const std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
 		submitInfo.signalSemaphoreCount = signalSemaphores.size();
 		submitInfo.pSignalSemaphores = signalSemaphores.data();
@@ -555,18 +586,20 @@ private:
 	}
 
 	void updateMVPUniformBuffer() {
-		//static auto startTime = std::chrono::high_resolution_clock::now();
-
-		//auto currentTime = std::chrono::high_resolution_clock::now();
-		//float time = std::chrono::duration<float, std::chrono::seconds::period>(
-				//currentTime - startTime).count();
+		static auto startTime = std::chrono::high_resolution_clock::now();
 
 		MVPUniformBufferObject ubo = {};
-		ubo.model = glm::mat4{1.0f};
-		//ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
-		//std::cerr << "view mat = " << glm::to_string(camera.viewMatrix()) << "\n";
-		ubo.view = camera.viewMatrix();
-			//glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
+
+		if (useCamera) {
+			ubo.model = glm::mat4{1.0f};
+			ubo.view = camera.viewMatrix();
+		} else {
+			auto currentTime = std::chrono::high_resolution_clock::now();
+			float time = std::chrono::duration<float, std::chrono::seconds::period>(
+					currentTime - startTime).count();
+			ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
+			ubo.view = glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
+		}
 		ubo.proj = glm::perspective(glm::radians(60.f),
 				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
 		ubo.proj[1][1] *= -1;
