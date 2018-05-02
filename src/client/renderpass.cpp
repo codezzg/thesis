@@ -4,38 +4,47 @@
 #include "formats.hpp"
 #include <array>
 
-VkRenderPass createGeometryRenderPass(const Application& app, const std::vector<Image>& attachments) {
+VkRenderPass createGeometryRenderPass(const Application& app) {
 
-	std::vector<VkAttachmentDescription> colorAttachDesc{ attachments.size() };
+	std::vector<VkAttachmentDescription> colorAttachDesc{ 4 };
+
+	const std::array<Image, 3> attachments = {{
+		app.gBuffer.position,
+		app.gBuffer.normal,
+		app.gBuffer.albedoSpec
+	}};
 
 	// 1- world space position
 	// 2- world space normal
 	// 3- albedo + specular
 	// 4- depth
 	constexpr auto depthIdx = 3;
-	for (unsigned i = 0; i < colorAttachDesc.size(); ++i) {
-		if (i < attachments.size())
+	for (unsigned i = 0; i < 4; ++i) {
+		if (i < attachments.size()) {
 			colorAttachDesc[i].format = attachments[i].format;
+			colorAttachDesc[i].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		} else {
+			colorAttachDesc[i].format = formats::depth;
+			colorAttachDesc[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		}
 		colorAttachDesc[i].samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachDesc[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachDesc[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		colorAttachDesc[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		colorAttachDesc[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		colorAttachDesc[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachDesc[i].finalLayout = (i == depthIdx)
-			? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-			: VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	}
-
-	VkAttachmentReference depthAttachRef = {};
-	depthAttachRef.attachment = depthIdx;
-	depthAttachRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	const std::array<VkAttachmentReference, 3> colorAttachRefs = {
 		VkAttachmentReference{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 		VkAttachmentReference{ 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 		VkAttachmentReference{ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 	};
+
+	VkAttachmentReference depthAttachRef = {};
+	depthAttachRef.attachment = depthIdx;
+	depthAttachRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -93,7 +102,7 @@ VkRenderPass createLightingRenderPass(const Application& app) {
 	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentDescription depthAttachment = {};
-	depthAttachment.format = findDepthFormat(app.physicalDevice);
+	depthAttachment.format = formats::depth;
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;

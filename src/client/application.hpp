@@ -6,6 +6,7 @@
 #include "swap.hpp"
 #include "images.hpp"
 #include "memory.hpp"
+#include "buffers.hpp"
 #include "gbuffer.hpp"
 //#include "resources.hpp"
 
@@ -35,6 +36,8 @@ struct Application final {
 	SwapChain swapChain;
 
 	GBuffer gBuffer;
+
+	Buffer screenQuadBuffer;
 
 	Image depthImage;
 

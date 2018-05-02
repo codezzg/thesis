@@ -26,8 +26,6 @@ struct SwapChain final {
 
 	VkRenderPass renderPass;
 
-	Buffer screenQuadBuffer;
-
 	void destroyTransient(VkDevice device);
 	void destroyPersistent(VkDevice device);
 };
@@ -50,7 +48,8 @@ VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer, const Image& texDiffuse);
-std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Application& app);
+VkPipelineLayout createSwapChainPipelineLayout(const Application& app);
+VkPipeline createSwapChainPipeline(const Application& app);
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,

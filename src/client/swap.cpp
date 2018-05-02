@@ -69,14 +69,13 @@ void SwapChain::destroyTransient(VkDevice device) {
 	vkDestroySwapchainKHR(device, handle, nullptr);
 
 	vkDestroyPipeline(device, pipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
 void SwapChain::destroyPersistent(VkDevice device) {
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-	screenQuadBuffer.destroy(device);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 }
 
 SwapChain createSwapChain(const Application& app) {
@@ -220,7 +219,7 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
-		const std::array<VkBuffer, 1> vertexBuffers = { app.swapChain.screenQuadBuffer.handle };
+		const std::array<VkBuffer, 1> vertexBuffers = { app.screenQuadBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
 		static_assert(vertexBuffers.size() == offsets.size(),
 				"offsets should be the same amount of vertexBuffers!");
@@ -309,10 +308,10 @@ VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app)
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer, const Image& texDiffuseImage)
 {
-	const auto& gPosition = app.gBuffer.attachments[0];
-	const auto& gAlbedoSpec = texDiffuseImage;
-	const auto& gNormal = app.gBuffer.attachments[1];
-	//const auto& gAlbedoSpec = app.gBuffer.attachments[2];
+	const auto& gPosition = app.gBuffer.position;
+	//const auto& gAlbedoSpec = texDiffuseImage;
+	const auto& gNormal = app.gBuffer.normal;
+	const auto& gAlbedoSpec = app.gBuffer.albedoSpec;
 
 	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
 	VkDescriptorSetAllocateInfo allocInfo = {};
@@ -384,7 +383,22 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 	return descriptorSet;
 }
 
-std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Application& app) {
+VkPipelineLayout createSwapChainPipelineLayout(const Application& app) {
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &app.swapChain.descriptorSetLayout;
+	pipelineLayoutInfo.pushConstantRangeCount = 0;
+	pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+	VkPipelineLayout pipelineLayout;
+	VLKCHECK(vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+	app.validation.addObjectInfo(pipelineLayout, __FILE__, __LINE__);
+
+	return pipelineLayout;
+}
+
+VkPipeline createSwapChainPipeline(const Application& app) {
 	auto vertShaderModule = createShaderModule(app, "shaders/composition.vert.spv");
 	auto fragShaderModule = createShaderModule(app, "shaders/composition.frag.spv");
 	//auto vertShaderModule = createShaderModule(app, "shaders/base.vert.spv");
@@ -489,16 +503,6 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 	depthStencil.depthBoundsTestEnable = VK_FALSE;
 	depthStencil.stencilTestEnable = VK_FALSE;
 
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &app.swapChain.descriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-	VkPipelineLayout pipelineLayout;
-	VLKCHECK(vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
-
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipelineInfo.stageCount = shaderStages.size();
@@ -511,7 +515,7 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pDynamicState = nullptr;
-	pipelineInfo.layout = pipelineLayout;
+	pipelineInfo.layout = app.swapChain.pipelineLayout;
 	pipelineInfo.renderPass = app.swapChain.renderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
@@ -519,12 +523,13 @@ std::pair<VkPipeline, VkPipelineLayout> createSwapChainPipeline(const Applicatio
 
 	VkPipeline pipeline;
 	VLKCHECK(vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+	app.validation.addObjectInfo(pipeline, __FILE__, __LINE__);
 
 	// Cleanup
 	vkDestroyShaderModule(app.device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
 
-	return std::make_pair(pipeline, pipelineLayout);
+	return pipeline;
 }
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app) {

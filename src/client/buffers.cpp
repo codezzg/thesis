@@ -32,6 +32,7 @@ Buffer createBuffer(
 
 	VkDeviceMemory bufferMemory;
 	VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &bufferMemory));
+	app.validation.addObjectInfo(bufferMemory, __FILE__, __LINE__);
 
 	vkBindBufferMemory(app.device, bufferHandle, bufferMemory, 0);
 
@@ -90,7 +91,7 @@ Buffer createScreenQuadVertexBuffer(const Application& app) {
 	memcpy(data, quadVertices.data(), stagingBuffer.size);
 	vkUnmapMemory(app.device, stagingBuffer.memory);
 
-	auto buffer = createBuffer(app, sizeof(Vertex) * quadVertices.size(), 
+	auto buffer = createBuffer(app, sizeof(Vertex) * quadVertices.size(),
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 

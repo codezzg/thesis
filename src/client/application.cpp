@@ -1,5 +1,6 @@
 #include "application.hpp"
 #include "phys_device.hpp"
+#include "formats.hpp"
 #include "window.hpp"
 #include "vulk_errors.hpp"
 #include <set>
@@ -93,10 +94,12 @@ void Application::init() {
 
 	surface = createSurface(instance, window);
 	physicalDevice = pickPhysicalDevice(instance, surface);
+	findBestFormats(physicalDevice);
 	createLogicalDevice(*this);
 }
 
 void Application::cleanup() {
+	screenQuadBuffer.destroy(device);
 	validation.cleanup();
 	vkDestroyDevice(device, nullptr);
 	vkDestroySurfaceKHR(instance, surface, nullptr);
