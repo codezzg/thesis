@@ -3,6 +3,7 @@
 #include <vector>
 #include <tuple>
 #include <vulkan/vulkan.h>
+#include <string>
 #include "buffers.hpp"
 
 struct Application;
@@ -49,7 +50,7 @@ VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app)
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer, const Image& texDiffuse);
 VkPipelineLayout createSwapChainPipelineLayout(const Application& app);
-VkPipeline createSwapChainPipeline(const Application& app);
+VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader = "composition");
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,

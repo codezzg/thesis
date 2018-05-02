@@ -20,7 +20,7 @@ void main() {
 	vec3 albedo = texture(gAlbedoSpec, texCoords).rgb;
 	float specular = texture(gAlbedoSpec, texCoords).a;
 
-	const float ambient = 0.1;
+	const float ambient = 0.3;
 	vec3 lighting = albedo * ambient;
 	vec3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
 
@@ -32,7 +32,8 @@ void main() {
 	vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 	lighting += diffuse;
 
-	/*fragColor = vec4(lighting, 1.0);*/
-	fragColor = vec4(albedo, 1.0);
+	fragColor = vec4(lighting, 1.0);
+	/*fragColor = vec4(albedo, 1.0);*/
 	/*fragColor = vec4(texCoords, 0.0, 1.0);*/
+	/*fragColor = vec4(fragPos, 1.0);*/
 }

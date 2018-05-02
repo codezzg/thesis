@@ -8,10 +8,11 @@ VkRenderPass createGeometryRenderPass(const Application& app) {
 
 	std::vector<VkAttachmentDescription> colorAttachDesc{ 4 };
 
-	const std::array<Image, 3> attachments = {{
+	const std::array<Image, 4> attachments = {{
 		app.gBuffer.position,
 		app.gBuffer.normal,
-		app.gBuffer.albedoSpec
+		app.gBuffer.albedoSpec,
+		app.gBuffer.depth,
 	}};
 
 	// 1- world space position
@@ -19,17 +20,18 @@ VkRenderPass createGeometryRenderPass(const Application& app) {
 	// 3- albedo + specular
 	// 4- depth
 	constexpr auto depthIdx = 3;
-	for (unsigned i = 0; i < 4; ++i) {
-		if (i < attachments.size()) {
-			colorAttachDesc[i].format = attachments[i].format;
-			colorAttachDesc[i].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	for (unsigned i = 0; i < attachments.size(); ++i) {
+		colorAttachDesc[i].format = attachments[i].format;
+		if (i != depthIdx) {
+			colorAttachDesc[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		} else {
-			colorAttachDesc[i].format = formats::depth;
-			colorAttachDesc[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			colorAttachDesc[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 		}
 		colorAttachDesc[i].samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachDesc[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachDesc[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachDesc[i].storeOp = (i != depthIdx)
+			? VK_ATTACHMENT_STORE_OP_STORE
+			: VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		colorAttachDesc[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		colorAttachDesc[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		colorAttachDesc[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;

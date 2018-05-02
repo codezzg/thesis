@@ -14,8 +14,7 @@ static Image createPosAttachment(const Application& app) {
 		app.swapChain.extent.width, app.swapChain.extent.height,
 		formats::position,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto positionImgView = createImageView(app, positionImg.handle,
 			positionImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -31,8 +30,7 @@ static Image createNormalAttachment(const Application& app) {
 		app.swapChain.extent.width, app.swapChain.extent.height,
 		formats::normal,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto normalImgView = createImageView(app, normalImg.handle,
 			normalImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -47,8 +45,7 @@ static Image createAlbedoSpecAttachment(const Application& app) {
 		app.swapChain.extent.width, app.swapChain.extent.height,
 		formats::albedoSpec,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto albedoSpecImgView = createImageView(app, albedoSpecImg.handle,
 			albedoSpecImg.format,
@@ -64,7 +61,7 @@ static Image createDepthAttachment(const Application& app) {
 		app.swapChain.extent.width, app.swapChain.extent.height,
 		formats::depth,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto depthImgView = createImageView(app, depthImg.handle, depthImg.format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
@@ -411,10 +408,11 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 			"offsets should be the same amount of vertexBuffers!");
 	vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers.size(),
 			vertexBuffers.data(), offsets.data());
-	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			app.gBuffer.pipelineLayout, 0, 1, &app.gBuffer.descriptorSet, 0, nullptr);
-	vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
+	//vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+	//vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			//app.gBuffer.pipelineLayout, 0, 1, &app.gBuffer.descriptorSet, 0, nullptr);
+	//vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 
 	VLKCHECK(vkEndCommandBuffer(commandBuffer));

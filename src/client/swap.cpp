@@ -16,6 +16,8 @@
 #undef max
 #undef min
 
+using namespace std::literals::string_literals;
+
 static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
 	// No preferred format
 	if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
@@ -195,27 +197,28 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
+	std::array<VkClearValue, 2> clearValues = {};
+	clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
+	clearValues[1].depthStencil = {1.f, 0};
+
+	VkRenderPassBeginInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = app.swapChain.renderPass;
+	renderPassInfo.renderArea.offset = {0, 0};
+	renderPassInfo.renderArea.extent = app.swapChain.extent;
+	renderPassInfo.clearValueCount = clearValues.size();
+	renderPassInfo.pClearValues = clearValues.data();
+
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
 	VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
 
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
-		VkCommandBufferBeginInfo beginInfo = {};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-		beginInfo.pInheritanceInfo = nullptr;
+		VLKCHECK(vkBeginCommandBuffer(commandBuffers[i], &beginInfo));
 
-		vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
-
-		VkRenderPassBeginInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = app.swapChain.renderPass;
 		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
-		renderPassInfo.renderArea.offset = {0, 0};
-		renderPassInfo.renderArea.extent = app.swapChain.extent;
-		std::array<VkClearValue, 2> clearValues = {};
-		clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
-		clearValues[1].depthStencil = {1.f, 0};
-		renderPassInfo.clearValueCount = clearValues.size();
-		renderPassInfo.pClearValues = clearValues.data();
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
@@ -398,13 +401,9 @@ VkPipelineLayout createSwapChainPipelineLayout(const Application& app) {
 	return pipelineLayout;
 }
 
-VkPipeline createSwapChainPipeline(const Application& app) {
-	auto vertShaderModule = createShaderModule(app, "shaders/composition.vert.spv");
-	auto fragShaderModule = createShaderModule(app, "shaders/composition.frag.spv");
-	//auto vertShaderModule = createShaderModule(app, "shaders/base.vert.spv");
-	//auto fragShaderModule = createShaderModule(app, "shaders/base.frag.spv");
-	//auto vertShaderModule = createShaderModule(app, "shaders/3d.vert.spv");
-	//auto fragShaderModule = createShaderModule(app, "shaders/3d.frag.spv");
+VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader) {
+	auto vertShaderModule = createShaderModule(app, ("shaders/"s + shader + ".vert.spv").c_str());
+	auto fragShaderModule = createShaderModule(app, ("shaders/"s + shader + ".frag.spv").c_str());
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
