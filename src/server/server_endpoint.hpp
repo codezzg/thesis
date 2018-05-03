@@ -74,3 +74,16 @@ public:
 	void run(const char *activeIp, int activePort, const char *passiveIp, int passivePort);
 	void close();
 };
+
+
+/** This class implements a reliable connection server endpoint which handles the server-side
+ *  reliable communication channel.
+ *  It's used to perform initial handshake and as a keepalive for the client.
+ */
+class ServerReliableEndpoint : public Endpoint {
+
+	void loopFunc() override;
+
+	void listenTo(socket_t clientSocket, sockaddr_in clientAddr);
+	bool performHandshake(socket_t clientSocket);
+};

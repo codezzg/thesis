@@ -24,4 +24,9 @@ constexpr int SERVER_PASSIVE_PORT = 1235;
 constexpr const char *SERVER_ACTIVE_IP = "127.0.0.1";
 constexpr int SERVER_ACTIVE_PORT = 1234;
 
+constexpr const char *SERVER_RELIABLE_IP = "127.0.0.1";
+constexpr int SERVER_RELIABLE_PORT = 1236;
+
+constexpr int CLIENT_KEEPALIVE_INTERVAL_SECONDS = 30;
+constexpr int CLIENT_KEEPALIVE_MAX_ATTEMPTS = 4;
 }

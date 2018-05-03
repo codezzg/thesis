@@ -56,3 +56,14 @@ public:
 
 	void setCamera(const Camera *camera) { this->camera = camera; }
 };
+
+
+/** This class implements the client side of the reliable communication channel, used
+ *  for handshake and keepalive.
+ */
+class ClientReliableEndpoint : public Endpoint {
+	void loopFunc() override;
+
+	bool performHandshake();
+	bool sendKeepAlive();
+};

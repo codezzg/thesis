@@ -13,17 +13,18 @@ static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op o
 	// Connect
 	for (auto info = result; info != nullptr; info = info->ai_next) {
 		socket_t sock = ::socket(info->ai_family, info->ai_socktype, info->ai_protocol);
-		if (!isValidSocket(sock))
+		if (!xplatIsValidSocket(sock))
 			continue;
 
 		if (op(sock, info->ai_addr, info->ai_addrlen) == 0)
 			return sock;
 
-		std::cerr << "socket connect op failed with " << xplatGetErrorString() << " (" << xplatGetError() << ") " << std::endl;
+		std::cerr << "socket connect op failed with " << xplatGetErrorString()
+			<< " (" << xplatGetError() << ") " << std::endl;
 		xplatSockClose(sock);
 	}
 
-	return invalidSocketID();
+	return xplatInvalidSocketID();
 }
 
 bool Endpoint::init() {
@@ -38,12 +39,12 @@ Endpoint::~Endpoint() {
 	close();
 }
 
-bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive) {
+bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive, int socktype) {
 
 	addrinfo hints = {},
 		 *result;
 	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_socktype = socktype;
 	if (passive)
 		hints.ai_flags = AI_PASSIVE;
 
@@ -56,7 +57,7 @@ bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive) {
 	socket = findFirstValidSocket(result, passive ? ::bind : ::connect);
 	freeaddrinfo(result);
 
-	if (!isValidSocket(socket)) {
+	if (!xplatIsValidSocket(socket)) {
 		std::cerr << "failed to connect to remote!" << std::endl;
 		return false;
 	}
@@ -64,12 +65,12 @@ bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive) {
 	return true;
 }
 
-bool Endpoint::startPassive(const char *remoteIp, uint16_t remotePort) {
-	return start(remoteIp, remotePort, true);
+bool Endpoint::startPassive(const char *remoteIp, uint16_t remotePort, int socktype) {
+	return start(remoteIp, remotePort, true, socktype);
 }
 
-bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort) {
-	return start(remoteIp, remotePort, false);
+bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort, int socktype) {
+	return start(remoteIp, remotePort, false, socktype);
 }
 
 void Endpoint::runLoop() {
@@ -133,4 +134,13 @@ void dumpPacket(const char *fname, const FrameData& packet) {
 	for (uint8_t byte : packet.payload) {
 		file << (byte & 0xFF) << " ";
 	}
+}
+
+bool sendPacket(socket_t socket, const char *data, std::size_t len) {
+	if (::send(socket, data, len, 0) < 0) {
+		std::cerr << "could not write to remote: " << xplatGetErrorString()
+			<< " (" << xplatGetError() << ")\n";
+		return false;
+	}
+	return true;
 }

@@ -21,7 +21,7 @@ using socket_connect_op = int (*) (socket_t, const sockaddr*, socklen_t);
 #endif
 
 /** Checks if the given handle represents a valid socket */
-constexpr bool isValidSocket(socket_t sock) {
+constexpr bool xplatIsValidSocket(socket_t sock) {
 #ifdef _WIN32
 	return sock != INVALID_SOCKET;
 #else
@@ -30,7 +30,7 @@ constexpr bool isValidSocket(socket_t sock) {
 }
 
 /** Returns an invalid socket ID */
-constexpr socket_t invalidSocketID() {
+constexpr socket_t xplatInvalidSocketID() {
 #ifdef _WIN32
 	return INVALID_SOCKET;
 #else

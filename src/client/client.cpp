@@ -73,6 +73,7 @@ private:
 
 	ClientPassiveEndpoint passiveEP;
 	ClientActiveEndpoint activeEP;
+	ClientReliableEndpoint relEP;
 	int64_t curFrame = -1;
 
 	Camera camera;
@@ -208,10 +209,15 @@ private:
 	}
 
 	void startNetwork() {
-		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT);
+		relEP.startActive(cfg::SERVER_RELIABLE_IP, cfg::SERVER_RELIABLE_PORT, SOCK_STREAM);
+		relEP.runLoop();
+
+		// TODO wait for handshake completion
+
+		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT, SOCK_DGRAM);
 		passiveEP.runLoop();
 
-		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT);
+		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT, SOCK_DGRAM);
 		activeEP.runLoop();
 	}
 

@@ -11,6 +11,8 @@
 #include "serialization.hpp"
 #include "frame_utils.hpp"
 
+using namespace std::literals::chrono_literals;
+
 static constexpr auto BUFSIZE = 1<<24;
 
 void ClientPassiveEndpoint::loopFunc() {
@@ -92,8 +94,6 @@ void ClientActiveEndpoint::loopFunc() {
 	int64_t frameId = 0;
 	uint32_t packetId = 0;
 
-	using namespace std::literals::chrono_literals;
-
 	auto delay = 0ms;
 
 	while (!terminated) {
@@ -110,11 +110,52 @@ void ClientActiveEndpoint::loopFunc() {
 		if (camera)
 			serializeCamera(data.payload, *camera);
 
-		if (::send(socket, reinterpret_cast<const char*>(&data), sizeof(data), 0) < 0) {
-			std::cerr << "could not write to remote: " << strerror(errno) << "\n";
-		}
+		sendPacket(socket, reinterpret_cast<const char*>(&data), sizeof(data));
 
 		++frameId;
 		delay = lft.getFrameDelay();
 	}
+}
+
+
+/////////////////////// ReliableEP
+
+void ClientReliableEndpoint::loopFunc() {
+
+	if (!performHandshake()) {
+		std::cerr << "[ ERROR ] Handshake failed\n";
+		return;
+	}
+
+	while (!terminated) {
+		std::this_thread::sleep_for(std::chrono::seconds{ 2 /*cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS*/ });
+		int attempts = 0;
+		while (!sendKeepAlive()) {
+			std::this_thread::sleep_for((1 + attempts) * 1s);
+			if (++attempts > cfg::CLIENT_KEEPALIVE_MAX_ATTEMPTS) {
+				std::cerr << "Failed to send keepalive.\n";
+			}
+		}
+		// TODO: server response?
+	}
+}
+
+bool ClientReliableEndpoint::performHandshake() {
+
+	std::array<uint8_t, 256> buf = {};
+
+	if (!sendPacket(socket, "CIAO", 4))
+		return false;
+
+	//if (!receivePacket(socket, buf.data(), buf.size()))
+		//return false;
+
+	// TODO: validate response
+	std::cerr << (const char*)buf.data() << "\n";
+
+	return true;
+}
+
+bool ClientReliableEndpoint::sendKeepAlive() {
+	return sendPacket(socket, "PING", 4);
 }

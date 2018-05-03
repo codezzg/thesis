@@ -15,6 +15,8 @@
 #include "serialization.hpp"
 #include "server_appstage.hpp"
 
+using namespace std::chrono_literals;
+
 /** Writes all possible vertices and indices, starting from `offset`-th byte,
  *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
  *  @return the number of bytes that were copied so far, i.e. the next offset to use.
@@ -100,8 +102,6 @@ void ServerActiveEndpoint::loopFunc() {
 		<< "Tot size = " << (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024
 		<< " KiB\n";
 
-	using namespace std::chrono_literals;
-
 	std::mutex loopMtx;
 	std::unique_lock<std::mutex> loopUlk{ loopMtx };
 
@@ -163,9 +163,9 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 		//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
 		//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
 		//dumpPacket("server.dump", packet);
-		if (::send(socket, reinterpret_cast<const char*>(&packet), sizeof(packet), 0) < 0) {
-			std::cerr << "could not write to remote: " << xplatGetErrorString() << "\n";
-		}
+
+		sendPacket(socket, reinterpret_cast<const char*>(&packet), sizeof(packet));
+
 		totSent += packet.payload.size();
 		++nPacketsSent;
 		++packetId;
@@ -208,13 +208,79 @@ void ServerPassiveEndpoint::loopFunc() {
 
 /////////////////////////////////////////
 
+void ServerReliableEndpoint::loopFunc() {
+	// FIXME
+	constexpr auto MAX_CLIENTS = 1;
+
+	while (!terminated) {
+		::listen(socket, MAX_CLIENTS);
+
+		sockaddr_in clientAddr;
+		socklen_t clientLen = sizeof(clientAddr);
+
+		auto clientSock = ::accept(socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
+		if (clientSock == -1) {
+			std::cerr << "[ ERROR ] couldn't accept connection.\n";
+			continue;
+		}
+
+		std::cout << "Accepted connection from " << inet_ntoa(clientAddr.sin_addr) << "\n";
+		std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSock, clientAddr);
+		listener.detach();
+	}
+}
+
+bool ServerReliableEndpoint::performHandshake(socket_t clientSocket) {
+	std::array<uint8_t, 256> buffer = {};
+	if (!receivePacket(clientSocket, buffer.data(), buffer.size()))
+		return false;
+
+	// TODO validate handshake
+	std::cerr << "TCP: " << (const char*)(buffer.data()) << "\n";
+	return true;
+}
+
+void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientAddr) {
+
+	const auto readableAddr = inet_ntoa(clientAddr.sin_addr);
+
+	// Perform handshake
+	if (!performHandshake(clientSocket))
+		goto dropclient;
+
+	while (true) {
+		std::array<uint8_t, 256> buffer = {};
+		if (!receivePacket(clientSocket, buffer.data(), buffer.size()))
+			break;
+
+		// Check length of message is > 0 (i.e. no EOF was received)
+		// FIXME: robust? Must ensure no legit message from the client starts with 0
+		if (buffer[0] == 0)
+			break;
+
+		// Check type of message (TODO)
+		if (strncmp(reinterpret_cast<const char*>(buffer.data()), "PING", 4) == 0) {
+			// is keepalive
+			std::cerr << "TCP: Received client keepalive\n";
+		} else {
+			std::cerr << "TCP: Received unknown message: " << (const char*)buffer.data() << "\n";
+		}
+	}
+
+dropclient:
+	std::cerr << "TCP: TCP: Dropping client " << readableAddr << "\n";
+	xplatSockClose(clientSocket);
+}
+
+
+///////////////////////////////////////
 Server::Server() : activeEP(*this), passiveEP(*this) {}
 
 void Server::run(const char *activeIp, int activePort, const char *passiveIp, int passivePort) {
-	activeEP.startActive(activeIp, activePort);
+	activeEP.startActive(activeIp, activePort, SOCK_DGRAM);
 	activeEP.runLoop();
 
-	passiveEP.startPassive(passiveIp, passivePort);
+	passiveEP.startPassive(passiveIp, passivePort, SOCK_DGRAM);
 	passiveEP.runLoop();
 }
 
