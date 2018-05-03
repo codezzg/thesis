@@ -19,9 +19,7 @@ void ClientPassiveEndpoint::loopFunc() {
 	// [(64b)nVertices|(64b)nIndices|vertices|indices]
 	buffer = new uint8_t[BUFSIZE];
 	auto backBuffer = new uint8_t[BUFSIZE];
-	frameId = -1;
-	uint64_t nVertices = 0;
-	uint64_t nIndices = 0;
+
 	uint64_t nBytesReceived = 0;
 	bool bufferCopied = false;
 
@@ -46,8 +44,8 @@ void ClientPassiveEndpoint::loopFunc() {
 			nBytesReceived = 0;
 
 			// Update n vertices and indices
-			nVertices = packet->header.nVertices;
-			nIndices = packet->header.nIndices;
+			nVertices = packet->header.phead.nVertices;
+			nIndices = packet->header.phead.nIndices;
 			*(reinterpret_cast<uint64_t*>(backBuffer)) = nVertices;
 			*(reinterpret_cast<uint64_t*>(backBuffer) + 1) = nIndices;
 		}
@@ -69,8 +67,9 @@ void ClientPassiveEndpoint::loopFunc() {
 		bufferFilled = nBytesReceived >= nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 
 		if (bufferFilled && !bufferCopied) {
-			//std::cerr << "received " << nBytesReceived << " / "
-				//<< nVertices * sizeof(Vertex) + nIndices * sizeof(Index) << "\n";
+			// May need to wait to finish retreiving the previously acquired buffer.
+			std::lock_guard<std::mutex> lock{ bufMtx };
+
 			memcpy(buffer, backBuffer, BUFSIZE);
 			bufferCopied = true;
 		}
@@ -80,8 +79,11 @@ void ClientPassiveEndpoint::loopFunc() {
 	delete [] buffer;
 }
 
-const uint8_t* ClientPassiveEndpoint::peek() const {
-	return bufferFilled && !terminated ? buffer : nullptr;
+void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex *outVBuf, Index *outIBuf) {
+	std::lock_guard<std::mutex> lock{ bufMtx };
+	memcpy(reinterpret_cast<void*>(&phead), buffer, sizeof(PayloadHeader));
+	memcpy(outVBuf, buffer + sizeof(PayloadHeader), nVertices * sizeof(Vertex));
+	memcpy(outIBuf, buffer + sizeof(PayloadHeader) + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
 }
 
 
@@ -95,7 +97,7 @@ void ClientActiveEndpoint::loopFunc() {
 	auto delay = 0ms;
 
 	while (!terminated) {
-		const LimitFrameTime lft{ 33ms - delay };
+		const LimitFrameTime lft{ targetFrameTime - delay };
 
 		// Prepare data
 		FrameData data;

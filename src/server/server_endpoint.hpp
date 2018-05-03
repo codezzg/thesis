@@ -2,13 +2,17 @@
 
 #include <mutex>
 #include <condition_variable>
+#include <chrono>
 #include "endpoint.hpp"
 #include "vertex.hpp"
 #include "data.hpp"
 
 class Server;
 
-/** Sends geometry to client */
+/** This class implements the active server thread which sends geometry to client
+ *  via an UDP socket.
+ *  It will send data at regular fixed intervals determined by `targetFrameTime`.
+ */
 class ServerActiveEndpoint : public Endpoint {
 	Server& server;
 	uint8_t *serverMemory = nullptr;
@@ -17,17 +21,26 @@ class ServerActiveEndpoint : public Endpoint {
 	/** Sends vertices and indices, stored at `buffer`, to client */
 	void sendFrameData(int64_t frameId, uint8_t *buffer, int nVertices, int nIndices);
 public:
-	ServerActiveEndpoint(Server& server) : server(server) {}
+	std::chrono::milliseconds targetFrameTime;
+
+	ServerActiveEndpoint(Server& server)
+		: server{ server }
+		, targetFrameTime{ std::chrono::milliseconds{ 33 } }
+	{}
 };
 
-/** Receives client info (camera, etc) */
+/** This class implements the passive server thread which receives client information
+ *  (camera position, etc) during every frame.
+ *  It will wait indefinitely on its UDP socket and send the data to the server's shared
+ *  data memory as soon as possible.
+ */
 class ServerPassiveEndpoint : public Endpoint {
 	Server& server;
 
 	void loopFunc() override;
 
 public:
-	ServerPassiveEndpoint(Server& server) : server(server) {}
+	ServerPassiveEndpoint(Server& server) : server{ server } {}
 };
 
 /** This struct contains data that is shared between the server's active and passive endpoints. */
@@ -45,6 +58,10 @@ struct SharedServerData final {
 	std::array<uint8_t, FrameData().payload.size()> clientData;
 };
 
+/** The Server class wraps the active and passive endpoints and provides a mean to sharing
+ *  data between the two threads.
+ *  It also functions as a convenient common entrypoint for starting both threads.
+ */
 class Server {
 	ServerActiveEndpoint activeEP;
 	ServerPassiveEndpoint passiveEP;

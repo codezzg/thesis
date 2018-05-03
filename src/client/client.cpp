@@ -24,6 +24,7 @@
 #include "validation.hpp"
 #include "vulk_utils.hpp"
 #include "config.hpp"
+#include "data.hpp"
 #include "window.hpp"
 #include "phys_device.hpp"
 #include "commands.hpp"
@@ -50,7 +51,7 @@ using std::size_t;
 
 // XXX: DEBUG
 bool useCamera = false;
-bool isDebug = false;
+bool isDebug = true;
 
 class HelloTriangleApplication final {
 public:
@@ -96,6 +97,10 @@ private:
 	uint8_t *streamingBufferData = nullptr;
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
+	/** Permanently mapped pointer to device vertex data (vertexBuffer.memory) */
+	void *vertexData = nullptr;
+	/** Permanently mapped pointer to device index data (indexBuffer.memory) */
+	void *indexData = nullptr;
 	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
 	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
 
@@ -182,8 +187,8 @@ private:
 		FPSCounter fps;
 		fps.start();
 
-		updateVertexBuffer();
-		updateIndexBuffer();
+		//updateVertexBuffer();
+		//updateIndexBuffer();
 		updateMVPUniformBuffer();
 		updateCompUniformBuffer();
 
@@ -234,8 +239,8 @@ private:
 			}
 		}
 
-		updateVertexBuffer();
-		updateIndexBuffer();
+		//updateVertexBuffer();
+		//updateIndexBuffer();
 		updateMVPUniformBuffer();
 		updateCompUniformBuffer();
 
@@ -247,34 +252,40 @@ private:
 			drawFrame();
 	}
 
-	// TODO
 	void receiveData() {
 		//std::cerr << "receive data. curFrame = " << curFrame << ", passive.get = " << passiveEP.getFrameId() << "\n";
 		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame)
 			return;
 
-		const auto data = passiveEP.peek();
-		//std::cerr << "data = " << data << "\n";
-		if (data == nullptr)
+		if (!passiveEP.dataAvailable())
 			return;
 
+		// Update frame Id
 		curFrame = passiveEP.getFrameId();
 
-		// data is [(64b)nVertices|(64b)nIndices|vertices|indices]
-		nVertices = *reinterpret_cast<const uint64_t*>(data);
-		nIndices = *(reinterpret_cast<const uint64_t*>(data) + 1);
-		std::cerr << "\nn vertices: " << nVertices << ", n indices: " << nIndices << "\n";
+		// Copy received data into the streaming buffer
+		PayloadHeader phead;
+		passiveEP.retreive(phead, reinterpret_cast<Vertex*>(vertexData), reinterpret_cast<Index*>(indexData));
 
-		constexpr auto HEADER_SIZE = 2 * sizeof(uint64_t);
-		memcpy(streamingBufferData, data + HEADER_SIZE, nVertices * sizeof(Vertex));
-		memcpy(streamingBufferData + VERTEX_BUFFER_SIZE, data + HEADER_SIZE + nVertices * sizeof(Vertex),
-				nIndices * sizeof(Index));
+		// streamingBufferData now contains [vertices|indices]
+		nVertices = phead.nVertices;
+		nIndices = phead.nIndices;
+		//std::cerr << "\nn vertices: " << nVertices << ", n indices: " << nIndices << "\n";
+
+		//constexpr auto HEADER_SIZE = 2 * sizeof(uint64_t);
+		//memcpy(streamingBufferData, data + HEADER_SIZE, nVertices * sizeof(Vertex));
+		//memcpy(streamingBufferData + VERTEX_BUFFER_SIZE, data + HEADER_SIZE + nVertices * sizeof(Vertex),
+				//nIndices * sizeof(Index));
 
 		//if (curFrame == 1) {
 			//std::ofstream of("sb.data", std::ios::binary);
-			//for (int i = 0; i < vertices.size() * sizeof(Vertex) + indices.size() * sizeof(Index); ++i)
+			//for (int i = 0; i < nVertices * sizeof(Vertex) + nIndices * sizeof(Index); ++i)
 				//of << ((uint8_t*)streamingBufferData)[i];
 		//}
+
+		//std::cerr << "vertex[0] = " << *((Vertex*)streamingBufferData) << std::endl;
+		//std::cerr << "vertex[100] = " << *(((Vertex*)streamingBufferData)+100) << std::endl;
+		//std::cerr << "index[0] = " << (Index)*(streamingBufferData + nVertices * sizeof(Vertex)) << std::endl;
 	}
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime) {
@@ -308,6 +319,9 @@ private:
 
 	void cleanup() {
 		cleanupSwapChain();
+
+		vkUnmapMemory(app.device, vertexBuffer.memory);
+		vkUnmapMemory(app.device, indexBuffer.memory);
 
 		texDiffuseImage.destroy(app.device);
 		texSpecularImage.destroy(app.device);
@@ -540,6 +554,7 @@ private:
 	}
 
 
+	/*
 	void updateVertexBuffer() {
 		// Acquire handle to device memory
 		void *data;
@@ -556,7 +571,7 @@ private:
 		// Copy host memory to device
 		memcpy(data, streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
 		vkUnmapMemory(app.device, indexBuffer.memory);
-	}
+	}*/
 
 	void updateMVPUniformBuffer() {
 		static auto startTime = std::chrono::high_resolution_clock::now();
@@ -608,6 +623,10 @@ private:
 		compUniformBuffer = createBuffer(app, sizeof(CompositionUniformBufferObject),
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		// Map vertex/index device memory to host
+		vkMapMemory(app.device, vertexBuffer.memory, 0, VERTEX_BUFFER_SIZE, 0, &vertexData);
+		vkMapMemory(app.device, indexBuffer.memory, 0, INDEX_BUFFER_SIZE, 0, &indexData);
 	}
 
 

@@ -105,12 +105,11 @@ void ServerActiveEndpoint::loopFunc() {
 	std::mutex loopMtx;
 	std::unique_lock<std::mutex> loopUlk{ loopMtx };
 
-	constexpr auto targetFrameTime = 33ms;
 	auto delay = 0ms;
 
 	// Send frame datagrams to the client
 	while (!terminated) {
-		const LimitFrameTime lft{ 33ms - delay };
+		const LimitFrameTime lft{ targetFrameTime - delay };
 
 		// Wait for the new frame data from the client
 		std::cerr << "Waiting for client data...\n";
@@ -157,8 +156,8 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 		packet.header.magic = cfg::PACKET_MAGIC;
 		packet.header.frameId = frameId;
 		packet.header.packetId = packetId;
-		packet.header.nVertices = nVertices;
-		packet.header.nIndices = nIndices;
+		packet.header.phead.nVertices = nVertices;
+		packet.header.phead.nIndices = nIndices;
 		//const auto preOff = offset;
 		offset = writeAllPossible(packet.payload, buffer, nVertices, nIndices, offset);
 		//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";

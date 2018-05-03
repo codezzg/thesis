@@ -5,6 +5,11 @@
 #include "vertex.hpp"
 
 #pragma pack(push, 1)
+struct PayloadHeader final {
+	uint64_t nVertices;
+	uint64_t nIndices;
+};
+
 struct FrameHeader final {
 	/** Must be equal to cfg::PACKET_MAGIC */
 	uint32_t magic;
@@ -13,8 +18,10 @@ struct FrameHeader final {
 	/** Valid count starts from 0 */
 	int32_t packetId;
 
-	uint64_t nVertices;
-	uint64_t nIndices;
+	/** This data is not network-related but it's related to the payload
+	 *  and will be processed by the rendering part of the application, not by the endpoint threads.
+	 */
+	PayloadHeader phead;
 };
 
 /* A FrameData is the data sent from the server to the client each frame.
