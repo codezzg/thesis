@@ -205,6 +205,8 @@ private:
 		}
 
 		passiveEP.close();
+		activeEP.close();
+		relEP.close();
 		vkDeviceWaitIdle(app.device);
 	}
 
@@ -276,7 +278,7 @@ private:
 		// streamingBufferData now contains [vertices|indices]
 		nVertices = phead.nVertices;
 		nIndices = phead.nIndices;
-		//std::cerr << "\nn vertices: " << nVertices << ", n indices: " << nIndices << "\n";
+		std::cerr << "\nn vertices: " << nVertices << ", n indices: " << nIndices << "\n";
 
 		//constexpr auto HEADER_SIZE = 2 * sizeof(uint64_t);
 		//memcpy(streamingBufferData, data + HEADER_SIZE, nVertices * sizeof(Vertex));

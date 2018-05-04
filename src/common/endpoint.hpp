@@ -36,6 +36,9 @@ protected:
 	 */
 	virtual void loopFunc() = 0;
 
+	/** Optional callback that is called at the beginning of `close()` */
+	virtual void onClose() {}
+
 public:
 	// To be called once before using any Endpoint
 	static bool init();

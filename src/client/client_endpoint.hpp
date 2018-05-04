@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <chrono>
+#include <condition_variable>
 #include "endpoint.hpp"
 #include "vertex.hpp"
 
@@ -62,7 +63,11 @@ public:
  *  for handshake and keepalive.
  */
 class ClientReliableEndpoint : public Endpoint {
+
+	std::condition_variable loopCv;
+
 	void loopFunc() override;
+	void onClose() override;
 
 	bool performHandshake();
 	bool sendKeepAlive();

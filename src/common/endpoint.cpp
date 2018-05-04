@@ -74,7 +74,7 @@ bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort, int sockty
 }
 
 void Endpoint::runLoop() {
-	std::cerr << "[" << this << "] called runLoop(). loopThead = " << loopThread.get() << "\n";
+	std::cerr << "[" << this << "] called runLoop(). loopThread = " << loopThread.get() << "\n";
 	if (loopThread)
 		throw std::logic_error("Called runLoop twice on the same endpoint!");
 
@@ -86,6 +86,7 @@ void Endpoint::runLoop() {
 void Endpoint::close() {
 	if (terminated)
 		return;
+	onClose();
 	terminated = true;
 	xplatSockClose(socket);
 	if (loopThread && loopThread->joinable())
@@ -125,11 +126,12 @@ bool validatePacket(uint8_t *packetBuf, int64_t frameId) {
 
 void dumpPacket(const char *fname, const FrameData& packet) {
 	std::ofstream file(fname, std::ios::app);
-	file << "\n--- packet " << packet.header.frameId << ":" << packet.header.packetId << "\n";
-	file << "Header:\n";
-	file << std::hex;
+	file << "\n--- packet " << packet.header.frameId << ":" << packet.header.packetId << "\n"
+		<< "Header:\n" << std::hex;
+
 	for (unsigned i = 0; i < sizeof(FrameHeader); ++i)
 		file << (*(reinterpret_cast<const uint8_t*>(&packet.header) + i) & 0xFF) << " ";
+
 	file << "\nPayload:\n";
 	for (uint8_t byte : packet.payload) {
 		file << (byte & 0xFF) << " ";

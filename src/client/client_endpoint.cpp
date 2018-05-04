@@ -127,11 +127,15 @@ void ClientReliableEndpoint::loopFunc() {
 		return;
 	}
 
+	std::mutex loopMtx;
+	std::unique_lock<std::mutex> loopUlk{ loopMtx };
+
 	while (!terminated) {
-		std::this_thread::sleep_for(std::chrono::seconds{ 2 /*cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS*/ });
+		// use a condition variable instead of sleep_for since we want to be able to interrupt it.
+		loopCv.wait_for(loopUlk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
 		int attempts = 0;
-		while (!sendKeepAlive()) {
-			std::this_thread::sleep_for((1 + attempts) * 1s);
+		while (!sendKeepAlive() && !terminated) {
+			loopCv.wait_for(loopUlk, (1 + attempts) * 1s);
 			if (++attempts > cfg::CLIENT_KEEPALIVE_MAX_ATTEMPTS) {
 				std::cerr << "Failed to send keepalive.\n";
 			}
@@ -158,4 +162,8 @@ bool ClientReliableEndpoint::performHandshake() {
 
 bool ClientReliableEndpoint::sendKeepAlive() {
 	return sendPacket(socket, "PING", 4);
+}
+
+void ClientReliableEndpoint::onClose() {
+	loopCv.notify_all();
 }
