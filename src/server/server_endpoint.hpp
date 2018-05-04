@@ -84,6 +84,9 @@ class ServerReliableEndpoint : public Endpoint {
 
 	void loopFunc() override;
 
+	/** This method listens to an accepted connection coming from loopFunc.
+	 *  It runs in a detached thread.
+	 */
 	void listenTo(socket_t clientSocket, sockaddr_in clientAddr);
 	bool performHandshake(socket_t clientSocket);
 };

@@ -96,8 +96,6 @@ void ServerActiveEndpoint::loopFunc() {
 		return;
 	}
 
-	const auto vertices = reinterpret_cast<Vertex*>(serverMemory);
-	const auto indices = reinterpret_cast<Index*>(serverMemory + sizeof(Vertex) * model.nVertices);
 	std::cerr << "Loaded " << model.nVertices << " vertices + " << model.nIndices << " indices. "
 		<< "Tot size = " << (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024
 		<< " KiB\n";
@@ -250,13 +248,17 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 
 	while (true) {
 		std::array<uint8_t, 256> buffer = {};
-		if (!receivePacket(clientSocket, buffer.data(), buffer.size()))
+		const auto count = recv(clientSocket, buffer.data(), buffer.size(), 0);
+		if (count < 0) {
+			std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
 			break;
-
-		// Check length of message is > 0 (i.e. no EOF was received)
-		// FIXME: robust? Must ensure no legit message from the client starts with 0
-		if (buffer[0] == 0)
+		} else if (count == sizeof(buffer)) {
+			std::cerr << "Warning: datagram was truncated as it's too large.\n";
 			break;
+		} else if (count == 0) {
+			std::cerr << "Received EOF.\n";
+			break;
+		}
 
 		// Check type of message (TODO)
 		if (strncmp(reinterpret_cast<const char*>(buffer.data()), "PING", 4) == 0) {

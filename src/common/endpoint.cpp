@@ -95,7 +95,7 @@ void Endpoint::close() {
 }
 
 bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
-	auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
+	const auto count = recv(socket, buffer, len, 0);
 
 	if (count < 0) {
 		std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
