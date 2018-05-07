@@ -8,14 +8,19 @@
 #include "data.hpp"
 
 class Server;
+struct ServerSharedData;
 
 /** This class implements the active server thread which sends geometry to client
  *  via an UDP socket.
  *  It will send data at regular fixed intervals determined by `targetFrameTime`.
  */
-class ServerActiveEndpoint : public Endpoint {
+class ServerActiveEndpoint final : public Endpoint {
+
 	Server& server;
-	uint8_t *serverMemory = nullptr;
+
+	/** This memory is owned externally */
+	uint8_t *memory;
+	std::size_t memsize;
 
 	void loopFunc() override;
 	/** Sends vertices and indices, stored at `buffer`, to client */
@@ -23,10 +28,20 @@ class ServerActiveEndpoint : public Endpoint {
 public:
 	std::chrono::milliseconds targetFrameTime;
 
-	ServerActiveEndpoint(Server& server)
+	/** Constructs a ServerActiveEndpoint owned by `server`.
+	 */
+	explicit ServerActiveEndpoint(Server& server)
 		: server{ server }
 		, targetFrameTime{ std::chrono::milliseconds{ 33 } }
 	{}
+
+	/*  `memory` is a pointer into a valid memory buffer, which must be large enough to contain
+	 *  the processed data (TODO: enforce this requirement).
+	 */
+	void initialize(uint8_t *mem, std::size_t size) {
+		memory = mem;
+		memsize = size;
+	}
 };
 
 /** This class implements the passive server thread which receives client information
@@ -34,47 +49,17 @@ public:
  *  It will wait indefinitely on its UDP socket and send the data to the server's shared
  *  data memory as soon as possible.
  */
-class ServerPassiveEndpoint : public Endpoint {
+class ServerPassiveEndpoint final : public Endpoint {
+
 	Server& server;
 
 	void loopFunc() override;
 
 public:
-	ServerPassiveEndpoint(Server& server) : server{ server } {}
+	explicit ServerPassiveEndpoint(Server& server)
+		: server{ server }
+	{}
 };
-
-/** This struct contains data that is shared between the server's active and passive endpoints. */
-struct SharedServerData final {
-	/** Notified whenever a new frame arrives from the client */
-	std::condition_variable loopCv;
-
-	/** The latest frame received from client */
-	int64_t clientFrame = -1;
-
-	/** Mutex guarding access to clientData */
-	std::mutex clientDataMtx;
-
-	/** Payload received from the client goes here*/
-	std::array<uint8_t, FrameData().payload.size()> clientData;
-};
-
-/** The Server class wraps the active and passive endpoints and provides a mean to sharing
- *  data between the two threads.
- *  It also functions as a convenient common entrypoint for starting both threads.
- */
-class Server {
-	ServerActiveEndpoint activeEP;
-	ServerPassiveEndpoint passiveEP;
-
-public:
-	SharedServerData shared;
-
-	explicit Server();
-
-	void run(const char *activeIp, int activePort, const char *passiveIp, int passivePort);
-	void close();
-};
-
 
 /** This class implements a reliable connection server endpoint which handles the server-side
  *  reliable communication channel.
@@ -82,11 +67,19 @@ public:
  */
 class ServerReliableEndpoint : public Endpoint {
 
+	Server& server;
+	std::condition_variable loopCv;
+
 	void loopFunc() override;
 
 	/** This method listens to an accepted connection coming from loopFunc.
 	 *  It runs in a detached thread.
 	 */
 	void listenTo(socket_t clientSocket, sockaddr_in clientAddr);
-	bool performHandshake(socket_t clientSocket);
+	void onClose() override;
+
+public:
+	explicit ServerReliableEndpoint(Server& server)
+		: server{ server }
+	{}
 };

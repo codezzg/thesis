@@ -29,4 +29,7 @@ constexpr int SERVER_RELIABLE_PORT = 1236;
 
 constexpr int CLIENT_KEEPALIVE_INTERVAL_SECONDS = 30;
 constexpr int CLIENT_KEEPALIVE_MAX_ATTEMPTS = 4;
+
+/** Interval after which a client is dropped if no keepalives are sent */
+constexpr int SERVER_KEEPALIVE_INTERVAL_SECONDS = 60;
 }

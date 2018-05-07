@@ -3,7 +3,7 @@ project(server)
 set(PROJECT_NAME server)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
-set(MAIN_FILE server.cpp)
+set(MAIN_FILE server_main.cpp)
 
 include_directories(.)
 include_directories(..)
@@ -49,5 +49,5 @@ else()
 	message(STATUS "Using EXPERIMENTAL tinyobj")
 	add_definitions(-DUSE_EXPERIMENTAL_TINYOBJ=1)
 endif()
-	
+
 do_build()

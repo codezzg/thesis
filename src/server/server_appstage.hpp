@@ -16,7 +16,8 @@
 // `buffer` is the pointer to the memory where to store temporary frame data
 // `nVertices` and `nIndices` get updated by this function
 void transformVertices(Model& model, const std::array<uint8_t, FrameData().payload.size()>& clientData,
-		/* inout */ uint8_t *buffer, /* inout */ int& nVertices, /* inout */ int& nIndices);
+		/* inout */ uint8_t *buffer, std::size_t bufsize,
+		/* inout */ int& nVertices, /* inout */ int& nIndices);
 
 
 #ifdef _WIN32

@@ -10,6 +10,7 @@
 #include "camera.hpp"
 #include "serialization.hpp"
 #include "frame_utils.hpp"
+#include "tcp_messages.hpp"
 
 using namespace std::literals::chrono_literals;
 
@@ -148,7 +149,9 @@ bool ClientReliableEndpoint::performHandshake() {
 
 	std::array<uint8_t, 256> buf = {};
 
-	if (!sendPacket(socket, "CIAO", 4))
+	// send HELO message
+	buf[0] = msg2byte(MsgType::HELO);
+	if (!sendPacket(socket, reinterpret_cast<const char*>(buf.data()), 1))
 		return false;
 
 	//if (!receivePacket(socket, buf.data(), buf.size()))
@@ -161,7 +164,8 @@ bool ClientReliableEndpoint::performHandshake() {
 }
 
 bool ClientReliableEndpoint::sendKeepAlive() {
-	return sendPacket(socket, "PING", 4);
+	uint8_t ping = msg2byte(MsgType::KEEPALIVE);
+	return sendPacket(socket, reinterpret_cast<const char*>(&ping), 1);
 }
 
 void ClientReliableEndpoint::onClose() {

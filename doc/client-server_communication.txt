@@ -1,0 +1,31 @@
+### Broad architecture ###
+Both client and server have 3 network endpoints (sockets):
+
+1. a TCP socket used as a reliable channel. This is used for:
+	- initial handshake
+	- one-time data exchange
+	- keepalive
+
+2. an UDP inbound socket.
+   The server uses this for receiving client per-frame data (camera position, etc)
+   The client uses this for receiving per-frame data (geometry, etc)
+
+3. an UDP outbound socket. See 2.
+
+
+### Network protocol ###
+The client/server network logic / protocol is the following:
+
+1. server starts up, loads its assets, starts the TCP socket, then waits for connections;
+2. client connects to the server via TCP, then sends a HELO message; it can start initializing its local subsystems
+   which do not depend on server data;
+3. server responds with a HELO-ACK along with the one-time data (e.g. shaders, etc);
+4. client receives and processes said data, finishes the local setup, then responds with a READY signal;
+5. server starts its UDP sockets (which wait for client UDP data), then sends a READY to the client;
+6. client starts its UDP sockets and the rendering process begins; it also starts sending periodic keepalive messages
+   to the server via TCP;
+7. if the client either disconnects via a DISCONNECT or an EOF TCP message, or fails to send keepalive messages,
+   the server drops it (releasing any resources associated with it) and goes back to waiting; back to point 2.
+
+
+IMPORTANT: currently only 1 client at a time is allowed.

@@ -61,19 +61,19 @@ static Sphere calcBoundingSphere(const Model& model) {
 		}
 	}
 
-	return Sphere { center, radius };
+	return Sphere{ center, radius };
 }
 
 void transformVertices(Model& model, const std::array<uint8_t, FrameData().payload.size()>& clientData,
-		uint8_t *buffer, int& nVertices, int& nIndices) {
+		uint8_t *buffer, std::size_t bufsize, int& nVertices, int& nIndices)
+{
 	const auto camera = deserializeCamera(clientData);
 
 	// STUB
 	wiggle(model, camera);
 
 	const auto& frustum = calcFrustum(camera.projMatrix());
-	// TODO ugly af caching, works as long as we have only 1 model
-	static const auto sphere = calcBoundingSphere(model);
+	const auto sphere = calcBoundingSphere(model);
 
 	//std::cerr << "bounding sphere = " << sphere.center << ", r = " << sphere.radius << "\n";
 	//std::cerr << "frustum = " << frustum.left << ", " << frustum.right << ", " <<
@@ -87,7 +87,9 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 		for (int i = 0; i < model.nVertices; ++i) {
 			const auto& v = model.vertices[i];
 			const auto vv = camera.viewMatrix() * glm::vec4{ v.pos.x, v.pos.y, v.pos.z, 1.0 };
-			if (true || sphereInFrustum(vv, sphere.radius * 2, frustum)) {
+			if (/* FIXME */ true || sphereInFrustum(vv, sphere.radius * 2, frustum)) {
+				assert(sizeof(Vertex) * vertexIdx < bufsize &&
+						"transformVertices: writing in unowned memory area!");
 				verticesBuffer[vertexIdx] = v;
 				indexRemap[i] = vertexIdx;
 				//if (!sphereInFrustum(vv, sphere.radius, frustum))
@@ -109,6 +111,8 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 				// Drop the index, it's not used anymore
 				continue;
 			}
+			assert(nVertices * sizeof(Vertex) + sizeof(Index) * indexIdx < bufsize &&
+					"transformVertices: writing in unowned memory area!");
 			indicesBuffer[indexIdx] = it->second;
 			++indexIdx;
 		}

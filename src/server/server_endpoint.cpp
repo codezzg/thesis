@@ -8,12 +8,14 @@
 #include <glm/gtx/string_cast.hpp>
 #include <cstring>
 #include "model.hpp"
+#include "tcp_messages.hpp"
 #include "data.hpp"
 #include "config.hpp"
 #include "frame_utils.hpp"
 #include "camera.hpp"
 #include "serialization.hpp"
 #include "server_appstage.hpp"
+#include "server.hpp"
 
 using namespace std::chrono_literals;
 
@@ -62,16 +64,6 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 	return srcIdx;
 }
 
-static constexpr std::size_t MEMSIZE = 1<<24;
-
-static uint8_t* allocServerMemory() {
-	return new uint8_t[MEMSIZE];
-}
-
-static void deallocServerMemory(uint8_t *mem) {
-	delete [] mem;
-}
-
 // TODO
 //const std::vector<Vertex> vertices = {
 	////{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
@@ -85,25 +77,11 @@ static void deallocServerMemory(uint8_t *mem) {
 //};
 void ServerActiveEndpoint::loopFunc() {
 
-	serverMemory = allocServerMemory();
-	// This is used for storing the data to send, varying each frame.
-	uint8_t *tmpMemory = serverMemory + MEMSIZE * 2 / 3;
-
-	std::cerr << "cwd: " << xplatGetCwd() << std::endl;
-	auto model = loadModel((xplatGetCwd() + "/models/mill.obj").c_str(), serverMemory);
-	if (model.vertices == nullptr) {
-		std::cerr << "Failed to load model.\n";
-		return;
-	}
-
-	std::cerr << "Loaded " << model.nVertices << " vertices + " << model.nIndices << " indices. "
-		<< "Tot size = " << (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024
-		<< " KiB\n";
-
 	std::mutex loopMtx;
 	std::unique_lock<std::mutex> loopUlk{ loopMtx };
 
 	auto delay = 0ms;
+	auto& shared = server.sharedData;
 
 	// Send frame datagrams to the client
 	while (!terminated) {
@@ -111,33 +89,32 @@ void ServerActiveEndpoint::loopFunc() {
 
 		// Wait for the new frame data from the client
 		std::cerr << "Waiting for client data...\n";
-		server.shared.loopCv.wait(loopUlk);
-		//server.shared.loopCv.wait_for(loopMtx, 0.033s);
+		shared.loopCv.wait(loopUlk);
+		//shared.loopCv.wait_for(loopMtx, 0.033s);
 
-		std::cerr << "Received data from frame " << server.shared.clientFrame << "\n";
+		std::cerr << "Received data from frame " << shared.clientFrame << "\n";
 
 		int64_t frameId = -1;
 		std::array<uint8_t, FrameData().payload.size()> clientData;
 		{
-			std::lock_guard<std::mutex> lock{ server.shared.clientDataMtx };
-			frameId = server.shared.clientFrame;
-			std::copy(server.shared.clientData.begin(),
-					server.shared.clientData.end(), clientData.begin());
+			std::lock_guard<std::mutex> lock{ shared.clientDataMtx };
+			frameId = shared.clientFrame;
+			std::copy(shared.clientData.begin(), shared.clientData.end(), clientData.begin());
 		}
 
+		// TODO: multiple models
+		auto& model = server.resources.models.begin()->second;
 		int nVertices = model.nVertices,
 		    nIndices = model.nIndices;
 		std::cerr << "v/i: " << nVertices << ", " << nIndices << " ---> ";
-		transformVertices(model, clientData, tmpMemory, nVertices, nIndices);
+		transformVertices(model, clientData, memory, memsize, nVertices, nIndices);
 		std::cerr << nVertices << ", " << nIndices << "\n";
 
 		if (frameId >= 0)
-			sendFrameData(frameId, tmpMemory, nVertices, nIndices);
+			sendFrameData(frameId, memory, nVertices, nIndices);
 
 		delay = lft.getFrameDelay();
 	}
-
-	deallocServerMemory(serverMemory);
 }
 
 void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int nVertices, int nIndices) {
@@ -178,6 +155,7 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 void ServerPassiveEndpoint::loopFunc() {
 	// Track the latest frame we received
 	int64_t latestFrame = -1;
+	auto& shared = server.sharedData;
 
 	while (!terminated) {
 		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
@@ -196,11 +174,11 @@ void ServerPassiveEndpoint::loopFunc() {
 
 		// Update shared data
 		{
-			std::lock_guard<std::mutex> lock{ server.shared.clientDataMtx };
-			memcpy(server.shared.clientData.data(), packet->payload.data(), packet->payload.size());
-			server.shared.clientFrame = latestFrame;
+			std::lock_guard<std::mutex> lock{ shared.clientDataMtx };
+			memcpy(shared.clientData.data(), packet->payload.data(), packet->payload.size());
+			shared.clientFrame = latestFrame;
 		}
-		server.shared.loopCv.notify_all();
+		shared.loopCv.notify_all();
 	}
 }
 
@@ -223,50 +201,103 @@ void ServerReliableEndpoint::loopFunc() {
 		}
 
 		std::cout << "Accepted connection from " << inet_ntoa(clientAddr.sin_addr) << "\n";
-		std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSock, clientAddr);
-		listener.detach();
+		//std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSock, clientAddr);
+		//listener.detach();
+
+		// Single client
+		listenTo(clientSock, clientAddr);
 	}
 }
 
-bool ServerReliableEndpoint::performHandshake(socket_t clientSocket) {
-	std::array<uint8_t, 256> buffer = {};
-	if (!receivePacket(clientSocket, buffer.data(), buffer.size()))
-		return false;
 
-	// TODO validate handshake
-	std::cerr << "TCP: " << (const char*)(buffer.data()) << "\n";
+/** Receives a message from `socket` into `buffer` and fills the `msgType` variable according to the
+ *  type of message received (i.e. the message header)
+ */
+static bool receiveClientMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType& msgType) {
+
+	msgType = MsgType::UNKNOWN;
+
+	const auto count = recv(socket, buffer, bufsize, 0);
+	if (count < 0) {
+		std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
+		return false;
+	} else if (count == sizeof(buffer)) {
+		std::cerr << "Warning: datagram was truncated as it's too large.\n";
+		return false;
+	} else if (count == 0) {
+		std::cerr << "Received EOF.\n";
+		return false;
+	}
+
+	// TODO: validate message header
+
+	// Check type of message (TODO) -- currently the message type is determined by its first byte.
+	msgType = byte2msg(buffer[0]);
+
 	return true;
+}
+
+static bool expectClientMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType expectedType) {
+	MsgType type;
+	return receiveClientMsg(socket, buffer, bufsize, type) && type == expectedType;
+}
+
+/** This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
+static void keepaliveTask(socket_t clientSocket, std::chrono::time_point<std::chrono::system_clock>& latestPing) {
+	std::array<uint8_t, 1> buffer = {};
+
+	while (true) {
+		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::KEEPALIVE))
+			continue;
+
+		latestPing = std::chrono::system_clock::now();
+	}
 }
 
 void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientAddr) {
 
 	const auto readableAddr = inet_ntoa(clientAddr.sin_addr);
 
-	// Perform handshake
-	if (!performHandshake(clientSocket))
-		goto dropclient;
+	{
+		// Connection prelude (one-time stuff)
 
-	while (true) {
 		std::array<uint8_t, 256> buffer = {};
-		const auto count = recv(clientSocket, buffer.data(), buffer.size(), 0);
-		if (count < 0) {
-			std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
-			break;
-		} else if (count == sizeof(buffer)) {
-			std::cerr << "Warning: datagram was truncated as it's too large.\n";
-			break;
-		} else if (count == 0) {
-			std::cerr << "Received EOF.\n";
-			break;
-		}
 
-		// Check type of message (TODO)
-		if (strncmp(reinterpret_cast<const char*>(buffer.data()), "PING", 4) == 0) {
-			// is keepalive
-			std::cerr << "TCP: Received client keepalive\n";
-		} else {
-			std::cerr << "TCP: Received unknown message: " << (const char*)buffer.data() << "\n";
+		// Perform handshake
+		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::HELO))
+			goto dropclient;
+
+		// Send one-time data
+		// TODO
+
+		// Wait for ready signal from client
+		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::READY))
+			goto dropclient;
+	}
+
+
+	{
+		// Periodically check keepalive, or drop the client
+		std::chrono::time_point<std::chrono::system_clock> latestPing;
+		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(latestPing) };
+		const auto& roLatestPing = latestPing;
+
+		std::mutex loopMtx;
+		std::unique_lock<std::mutex> loopUlk{ loopMtx };
+		const auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
+		while (true) {
+			loopCv.wait_for(loopUlk, interval);
+
+			// Verify the client has pinged us more recently than SERVER_KEEPALIVE_INTERVAL_SECONDS
+			const auto now = std::chrono::system_clock::now();
+			if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
+				// drop the client
+				std::cerr << "Keepalive timeout.\n";
+				break;
+			}
 		}
+		if (keepaliveThread.joinable())
+			keepaliveThread.join();
 	}
 
 dropclient:
@@ -274,19 +305,6 @@ dropclient:
 	xplatSockClose(clientSocket);
 }
 
-
-///////////////////////////////////////
-Server::Server() : activeEP(*this), passiveEP(*this) {}
-
-void Server::run(const char *activeIp, int activePort, const char *passiveIp, int passivePort) {
-	activeEP.startActive(activeIp, activePort, SOCK_DGRAM);
-	activeEP.runLoop();
-
-	passiveEP.startPassive(passiveIp, passivePort, SOCK_DGRAM);
-	passiveEP.runLoop();
-}
-
-void Server::close() {
-	activeEP.close();
-	passiveEP.close();
+void ServerReliableEndpoint::onClose() {
+	loopCv.notify_all();
 }
