@@ -64,11 +64,18 @@ public:
  */
 class ClientReliableEndpoint : public Endpoint {
 
-	std::condition_variable loopCv;
+	std::condition_variable cv;
 
 	void loopFunc() override;
 	void onClose() override;
 
-	bool performHandshake();
 	bool sendKeepAlive();
+
+public:
+	/** Call this after starting this socket to block the caller thread until the next step
+	 *  in the protocol is performed or the timeout expires.
+	 *  @return true if the handshake was completed before the timeout.
+	 */
+	bool await(std::chrono::seconds timeout);
+	void proceed() { cv.notify_one(); }
 };

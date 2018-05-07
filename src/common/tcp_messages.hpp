@@ -5,10 +5,11 @@
 enum class MsgType : uint8_t {
 	/** Handshake */
 	HELO       = 0x01,
+	HELO_ACK   = 0x02,
 	/** Client is ready to receive frame data */
-	READY      = 0x02,
+	READY      = 0x03,
 	/** Keep the connection alive */
-	KEEPALIVE  = 0x03,
+	KEEPALIVE  = 0x04,
 	UNKNOWN,
 };
 

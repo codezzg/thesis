@@ -139,7 +139,7 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 		//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
 		//dumpPacket("server.dump", packet);
 
-		sendPacket(socket, reinterpret_cast<const char*>(&packet), sizeof(packet));
+		sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(packet));
 
 		totSent += packet.payload.size();
 		++nPacketsSent;
@@ -243,14 +243,20 @@ static bool expectClientMsg(socket_t socket, uint8_t *buffer, std::size_t bufsiz
 }
 
 /** This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
-static void keepaliveTask(socket_t clientSocket, std::chrono::time_point<std::chrono::system_clock>& latestPing) {
+static void keepaliveTask(socket_t clientSocket, std::condition_variable& cv,
+		std::chrono::time_point<std::chrono::system_clock>& latestPing)
+{
 	std::array<uint8_t, 1> buffer = {};
 
 	while (true) {
-		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::KEEPALIVE))
-			continue;
+		MsgType type;
+		if (!receiveClientMsg(clientSocket, buffer.data(), buffer.size(), type)) {
+			cv.notify_one();
+			break;
+		}
 
-		latestPing = std::chrono::system_clock::now();
+		if (type == MsgType::KEEPALIVE)
+			latestPing = std::chrono::system_clock::now();
 	}
 }
 
@@ -261,10 +267,14 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 	{
 		// Connection prelude (one-time stuff)
 
-		std::array<uint8_t, 256> buffer = {};
+		std::array<uint8_t, 1> buffer = {};
 
 		// Perform handshake
 		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::HELO))
+			goto dropclient;
+
+		buffer[0] = msg2byte(MsgType::HELO_ACK);
+		if (!sendPacket(clientSocket, buffer.data(), buffer.size()))
 			goto dropclient;
 
 		// Send one-time data
@@ -273,20 +283,32 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		// Wait for ready signal from client
 		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::READY))
 			goto dropclient;
+
+		// Starts UDP loops and send ready to client
+		server.passiveEP.startPassive(cfg::SERVER_PASSIVE_IP, cfg::SERVER_PASSIVE_PORT, SOCK_DGRAM);
+		server.activeEP.startActive(cfg::SERVER_ACTIVE_IP, cfg::SERVER_ACTIVE_PORT, SOCK_DGRAM);
+		server.passiveEP.runLoop();
+		server.activeEP.runLoop();
+
+		buffer[0] = msg2byte(MsgType::READY);
+		if (!sendPacket(clientSocket, buffer.data(), buffer.size()))
+			goto dropclient;
 	}
 
 
 	{
 		// Periodically check keepalive, or drop the client
 		std::chrono::time_point<std::chrono::system_clock> latestPing;
-		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(latestPing) };
-		const auto& roLatestPing = latestPing;
+		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(loopCv), std::ref(latestPing) };
 
+		const auto& roLatestPing = latestPing;
 		std::mutex loopMtx;
 		std::unique_lock<std::mutex> loopUlk{ loopMtx };
 		const auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
+
 		while (true) {
-			loopCv.wait_for(loopUlk, interval);
+			if (loopCv.wait_for(loopUlk, interval) == std::cv_status::no_timeout)
+				break;
 
 			// Verify the client has pinged us more recently than SERVER_KEEPALIVE_INTERVAL_SECONDS
 			const auto now = std::chrono::system_clock::now();
@@ -302,6 +324,8 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 
 dropclient:
 	std::cerr << "TCP: TCP: Dropping client " << readableAddr << "\n";
+	server.passiveEP.close();
+	server.activeEP.close();
 	xplatSockClose(clientSocket);
 }
 

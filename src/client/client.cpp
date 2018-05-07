@@ -64,6 +64,7 @@ public:
 		glfwSetCursorPosCallback(app.window, cursorPosCallback);
 
 		initVulkan();
+		connectToServer();
 		mainLoop();
 		cleanup();
 	}
@@ -182,6 +183,22 @@ private:
 		prepareCamera();
 	}
 
+	void connectToServer() {
+		relEP.startActive(cfg::SERVER_RELIABLE_IP, cfg::SERVER_RELIABLE_PORT, SOCK_STREAM);
+		relEP.runLoop();
+		if (!relEP.await(std::chrono::seconds{ 10 })) {
+			throw std::runtime_error("Failed connecting to server!");
+		}
+
+		// Tell TCP thread to send READY msg
+		relEP.proceed();
+		if (!relEP.await(std::chrono::seconds{ 10 })) {
+			throw std::runtime_error("Connected to server, but server didn't send READY!");
+		}
+
+		// Ready to start the main loop
+	}
+
 	void mainLoop() {
 		startNetwork();
 
@@ -211,11 +228,6 @@ private:
 	}
 
 	void startNetwork() {
-		relEP.startActive(cfg::SERVER_RELIABLE_IP, cfg::SERVER_RELIABLE_PORT, SOCK_STREAM);
-		relEP.runLoop();
-
-		// TODO wait for handshake completion
-
 		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT, SOCK_DGRAM);
 		passiveEP.runLoop();
 

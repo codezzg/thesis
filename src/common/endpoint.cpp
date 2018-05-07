@@ -138,7 +138,7 @@ void dumpPacket(const char *fname, const FrameData& packet) {
 	}
 }
 
-bool sendPacket(socket_t socket, const char *data, std::size_t len) {
+bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
 	if (::send(socket, data, len, 0) < 0) {
 		std::cerr << "could not write to remote: " << xplatGetErrorString()
 			<< " (" << xplatGetError() << ")\n";

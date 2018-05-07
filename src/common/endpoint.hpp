@@ -9,7 +9,7 @@
 struct FrameData;
 
 // Common functions
-bool sendPacket(socket_t socket, const char *data, std::size_t len);
+bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len);
 
 bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len);
 

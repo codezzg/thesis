@@ -111,7 +111,7 @@ void ClientActiveEndpoint::loopFunc() {
 		if (camera)
 			serializeCamera(data.payload, *camera);
 
-		sendPacket(socket, reinterpret_cast<const char*>(&data), sizeof(data));
+		sendPacket(socket, reinterpret_cast<const uint8_t*>(&data), sizeof(data));
 
 		++frameId;
 		delay = lft.getFrameDelay();
@@ -121,22 +121,73 @@ void ClientActiveEndpoint::loopFunc() {
 
 /////////////////////// ReliableEP
 
+bool ClientReliableEndpoint::await(std::chrono::seconds timeout) {
+	std::mutex mtx;
+	std::unique_lock<std::mutex> ulk{ mtx };
+	return cv.wait_for(ulk, timeout) == std::cv_status::no_timeout;
+}
+
+
+static bool performHandshake(socket_t socket) {
+
+	std::array<uint8_t, 1> buf = {};
+
+	// send HELO message
+	buf[0] = msg2byte(MsgType::HELO);
+	if (!sendPacket(socket, buf.data(), buf.size()))
+		return false;
+
+	if (!receivePacket(socket, buf.data(), buf.size()))
+		return false;
+
+	// TODO: receive one-time server data
+	return byte2msg(buf[0]) == MsgType::HELO_ACK;
+}
+
+static bool sendReadyAndWait(socket_t socket) {
+	std::array<uint8_t, 1> buf = {};
+	buf[0] = msg2byte(MsgType::READY);
+	if (!sendPacket(socket, buf.data(), buf.size()))
+		return false;
+
+	if (!receivePacket(socket, buf.data(), buf.size()))
+		return false;
+
+	return byte2msg(buf[0]) == MsgType::READY;
+}
+
+/* The logic here goes as follows:
+ * - the client starts this thread via runLoop()
+ * - the client waits for the handshake via await()
+ * - this thread then waits to be notified by the client to proceed and send a ready msg;
+ * - the client waits again for us to receive server's ready msg;
+ * - as soon as we receive it this thread both notifies the client and starts the keepalive loop.
+ */
 void ClientReliableEndpoint::loopFunc() {
 
-	if (!performHandshake()) {
+	if (!performHandshake(socket)) {
 		std::cerr << "[ ERROR ] Handshake failed\n";
 		return;
 	}
+	cv.notify_one();
 
-	std::mutex loopMtx;
-	std::unique_lock<std::mutex> loopUlk{ loopMtx };
+	std::mutex mtx;
+	std::unique_lock<std::mutex> ulk{ mtx };
+
+	// Wait for the main thread to tell us to proceed
+	cv.wait(ulk);
+	if (!sendReadyAndWait(socket)) {
+		std::cerr << "[ ERROR ] Sending or awaiting ready failed.\n";
+		return;
+	}
+	cv.notify_one();
 
 	while (!terminated) {
 		// use a condition variable instead of sleep_for since we want to be able to interrupt it.
-		loopCv.wait_for(loopUlk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
+		cv.wait_for(ulk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
 		int attempts = 0;
 		while (!sendKeepAlive() && !terminated) {
-			loopCv.wait_for(loopUlk, (1 + attempts) * 1s);
+			cv.wait_for(ulk, (1 + attempts) * 1s);
 			if (++attempts > cfg::CLIENT_KEEPALIVE_MAX_ATTEMPTS) {
 				std::cerr << "Failed to send keepalive.\n";
 			}
@@ -145,29 +196,11 @@ void ClientReliableEndpoint::loopFunc() {
 	}
 }
 
-bool ClientReliableEndpoint::performHandshake() {
-
-	std::array<uint8_t, 256> buf = {};
-
-	// send HELO message
-	buf[0] = msg2byte(MsgType::HELO);
-	if (!sendPacket(socket, reinterpret_cast<const char*>(buf.data()), 1))
-		return false;
-
-	//if (!receivePacket(socket, buf.data(), buf.size()))
-		//return false;
-
-	// TODO: validate response
-	std::cerr << (const char*)buf.data() << "\n";
-
-	return true;
-}
-
 bool ClientReliableEndpoint::sendKeepAlive() {
 	uint8_t ping = msg2byte(MsgType::KEEPALIVE);
-	return sendPacket(socket, reinterpret_cast<const char*>(&ping), 1);
+	return sendPacket(socket, &ping, 1);
 }
 
 void ClientReliableEndpoint::onClose() {
-	loopCv.notify_all();
+	cv.notify_all();
 }
