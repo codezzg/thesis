@@ -8,7 +8,11 @@
 
 namespace hashing {
 
+#ifdef _WIN32
+inline uint32_t fnv1_hash(const char* buffer) {
+#else
 constexpr uint32_t fnv1_hash(const char* buffer) {
+#endif
 	constexpr uint32_t fnv_prime32 = 16777619;
 	uint32_t result = 2166136261;
 	int i = 0;

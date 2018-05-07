@@ -95,7 +95,7 @@ void Endpoint::close() {
 }
 
 bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
-	const auto count = recv(socket, buffer, len, 0);
+	const auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
 
 	if (count < 0) {
 		std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
@@ -139,7 +139,7 @@ void dumpPacket(const char *fname, const FrameData& packet) {
 }
 
 bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
-	if (::send(socket, data, len, 0) < 0) {
+	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
 		std::cerr << "could not write to remote: " << xplatGetErrorString()
 			<< " (" << xplatGetError() << ")\n";
 		return false;

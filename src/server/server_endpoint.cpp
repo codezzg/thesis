@@ -217,7 +217,7 @@ static bool receiveClientMsg(socket_t socket, uint8_t *buffer, std::size_t bufsi
 
 	msgType = MsgType::UNKNOWN;
 
-	const auto count = recv(socket, buffer, bufsize, 0);
+	const auto count = recv(socket, reinterpret_cast<char*>(buffer), bufsize, 0);
 	if (count < 0) {
 		std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
 		return false;
