@@ -1,5 +1,6 @@
 #include "endpoint_xplatform.hpp"
 #include <cstring>
+#include <iostream>
 #ifndef _WIN32
 	#include <cerrno>
 #endif
@@ -24,12 +25,18 @@ bool xplatSocketCleanup() {
 int xplatSockClose(socket_t sock) {
 	int status = 0;
 #ifdef _WIN32
+	// This may fail if the socket is UDP, just don't care
 	status = shutdown(sock, SD_BOTH);
-	if (status == 0) status = closesocket(sock);
+	if (status == 0 || WSAGetLastError() == WSAENOTCONN) {
+		status = closesocket(sock);
 #else
+	// This may fail if the socket is UDP, just don't care
 	status = shutdown(sock, SHUT_RDWR);
-	if (status == 0) status = close(sock);
+	if (status == 0 || errno == ENOTCONN) {
+		status = close(sock);
 #endif
+	} else std::cerr << "Error shutting down the socket: " << xplatGetErrorString() << "\n";
+
 	return status;
 }
 
@@ -45,14 +52,19 @@ int xplatGetError() {
 #endif
 }
 
-std::string xplatGetCwd() {
+const char *_cwd = nullptr;
+
+const char* xplatGetCwd() {
+	if (_cwd != nullptr)
+		return _cwd;
+
 	char buf[256];
 #ifdef _WIN32
 	int bytes = GetModuleFileName(nullptr, buf, 256);
 	if (bytes == 0)
 		return "[UNKNOWN]";
 
-	const auto DIRSEP = '\\';
+	const char DIRSEP = '\\';
 
 #else
 	ssize_t bytes = 0;
@@ -65,12 +77,12 @@ std::string xplatGetCwd() {
 		bytes = readlink("/proc/curproc/file", buf, 255);
 	}
 
-	if (bytes < 1) 
+	if (bytes < 1)
 		return "[UNKNOWN]";
 
 	buf[bytes] = '\0';
 
-	const auto DIRSEP = '/';
+	const char DIRSEP = '/';
 #endif
 
 	int len = strlen(buf);
@@ -85,5 +97,6 @@ std::string xplatGetCwd() {
 		}
 	}
 
-	return std::string{ buf };
+	_cwd = strndup(buf, len);
+	return _cwd;
 }

@@ -125,7 +125,7 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 	int32_t packetId = 0;
 
 	const std::size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
-	while (offset < totBytes) {
+	while (!terminated && offset < totBytes) {
 		// Create new packet
 		FrameData packet;
 		packet.header.magic = cfg::PACKET_MAGIC;
@@ -189,6 +189,7 @@ void ServerReliableEndpoint::loopFunc() {
 	constexpr auto MAX_CLIENTS = 1;
 
 	while (!terminated) {
+		std::cerr << "Listening...\n";
 		::listen(socket, MAX_CLIENTS);
 
 		sockaddr_in clientAddr;
@@ -323,7 +324,8 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 	}
 
 dropclient:
-	std::cerr << "TCP: TCP: Dropping client " << readableAddr << "\n";
+	std::cerr << "TCP: Dropping client " << readableAddr << "\n";
+	server.sharedData.loopCv.notify_all();
 	server.passiveEP.close();
 	server.activeEP.close();
 	xplatSockClose(clientSocket);

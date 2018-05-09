@@ -40,9 +40,10 @@ int main() {
 	server.activeEP.initialize(serverMemory + MEMSIZE * 2 / 3, MEMSIZE / 3);
 
 	/// Startup server: load models, assets, etc
-	std::cerr << "Starting server. cwd: " << xplatGetCwd() << std::endl;
+	auto cwd = std::string{ xplatGetCwd() };
+	std::cerr << "Starting server. cwd: " << cwd << std::endl;
 
-	auto model = server.resources.loadModel((xplatGetCwd() + "/models/mill.obj").c_str());
+	auto model = server.resources.loadModel((cwd + "/models/mill.obj").c_str());
 	if (model.vertices == nullptr) {
 		std::cerr << "Failed to load model.\n";
 		return EXIT_FAILURE;

@@ -53,4 +53,4 @@ const char* xplatGetErrorString();
 /** Returns the latest error code */
 int xplatGetError();
 
-std::string xplatGetCwd();
+const char* xplatGetCwd();
