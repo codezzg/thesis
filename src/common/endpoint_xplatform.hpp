@@ -48,9 +48,8 @@ bool xplatSocketCleanup();
 int xplatSockClose(socket_t sock);
 
 /** Returns the latest error string */
-const char* xplatGetErrorString();
+std::string xplatGetErrorString();
 
 /** Returns the latest error code */
 int xplatGetError();
 
-const char* xplatGetCwd();

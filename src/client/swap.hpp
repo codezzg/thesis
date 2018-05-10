@@ -5,9 +5,9 @@
 #include <vulkan/vulkan.h>
 #include <string>
 #include "buffers.hpp"
+#include "images.hpp"
 
 struct Application;
-struct Image;
 
 struct SwapChain final {
 	VkSwapchainKHR handle;
@@ -17,6 +17,7 @@ struct SwapChain final {
 	std::vector<VkImage> images;
 	std::vector<VkImageView> imageViews;
 	std::vector<VkFramebuffer> framebuffers;
+	Image depthImage;
 
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout descriptorSetLayout;

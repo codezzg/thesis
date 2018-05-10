@@ -8,6 +8,7 @@
 #include <string>
 #include <functional>
 #include "data.hpp"
+#include "logging.hpp"
 
 static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op op) {
 	// Connect
@@ -19,8 +20,7 @@ static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op o
 		if (op(sock, info->ai_addr, info->ai_addrlen) == 0)
 			return sock;
 
-		std::cerr << "socket connect op failed with " << xplatGetErrorString()
-			<< " (" << xplatGetError() << ") " << std::endl;
+		err("socket connect op failed with ", xplatGetErrorString(), " (", xplatGetError(), ") ");
 		xplatSockClose(sock);
 	}
 
@@ -50,7 +50,7 @@ bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive, in
 
 	auto res = getaddrinfo(remoteIp, std::to_string(remotePort).c_str(), &hints, &result);
 	if (res != 0) {
-		std::cerr << "getaddrinfo: " << gai_strerror(res) << "\n";
+		err("getaddrinfo: ", gai_strerror(res));
 		return false;
 	}
 
@@ -58,9 +58,11 @@ bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive, in
 	freeaddrinfo(result);
 
 	if (!xplatIsValidSocket(socket)) {
-		std::cerr << "failed to connect to remote!" << std::endl;
+		err("failed to connect to remote!");
 		return false;
 	}
+
+	info("Endpoint: started ", (passive ? "passive" : "active"), " on ", remoteIp, ":", remotePort, " (type ", socktype, ")");
 
 	return true;
 }
@@ -74,11 +76,11 @@ bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort, int sockty
 }
 
 void Endpoint::runLoop() {
-	std::cerr << "[" << this << "] called runLoop(). loopThread = " << loopThread.get() << "\n";
+	info("[", this, "] called runLoop(). loopThread = ", loopThread.get());
 	if (loopThread)
 		throw std::logic_error("Called runLoop twice on the same endpoint!");
 
-	std::cout << "Starting loop with socket = " << socket << std::endl;
+	info("Starting loop with socket = ", socket);
 	loopThread = std::make_unique<std::thread>(std::bind(&Endpoint::loopFunc, this));
 	terminated = false;
 }
@@ -88,7 +90,8 @@ void Endpoint::close() {
 		return;
 	onClose();
 	terminated = true;
-	xplatSockClose(socket);
+	if (xplatIsValidSocket(socket))
+		xplatSockClose(socket);
 	if (loopThread && loopThread->joinable())
 		loopThread->join();
 	loopThread.reset(nullptr);
@@ -98,14 +101,14 @@ bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 	const auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
 
 	if (count < 0) {
-		std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
+		err("Error receiving message: [" , count, "] ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	} else if (count == sizeof(buffer)) {
-		std::cerr << "Warning: datagram was truncated as it's too large.\n";
+		warn("Warning: datagram was truncated as it's too large.");
 		return false;
 	}
 
-	//std::cerr << "Received " << count << " bytes: \n"; //<< buffer << std::endl;
+	debug("Received ", count, " bytes"); //<< buffer, std::endl;
 
 	return true;
 }
@@ -114,11 +117,11 @@ bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 bool validatePacket(uint8_t *packetBuf, int64_t frameId) {
 	const auto packet = reinterpret_cast<FrameData*>(packetBuf);
 	if (packet->header.magic != cfg::PACKET_MAGIC) {
-		std::cerr << "Packet has invalid magic: dropping.\n";
+		info("Packet has invalid magic: dropping.");
 		return false;
 	}
 	if (packet->header.frameId < frameId) {
-		std::cerr << "Packet is old: dropping\n";
+		info("Packet is old: dropping");
 		return false;
 	}
 	return true;
@@ -140,9 +143,9 @@ void dumpPacket(const char *fname, const FrameData& packet) {
 
 bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
 	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
-		std::cerr << "could not write to remote: " << xplatGetErrorString()
-			<< " (" << xplatGetError() << ")\n";
+		warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	}
+	debug("Sent data ", data);
 	return true;
 }

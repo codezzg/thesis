@@ -68,6 +68,8 @@ void SwapChain::destroyTransient(VkDevice device) {
 	for (auto imageView : imageViews)
 		vkDestroyImageView(device, imageView, nullptr);
 
+	depthImage.destroy(device);
+
 	vkDestroySwapchainKHR(device, handle, nullptr);
 
 	vkDestroyPipeline(device, pipeline, nullptr);
@@ -153,7 +155,7 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app) {
 	for (std::size_t i = 0; i < app.swapChain.imageViews.size(); ++i) {
 		const std::array<VkImageView, 2> attachments = {
 			app.swapChain.imageViews[i],
-			app.depthImage.view
+			app.swapChain.depthImage.view
 		};
 
 		VkFramebufferCreateInfo framebufferInfo = {};

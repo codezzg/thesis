@@ -13,6 +13,7 @@
 #include "config.hpp"
 #include "frame_utils.hpp"
 #include "camera.hpp"
+#include "logging.hpp"
 #include "serialization.hpp"
 #include "server_appstage.hpp"
 #include "server.hpp"
@@ -40,7 +41,7 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 		if (isVertex) {
 			// Check for room
 			if (dstIdx + sizeof(Vertex) > N) {
-				std::cerr << "[Warning] only filled " << dstIdx << "/" << N << " dst bytes.\n";
+				info("[Warning] only filled ", dstIdx, "/", N, " dst bytes.");
 				return srcIdx;
 			}
 			*(reinterpret_cast<Vertex*>(dst.data() + dstIdx)) =
@@ -50,7 +51,7 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 		} else {
 			// Check for room
 			if (dstIdx + sizeof(Index) > N) {
-				std::cerr << "[Warning] only filled " << dstIdx << "/" << N << " dst bytes.\n";
+				info("[Warning] only filled ", dstIdx, "/", N, " dst bytes.");
 				return srcIdx;
 			}
 			*(reinterpret_cast<Index*>(dst.data() + dstIdx)) =
@@ -88,11 +89,11 @@ void ServerActiveEndpoint::loopFunc() {
 		const LimitFrameTime lft{ targetFrameTime - delay };
 
 		// Wait for the new frame data from the client
-		std::cerr << "Waiting for client data...\n";
+		info("Waiting for client data...");
 		shared.loopCv.wait(loopUlk);
 		//shared.loopCv.wait_for(loopMtx, 0.033s);
 
-		std::cerr << "Received data from frame " << shared.clientFrame << "\n";
+		info("Received data from frame ", shared.clientFrame);
 
 		int64_t frameId = -1;
 		std::array<uint8_t, FrameData().payload.size()> clientData;
@@ -106,9 +107,9 @@ void ServerActiveEndpoint::loopFunc() {
 		auto& model = server.resources.models.begin()->second;
 		int nVertices = model.nVertices,
 		    nIndices = model.nIndices;
-		std::cerr << "v/i: " << nVertices << ", " << nIndices << " ---> ";
+		log(LOGLV_DEBUG, false, "v/i: ", nVertices, ", ", nIndices, " ---> ");
 		transformVertices(model, clientData, memory, memsize, nVertices, nIndices);
-		std::cerr << nVertices << ", " << nIndices << "\n";
+		debug(nVertices, ", ", nIndices);
 
 		if (frameId >= 0)
 			sendFrameData(frameId, memory, nVertices, nIndices);
@@ -166,7 +167,7 @@ void ServerPassiveEndpoint::loopFunc() {
 			continue;
 
 		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
-		std::cerr << "Received packet " << packet->header.frameId << "\n";
+		debug("Received packet ", packet->header.frameId);
 		if (packet->header.frameId <= latestFrame)
 			continue;
 
@@ -189,7 +190,7 @@ void ServerReliableEndpoint::loopFunc() {
 	constexpr auto MAX_CLIENTS = 1;
 
 	while (!terminated) {
-		std::cerr << "Listening...\n";
+		info("Listening...");
 		::listen(socket, MAX_CLIENTS);
 
 		sockaddr_in clientAddr;
@@ -197,11 +198,11 @@ void ServerReliableEndpoint::loopFunc() {
 
 		auto clientSock = ::accept(socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
 		if (clientSock == -1) {
-			std::cerr << "[ ERROR ] couldn't accept connection.\n";
+			err("Error: couldn't accept connection.");
 			continue;
 		}
 
-		std::cout << "Accepted connection from " << inet_ntoa(clientAddr.sin_addr) << "\n";
+		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
 		//std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSock, clientAddr);
 		//listener.detach();
 
@@ -220,13 +221,13 @@ static bool receiveClientMsg(socket_t socket, uint8_t *buffer, std::size_t bufsi
 
 	const auto count = recv(socket, reinterpret_cast<char*>(buffer), bufsize, 0);
 	if (count < 0) {
-		std::cerr << "Error receiving message: [" << count << "] " << xplatGetErrorString() << "\n";
+		err("Error receiving message: [", count, "] ", xplatGetErrorString(), " G(", xplatGetError(), ")");
 		return false;
 	} else if (count == sizeof(buffer)) {
-		std::cerr << "Warning: datagram was truncated as it's too large.\n";
+		warn("Warning: datagram was truncated as it's too large.");
 		return false;
 	} else if (count == 0) {
-		std::cerr << "Received EOF.\n";
+		warn("Received EOF.");
 		return false;
 	}
 
@@ -315,7 +316,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 			const auto now = std::chrono::system_clock::now();
 			if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
 				// drop the client
-				std::cerr << "Keepalive timeout.\n";
+				info("Keepalive timeout.");
 				break;
 			}
 		}
@@ -324,7 +325,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 	}
 
 dropclient:
-	std::cerr << "TCP: Dropping client " << readableAddr << "\n";
+	info("TCP: Dropping client ", readableAddr);
 	server.sharedData.loopCv.notify_all();
 	server.passiveEP.close();
 	server.activeEP.close();

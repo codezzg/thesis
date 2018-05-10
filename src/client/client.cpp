@@ -41,6 +41,7 @@
 #include "renderpass.hpp"
 #include "gbuffer.hpp"
 #include "textures.hpp"
+#include "xplatform.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -51,7 +52,7 @@ using std::size_t;
 
 // XXX: DEBUG
 bool useCamera = false;
-bool isDebug = true;
+bool isDebug = false;
 
 class HelloTriangleApplication final {
 public:
@@ -60,8 +61,10 @@ public:
 
 		glfwSetWindowUserPointer(app.window, this);
 		glfwSetWindowSizeCallback(app.window, onWindowResized);
-		glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		glfwSetCursorPosCallback(app.window, cursorPosCallback);
+		if (useCamera) {
+			glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			glfwSetCursorPosCallback(app.window, cursorPosCallback);
+		}
 
 		initVulkan();
 		connectToServer();
@@ -115,7 +118,6 @@ private:
 			app.gBuffer.createAttachments(app);
 			app.gBuffer.renderPass = createGeometryRenderPass(app);
 			app.gBuffer.framebuffer = createGBufferFramebuffer(app);
-			//app.gBuffer = createGBuffer(app, gBufAttachments, geomRenderPass);
 			app.gBuffer.descriptorSetLayout = createGBufferDescriptorSetLayout(app);
 			app.gBuffer.pipelineLayout = createGBufferPipelineLayout(app);
 			app.gBuffer.pipeline = createGBufferPipeline(app);
@@ -126,7 +128,7 @@ private:
 
 		{
 			// Setup the deferred lighting pass and the swapchain
-			app.depthImage = createDepthImage(app);
+			app.swapChain.depthImage = createDepthImage(app);
 			app.swapChain.imageViews = createSwapChainImageViews(app);
 			const auto lightRenderPass = createLightingRenderPass(app);
 			app.swapChain.renderPass = lightRenderPass;
@@ -195,6 +197,7 @@ private:
 		if (!relEP.await(std::chrono::seconds{ 10 })) {
 			throw std::runtime_error("Connected to server, but server didn't send READY!");
 		}
+		std::cerr << "Received READY.\n";
 
 		// Ready to start the main loop
 	}
@@ -325,8 +328,6 @@ private:
 	}
 
 	void cleanupSwapChain() {
-		app.depthImage.destroy(app.device);
-
 		// this doesn't destroy the descriptorSetLayout/Pool
 		app.gBuffer.destroyTransient(app.device);
 		app.swapChain.destroyTransient(app.device);
@@ -408,7 +409,7 @@ private:
 		}
 
 		{
-			app.depthImage = createDepthImage(app);
+			app.swapChain.depthImage = createDepthImage(app);
 
 			const auto lightRenderPass = createLightingRenderPass(app);
 			app.swapChain.renderPass = lightRenderPass;
@@ -658,12 +659,40 @@ private:
 	}
 };
 
-int main() {
+int main(int argc, char **argv) {
 	if (!Endpoint::init()) {
 		std::cerr << "Failed to initialize sockets." << std::endl;
 		return EXIT_FAILURE;
 	}
-	std::atexit([]() { Endpoint::cleanup(); });
+	if (!xplatEnableExitHandler()) {
+		std::cerr << "Failed to enable exit handler!" << std::endl;
+		return EXIT_FAILURE;
+	}
+	xplatSetExitHandler([] () {
+		if (Endpoint::cleanup())
+			std::cerr << "Successfully cleaned up sockets." << std::endl;
+		else
+			std::cerr << "Failed to cleanup sockets!" << std::endl;
+	});
+
+	// Parse args
+	int i = argc - 1;
+	while (i > 0) {
+		if (strlen(argv[i]) < 2) {
+			std::cerr << "Invalid flag: -\n";
+			return EXIT_FAILURE;
+		}
+		if (argv[i][0] == '-') {
+			switch (argv[i][1]) {
+			case 'd': isDebug = true; break;
+			case 'c': useCamera = true; break;
+			default:
+				std::cout << "Usage: " << argv[0] << " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
+				break;
+			}
+		}
+		--i;
+	}
 
 	HelloTriangleApplication app;
 

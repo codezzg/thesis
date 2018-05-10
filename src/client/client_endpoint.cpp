@@ -11,6 +11,7 @@
 #include "serialization.hpp"
 #include "frame_utils.hpp"
 #include "tcp_messages.hpp"
+#include "logging.hpp"
 
 using namespace std::literals::chrono_literals;
 
@@ -166,7 +167,7 @@ static bool sendReadyAndWait(socket_t socket) {
 void ClientReliableEndpoint::loopFunc() {
 
 	if (!performHandshake(socket)) {
-		std::cerr << "[ ERROR ] Handshake failed\n";
+		err("Handshake failed");
 		return;
 	}
 	cv.notify_one();
@@ -177,7 +178,7 @@ void ClientReliableEndpoint::loopFunc() {
 	// Wait for the main thread to tell us to proceed
 	cv.wait(ulk);
 	if (!sendReadyAndWait(socket)) {
-		std::cerr << "[ ERROR ] Sending or awaiting ready failed.\n";
+		err("[ ERROR ] Sending or awaiting ready failed.");
 		return;
 	}
 	cv.notify_one();
@@ -189,7 +190,7 @@ void ClientReliableEndpoint::loopFunc() {
 		while (!sendKeepAlive() && !terminated) {
 			cv.wait_for(ulk, (1 + attempts) * 1s);
 			if (++attempts > cfg::CLIENT_KEEPALIVE_MAX_ATTEMPTS) {
-				std::cerr << "Failed to send keepalive.\n";
+				warn("Failed to send keepalive.");
 			}
 		}
 		// TODO: server response?
