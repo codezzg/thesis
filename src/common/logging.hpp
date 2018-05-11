@@ -49,7 +49,7 @@ inline void debug(Args&&... args) {
 
 template <typename... Args>
 inline void verbose(Args&&... args) {
-	log(LOGLV_VERBOSE, true, "[D]", std::forward<Args>(args)...);
+	log(LOGLV_VERBOSE, true, "[V]", std::forward<Args>(args)...);
 }
 
 } // end namespace logging

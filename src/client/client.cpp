@@ -52,9 +52,8 @@ using namespace logging;
 using namespace std::literals::string_literals;
 using std::size_t;
 
-// XXX: DEBUG
-bool useCamera = false;
-bool isDebug = false;
+bool gUseCamera = false;
+bool gIsDebug = false;
 
 class HelloTriangleApplication final {
 public:
@@ -63,7 +62,7 @@ public:
 
 		glfwSetWindowUserPointer(app.window, this);
 		glfwSetWindowSizeCallback(app.window, onWindowResized);
-		if (useCamera) {
+		if (gUseCamera) {
 			glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 			glfwSetCursorPosCallback(app.window, cursorPosCallback);
 		}
@@ -139,13 +138,13 @@ private:
 			app.swapChain.renderPass = lightRenderPass;
 			// Create a framebuffer for each image in the swap chain for the presentation
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
-			if (isDebug)
+			if (gIsDebug)
 				app.res.descriptorSetLayouts->add("swap",
 						createSwapChainDebugDescriptorSetLayout(app));
 			else
 				app.res.descriptorSetLayouts->add("swap", createSwapChainDescriptorSetLayout(app));
 			app.res.pipelineLayouts->add("swap", createSwapChainPipelineLayout(app));
-			app.swapChain.pipeline = createSwapChainPipeline(app, isDebug ? "3d" : "composition");
+			app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
 		}
 
 		{
@@ -169,7 +168,7 @@ private:
 
 		{
 			// Create descriptor sets and command buffers for lighting pass
-			if (isDebug) {
+			if (gIsDebug) {
 				app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
 							app.res.descriptorSetLayouts->get("swap"),
 							mvpUniformBuffer, texDiffuseImage);
@@ -260,7 +259,7 @@ private:
 			vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
-			if (isDebug) {
+			if (gIsDebug) {
 				swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
 						vertexBuffer, indexBuffer,
 						mvpUniformBuffer, app.swapChain.descriptorSet);
@@ -277,7 +276,7 @@ private:
 
 		cameraCtrl->processInput(app.window);
 
-		if (isDebug)
+		if (gIsDebug)
 			drawFrame2();
 		else
 			drawFrame();
@@ -415,9 +414,9 @@ private:
 			const auto lightRenderPass = createLightingRenderPass(app);
 			app.swapChain.renderPass = lightRenderPass;
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
-			app.swapChain.pipeline = createSwapChainPipeline(app, isDebug ? "3d" : "composition");
+			app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
 
-			if (isDebug) {
+			if (gIsDebug) {
 				app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
 						app.res.descriptorSetLayouts->get("swap"),
 						mvpUniformBuffer, texDiffuseImage);
@@ -601,7 +600,7 @@ private:
 
 		MVPUniformBufferObject ubo = {};
 
-		if (useCamera) {
+		if (gUseCamera) {
 			ubo.model = glm::mat4{1.0f};
 			ubo.view = camera.viewMatrix();
 		} else {
@@ -686,8 +685,8 @@ int main(int argc, char **argv) {
 		}
 		if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
-			case 'd': isDebug = true; break;
-			case 'c': useCamera = true; break;
+			case 'd': gIsDebug = true; break;
+			case 'c': gUseCamera = true; break;
 			default:
 				std::cout << "Usage: " << argv[0] << " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
 				break;
