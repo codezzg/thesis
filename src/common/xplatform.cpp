@@ -3,37 +3,61 @@
 #ifdef _WIN32
 	#define WINDOWS_LEAN_AND_MEAN 1
 	#include <windows.h>
+#else
+	#include <csignal>
+	#include <unistd.h>
 #endif
+#include <cstring>
 #include <utility>
 #include <iostream>
+#include "logging.hpp"
+
+static signal_handler_t gHandler;
+static bool gCalledExitHandler;
 
 #ifdef _WIN32
-static signal_handler_t gHandler;
-
 static BOOL wrapper(DWORD signalType) {
+	if (gCalledExitHandler)
+		return;
+
 	switch (signalType) {
 	case CTRL_C_EVENT:
 	case CTRL_CLOSE_EVENT:
 	case CTRL_LOGOFF_EVENT:
 	case CTRL_SHUTDOWN_EVENT:
 		gHandler();
+		info("Exiting");
+		gCalledExitHandler = true;
+		std::exit(0);
 	default:
 		break;
 	}
 	return false;
 }
+#else
+static void wrapper(int) {
+	if (gCalledExitHandler)
+		return;
+
+	gHandler();
+	info("Exiting");
+	gCalledExitHandler = true;
+	std::exit(0);
+}
 #endif
 
 void xplatSetExitHandler(signal_handler_t handler) {
-	std::atexit(handler);
 	gHandler = handler;
+	std::atexit([] () { wrapper(0); });
 }
 
 bool xplatEnableExitHandler() {
 #ifdef _WIN32
 	return SetConsoleCtrlHandler(wrapper, true);
 #else
-	// TODO
+	std::signal(SIGINT, wrapper);
+	std::signal(SIGTERM, wrapper);
+	return true;
 #endif
 }
 

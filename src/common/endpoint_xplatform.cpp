@@ -41,10 +41,8 @@ int xplatSockClose(socket_t sock) {
 	return status;
 }
 
-std::string xplatGetErrorString() {
-	char buf[256];
-	strerror_s(buf, 256, xplatGetError());
-	return std::string{ buf };
+const char* xplatGetErrorString() {
+	return std::strerror(xplatGetError());
 }
 
 int xplatGetError() {

@@ -76,13 +76,21 @@ bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort, int sockty
 }
 
 void Endpoint::runLoop() {
-	info("[", this, "] called runLoop(). loopThread = ", loopThread.get());
+	debug("[", this, "] called runLoop(). loopThread = ", loopThread.get());
 	if (loopThread)
 		throw std::logic_error("Called runLoop twice on the same endpoint!");
 
 	info("Starting loop with socket = ", socket);
-	loopThread = std::make_unique<std::thread>(std::bind(&Endpoint::loopFunc, this));
 	terminated = false;
+	loopThread = std::make_unique<std::thread>(std::bind(&Endpoint::loopFunc, this));
+}
+
+void Endpoint::runLoopSync() {
+	debug("[", this, "] called runLoopSync().");
+	if (loopThread)
+		throw std::logic_error("Endpoint is already running an async loop!");
+	terminated = false;
+	loopFunc();
 }
 
 void Endpoint::close() {

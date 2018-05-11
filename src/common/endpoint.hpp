@@ -64,6 +64,9 @@ public:
 	/** Starts the `loopFunc` in a new thread. */
 	void runLoop();
 
+	/** Starts the `loopFunc` in the current thread. */
+	void runLoopSync();
+
 	/** Terminates the loop and closes the socket */
 	void close();
 };
