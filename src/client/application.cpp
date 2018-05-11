@@ -75,6 +75,26 @@ static void createLogicalDevice(Application& app) {
 	vkGetDeviceQueue(app.device, indices.presentFamily, 0, &app.queues.present);
 }
 
+// FIXME: use a meaningful number of descriptorcount
+VkDescriptorPool createDescriptorPool(const Application& app) {
+	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = 10;
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[1].descriptorCount = 10;
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = poolSizes.size();
+	poolInfo.pPoolSizes = poolSizes.data();
+	poolInfo.maxSets = 2;
+
+	VkDescriptorPool descriptorPool;
+	VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool));
+	app.validation.addObjectInfo(descriptorPool, __FILE__, __LINE__);
+
+	return descriptorPool;
+}
 
 void Application::init() {
 #ifndef NDEBUG
@@ -87,11 +107,6 @@ void Application::init() {
 	instance = createInstance(validation);
 	validation.init(instance);
 
-	//resources.pipelineLayouts = std::make_unique<PipelineLayoutMap>(device);
-	//resources.pipelines = std::make_unique<PipelineMap>(device);
-	//resources.descriptorSetLayouts = std::make_unique<DescriptorSetLayoutMap>(device);
-	//resources.descriptorSets = std::make_unique<DescriptorSetMap>(device, descriptorPool);
-
 	surface = createSurface(instance, window);
 	physicalDevice = pickPhysicalDevice(instance, surface);
 	findBestFormats(physicalDevice);
@@ -99,10 +114,16 @@ void Application::init() {
 }
 
 void Application::cleanup() {
+	vkDestroyCommandPool(device, commandPool, nullptr);
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
 	screenQuadBuffer.destroy(device);
+
 	validation.cleanup();
+
 	vkDestroyDevice(device, nullptr);
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyInstance(instance, nullptr);
+
 	cleanupWindow(window);
 }

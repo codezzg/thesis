@@ -12,6 +12,8 @@
 #include <iostream>
 #include "logging.hpp"
 
+using namespace logging;
+
 static signal_handler_t gHandler;
 static bool gCalledExitHandler;
 

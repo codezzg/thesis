@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 /** Platform independence layer for sockets */
+#include <string>
 #ifdef _WIN32
 	#include <WinSock2.h>
 	#include <Ws2tcpip.h>

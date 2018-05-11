@@ -7,10 +7,13 @@ enum LogLevel {
 	LOGLV_ERR = 1,
 	LOGLV_WARN = 2,
 	LOGLV_INFO = 3,
-	LOGLV_DEBUG = 4
+	LOGLV_DEBUG = 4,
+	LOGLV_VERBOSE = 5,
 };
 
 extern LogLevel gDebugLv;
+
+namespace logging {
 
 inline void log(LogLevel debugLv, bool breakLine) {
 	if (gDebugLv >= debugLv && breakLine)
@@ -43,3 +46,10 @@ template <typename... Args>
 inline void debug(Args&&... args) {
 	log(LOGLV_DEBUG, true, "[D]", std::forward<Args>(args)...);
 }
+
+template <typename... Args>
+inline void verbose(Args&&... args) {
+	log(LOGLV_VERBOSE, true, "[D]", std::forward<Args>(args)...);
+}
+
+} // end namespace logging

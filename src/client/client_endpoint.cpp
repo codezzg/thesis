@@ -13,6 +13,7 @@
 #include "tcp_messages.hpp"
 #include "logging.hpp"
 
+using namespace logging;
 using namespace std::literals::chrono_literals;
 
 static constexpr auto BUFSIZE = 1<<24;

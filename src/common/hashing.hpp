@@ -59,6 +59,10 @@ constexpr StringId sid(const char *buf) {
 inline StringId sid(const std::string& str) {
 	return hashing::fnv1_hash(str.c_str());
 }
+
+inline std::string sidToString(StringId id) {
+	return std::to_string(static_cast<uint32_t>(id));
+}
 #else
 inline StringId sid(const char *buf) {
 	const auto h = hashing::fnv1_hash(buf);
@@ -70,5 +74,9 @@ inline StringId sid(const std::string& str) {
 	const auto h = hashing::fnv1_hash(str.c_str());
 	stringDb.addUnique(h, str);
 	return h;
+}
+
+inline std::string sidToString(StringId id) {
+	return stringDb[id];
 }
 #endif

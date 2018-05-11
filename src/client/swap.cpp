@@ -60,8 +60,6 @@ static VkExtent2D chooseSwapExtent(GLFWwindow *window, const VkSurfaceCapabiliti
 }
 
 void SwapChain::destroyTransient(VkDevice device) {
-	vkResetDescriptorPool(device, descriptorPool, 0);
-
 	for (auto framebuffer : framebuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
 
@@ -74,12 +72,6 @@ void SwapChain::destroyTransient(VkDevice device) {
 
 	vkDestroyPipeline(device, pipeline, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
-}
-
-void SwapChain::destroyPersistent(VkDevice device) {
-	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 }
 
 SwapChain createSwapChain(const Application& app) {
@@ -231,7 +223,7 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, vertexBuffers.size(),
 				vertexBuffers.data(), offsets.data());
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-				app.swapChain.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+				app.res.pipelineLayouts->get("swap"), 0, 1, &descriptorSet, 0, nullptr);
 		vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);
@@ -240,26 +232,6 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 	}
 
 	return commandBuffers;
-}
-
-VkDescriptorPool createSwapChainDescriptorPool(const Application& app) {
-	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = 1;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = 3;
-
-	VkDescriptorPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = poolSizes.size();
-	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 1;
-
-	VkDescriptorPool descriptorPool;
-	VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool));
-	app.validation.addObjectInfo(descriptorPool, __FILE__, __LINE__);
-
-	return descriptorPool;
 }
 
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app) {
@@ -321,7 +293,7 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = app.swapChain.descriptorPool;
+	allocInfo.descriptorPool = app.descriptorPool;
 	allocInfo.descriptorSetCount = layouts.size();
 	allocInfo.pSetLayouts = layouts.data();
 
@@ -392,7 +364,7 @@ VkPipelineLayout createSwapChainPipelineLayout(const Application& app) {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &app.swapChain.descriptorSetLayout;
+	pipelineLayoutInfo.pSetLayouts = &app.res.descriptorSetLayouts->get("swap");
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -516,7 +488,7 @@ VkPipeline createSwapChainPipeline(const Application& app, const std::string& sh
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pDynamicState = nullptr;
-	pipelineInfo.layout = app.swapChain.pipelineLayout;
+	pipelineInfo.layout = app.res.pipelineLayouts->get("swap");
 	pipelineInfo.renderPass = app.swapChain.renderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
@@ -577,7 +549,7 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDesc
 
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = app.swapChain.descriptorPool;
+	allocInfo.descriptorPool = app.descriptorPool;
 	allocInfo.descriptorSetCount = 1;
 	allocInfo.pSetLayouts = &descriptorSetLayout;
 
@@ -651,7 +623,7 @@ std::vector<VkCommandBuffer> createSwapChainDebugCommandBuffers(const Applicatio
 				vertexBuffers.data(), offsets.data());
 		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-				app.swapChain.pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+				app.res.pipelineLayouts->get("swap"), 0, 1, &descriptorSet, 0, nullptr);
 		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
 		//std::cerr << (app.swapChain.screenQuadBuffer.size / sizeof(Vertex)) << "\n";
 		//vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);

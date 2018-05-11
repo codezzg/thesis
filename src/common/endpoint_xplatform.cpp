@@ -36,7 +36,7 @@ int xplatSockClose(socket_t sock) {
 	if (status == 0 || errno == ENOTCONN) {
 		status = close(sock);
 #endif
-	} else warn("Error shutting down the socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
+	} else logging::warn("Error shutting down the socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 
 	return status;
 }

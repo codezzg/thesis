@@ -10,6 +10,8 @@
 #include "xplatform.hpp"
 #include "logging.hpp"
 
+using namespace logging;
+
 static constexpr auto MEMSIZE = 1 << 24;
 
 Server *gServer;

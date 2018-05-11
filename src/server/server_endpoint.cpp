@@ -18,6 +18,7 @@
 #include "server_appstage.hpp"
 #include "server.hpp"
 
+using namespace logging;
 using namespace std::chrono_literals;
 
 /** Writes all possible vertices and indices, starting from `offset`-th byte,

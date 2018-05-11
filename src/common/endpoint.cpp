@@ -10,6 +10,8 @@
 #include "data.hpp"
 #include "logging.hpp"
 
+using namespace logging;
+
 static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op op) {
 	// Connect
 	for (auto info = result; info != nullptr; info = info->ai_next) {
@@ -116,7 +118,7 @@ bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 		return false;
 	}
 
-	debug("Received ", count, " bytes"); //<< buffer, std::endl;
+	verbose("Received ", count, " bytes"); //<< buffer, std::endl;
 
 	return true;
 }
@@ -154,6 +156,6 @@ bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
 		warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	}
-	debug("Sent data ", data);
+	verbose("Sent data ", data);
 	return true;
 }

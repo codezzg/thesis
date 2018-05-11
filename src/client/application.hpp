@@ -8,7 +8,7 @@
 #include "memory.hpp"
 #include "buffers.hpp"
 #include "gbuffer.hpp"
-//#include "resources.hpp"
+#include "resources.hpp"
 
 struct Queues final {
 	VkQueue graphics;
@@ -32,6 +32,7 @@ struct Application final {
 	Validation validation;
 
 	VkCommandPool commandPool;
+	VkDescriptorPool descriptorPool;
 
 	SwapChain swapChain;
 
@@ -41,6 +42,10 @@ struct Application final {
 
 	Image depthImage;
 
+	Resources res;
+
 	void init();
 	void cleanup();
 };
+
+VkDescriptorPool createDescriptorPool(const Application& app);

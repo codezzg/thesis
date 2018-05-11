@@ -19,17 +19,13 @@ struct SwapChain final {
 	std::vector<VkFramebuffer> framebuffers;
 	Image depthImage;
 
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorSet descriptorSet;
 
 	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
 
 	VkRenderPass renderPass;
 
 	void destroyTransient(VkDevice device);
-	void destroyPersistent(VkDevice device);
 };
 
 SwapChain createSwapChain(const Application& app);

@@ -42,11 +42,13 @@
 #include "gbuffer.hpp"
 #include "textures.hpp"
 #include "xplatform.hpp"
+#include "logging.hpp"
 
 // Fuck off, Windows
 #undef max
 #undef min
 
+using namespace logging;
 using namespace std::literals::string_literals;
 using std::size_t;
 
@@ -113,17 +115,20 @@ private:
 	void initVulkan() {
 		app.swapChain = createSwapChain(app);
 
+		app.commandPool = createCommandPool(app);
+		app.descriptorPool = createDescriptorPool(app);
+		app.res.init(app.device, app.descriptorPool);
+
 		{
 			// Create the gbuffer for the geometry pass
 			app.gBuffer.createAttachments(app);
 			app.gBuffer.renderPass = createGeometryRenderPass(app);
 			app.gBuffer.framebuffer = createGBufferFramebuffer(app);
-			app.gBuffer.descriptorSetLayout = createGBufferDescriptorSetLayout(app);
-			app.gBuffer.pipelineLayout = createGBufferPipelineLayout(app);
+			app.res.descriptorSetLayouts->add("gbuffer", createGBufferDescriptorSetLayout(app));
+			app.res.pipelineLayouts->add("gbuffer", createGBufferPipelineLayout(app));
 			app.gBuffer.pipeline = createGBufferPipeline(app);
 		}
 
-		app.commandPool = createCommandPool(app);
 		app.screenQuadBuffer = createScreenQuadVertexBuffer(app);
 
 		{
@@ -135,10 +140,11 @@ private:
 			// Create a framebuffer for each image in the swap chain for the presentation
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 			if (isDebug)
-				app.swapChain.descriptorSetLayout = createSwapChainDebugDescriptorSetLayout(app);
+				app.res.descriptorSetLayouts->add("swap",
+						createSwapChainDebugDescriptorSetLayout(app));
 			else
-				app.swapChain.descriptorSetLayout = createSwapChainDescriptorSetLayout(app);
-			app.swapChain.pipelineLayout = createSwapChainPipelineLayout(app);
+				app.res.descriptorSetLayouts->add("swap", createSwapChainDescriptorSetLayout(app));
+			app.res.pipelineLayouts->add("swap", createSwapChainPipelineLayout(app));
 			app.swapChain.pipeline = createSwapChainPipeline(app, isDebug ? "3d" : "composition");
 		}
 
@@ -154,8 +160,8 @@ private:
 
 		{
 			// Create descriptor sets and command buffers for G-Buffer
-			app.gBuffer.descriptorPool = createGBufferDescriptorPool(app);
-			app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
+			app.gBuffer.descriptorSet = createGBufferDescriptorSet(app,
+					app.res.descriptorSetLayouts->get("gbuffer"),
 					mvpUniformBuffer, texDiffuseImage, texSpecularImage);
 			gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices, vertexBuffer,
 					indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);
@@ -163,17 +169,16 @@ private:
 
 		{
 			// Create descriptor sets and command buffers for lighting pass
-			app.swapChain.descriptorPool = createSwapChainDescriptorPool(app);
 			if (isDebug) {
 				app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
-							app.swapChain.descriptorSetLayout,
+							app.res.descriptorSetLayouts->get("swap"),
 							mvpUniformBuffer, texDiffuseImage);
 				swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
 					vertexBuffer, indexBuffer,
 					mvpUniformBuffer, app.swapChain.descriptorSet);
 			} else {
 				app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
-							app.swapChain.descriptorSetLayout,
+							app.res.descriptorSetLayouts->get("swap"),
 							compUniformBuffer, texDiffuseImage);
 				swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 					compUniformBuffer, app.swapChain.descriptorSet);
@@ -224,8 +229,11 @@ private:
 			calcTimeStats(fps, beginTime);
 		}
 
+		debug("closing passiveEP");
 		passiveEP.close();
+		debug("closing activeEP");
 		activeEP.close();
+		debug("closing relEP");
 		relEP.close();
 		vkDeviceWaitIdle(app.device);
 	}
@@ -336,6 +344,8 @@ private:
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
 		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
+
+		vkResetDescriptorPool(app.device, app.descriptorPool, 0);
 	}
 
 	void cleanup() {
@@ -347,9 +357,6 @@ private:
 		texDiffuseImage.destroy(app.device);
 		texSpecularImage.destroy(app.device);
 
-		app.gBuffer.destroyPersistent(app.device);
-		app.swapChain.destroyPersistent(app.device);
-
 		mvpUniformBuffer.destroy(app.device);
 		compUniformBuffer.destroy(app.device);
 		indexBuffer.destroy(app.device);
@@ -358,10 +365,10 @@ private:
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
 		vkDestroySemaphore(app.device, gBufRenderFinishedSemaphore, nullptr);
-		vkDestroyCommandPool(app.device, app.commandPool, nullptr);
 
 		delete [] streamingBufferData;
 
+		app.res.cleanup();
 		app.cleanup();
 	}
 
@@ -390,14 +397,8 @@ private:
 		cleanupSwapChain();
 
 		{
-			auto descSetLayout = app.swapChain.descriptorSetLayout;
-			auto descPool = app.swapChain.descriptorPool;
-			auto pipelineLayout = app.swapChain.pipelineLayout;
 			app.swapChain = createSwapChain(app);
 			app.swapChain.imageViews = createSwapChainImageViews(app);
-			app.swapChain.descriptorSetLayout = descSetLayout;
-			app.swapChain.descriptorPool = descPool;
-			app.swapChain.pipelineLayout = pipelineLayout;
 		}
 
 		{
@@ -418,21 +419,22 @@ private:
 
 			if (isDebug) {
 				app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
-						app.swapChain.descriptorSetLayout,
+						app.res.descriptorSetLayouts->get("swap"),
 						mvpUniformBuffer, texDiffuseImage);
 				swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
 					vertexBuffer, indexBuffer,
 					mvpUniformBuffer, app.swapChain.descriptorSet);
 			} else {
 				app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
-						app.swapChain.descriptorSetLayout,
+						app.res.descriptorSetLayouts->get("swap"),
 						compUniformBuffer, texDiffuseImage);
 				swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
 					compUniformBuffer, app.swapChain.descriptorSet);
 			}
 		}
 
-		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app, app.gBuffer.descriptorSetLayout,
+		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app,
+				app.res.descriptorSetLayouts->get("gbuffer"),
 				mvpUniformBuffer, texDiffuseImage, texSpecularImage);
 		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices,
 				vertexBuffer, indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);

@@ -106,26 +106,6 @@ void GBuffer::createAttachments(const Application& app) {
 	depth.sampler = createTextureSampler(app);
 }
 
-VkDescriptorPool createGBufferDescriptorPool(const Application& app) {
-	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = 1;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = 2;
-
-	VkDescriptorPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = poolSizes.size();
-	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 1;
-
-	VkDescriptorPool descriptorPool;
-	VLKCHECK(vkCreateDescriptorPool(app.device, &poolInfo, nullptr, &descriptorPool));
-	app.validation.addObjectInfo(descriptorPool, __FILE__, __LINE__);
-
-	return descriptorPool;
-}
-
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
 	// texDiffuse: sampler2D
 	VkDescriptorSetLayoutBinding texDiffuseLayoutBinding = {};
@@ -171,7 +151,7 @@ VkPipelineLayout createGBufferPipelineLayout(const Application& app) {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &app.gBuffer.descriptorSetLayout;
+	pipelineLayoutInfo.pSetLayouts = &app.res.descriptorSetLayouts->get("gbuffer");
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -188,7 +168,7 @@ VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorS
 	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = app.gBuffer.descriptorPool;
+	allocInfo.descriptorPool = app.descriptorPool;
 	allocInfo.descriptorSetCount = layouts.size();
 	allocInfo.pSetLayouts = layouts.data();
 
@@ -355,7 +335,7 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pDynamicState = nullptr;
-	pipelineInfo.layout = app.gBuffer.pipelineLayout;
+	pipelineInfo.layout = app.res.pipelineLayouts->get("gbuffer");
 	pipelineInfo.renderPass = app.gBuffer.renderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
