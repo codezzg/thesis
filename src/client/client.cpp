@@ -112,41 +112,18 @@ private:
 
 
 	void initVulkan() {
+		// Create basic Vulkan resources
 		app.swapChain = createSwapChain(app);
-
+		app.swapChain.imageViews = createSwapChainImageViews(app);
+		app.swapChain.renderPass = createLightingRenderPass(app);
 		app.commandPool = createCommandPool(app);
-		app.descriptorPool = createDescriptorPool(app);
-		app.res.init(app.device, app.descriptorPool);
+		swapCommandBuffers = createSwapChainCommandBuffers(app);
+		app.swapChain.depthImage = createDepthImage(app);
+		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		// TODO: pipeline cache
 
-		{
-			// Create the gbuffer for the geometry pass
-			app.gBuffer.createAttachments(app);
-			app.gBuffer.renderPass = createGeometryRenderPass(app);
-			app.gBuffer.framebuffer = createGBufferFramebuffer(app);
-			app.res.descriptorSetLayouts->add("gbuffer", createGBufferDescriptorSetLayout(app));
-			app.res.pipelineLayouts->add("gbuffer", createGBufferPipelineLayout(app));
-			app.gBuffer.pipeline = createGBufferPipeline(app);
-		}
-
+		// Load assets
 		app.screenQuadBuffer = createScreenQuadVertexBuffer(app);
-
-		{
-			// Setup the deferred lighting pass and the swapchain
-			app.swapChain.depthImage = createDepthImage(app);
-			app.swapChain.imageViews = createSwapChainImageViews(app);
-			const auto lightRenderPass = createLightingRenderPass(app);
-			app.swapChain.renderPass = lightRenderPass;
-			// Create a framebuffer for each image in the swap chain for the presentation
-			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
-			if (gIsDebug)
-				app.res.descriptorSetLayouts->add("swap",
-						createSwapChainDebugDescriptorSetLayout(app));
-			else
-				app.res.descriptorSetLayouts->add("swap", createSwapChainDescriptorSetLayout(app));
-			app.res.pipelineLayouts->add("swap", createSwapChainPipelineLayout(app));
-			app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
-		}
-
 		{
 			// Load textures
 			texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
@@ -155,34 +132,47 @@ private:
 			texSpecularImage.sampler = createTextureSampler(app);
 		}
 
+		// Create GBuffer
+		app.gBuffer.createAttachments(app);
+		app.gBuffer.renderPass = createGeometryRenderPass(app);
+		app.gBuffer.framebuffer = createGBufferFramebuffer(app);
+		gbufCommandBuffer = allocCommandBuffer(app);
+
 		prepareBufferMemory();
 
-		{
-			// Create descriptor sets and command buffers for G-Buffer
-			app.gBuffer.descriptorSet = createGBufferDescriptorSet(app,
-					app.res.descriptorSetLayouts->get("gbuffer"),
-					mvpUniformBuffer, texDiffuseImage, texSpecularImage);
-			gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices, vertexBuffer,
-					indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);
-		}
+		// Initialize resource maps
+		app.res.init(app.device, app.descriptorPool);
+		// Layouts
+		app.res.descriptorSetLayouts->add("gbuffer", createGBufferDescriptorSetLayout(app));
+		app.res.pipelineLayouts->add("gbuffer", createPipelineLayout(app,
+					&app.res.descriptorSetLayouts->get("gbuffer")));
+		app.res.descriptorSetLayouts->add("swap", gIsDebug
+					? createSwapChainDebugDescriptorSetLayout(app);
+					: createSwapChainDescriptorSetLayout(app));
+		app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
+					&app.res.descriptorSetLayouts->get("swap")));
 
-		{
-			// Create descriptor sets and command buffers for lighting pass
-			if (gIsDebug) {
-				app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
-							app.res.descriptorSetLayouts->get("swap"),
-							mvpUniformBuffer, texDiffuseImage);
-				swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
-					vertexBuffer, indexBuffer,
-					mvpUniformBuffer, app.swapChain.descriptorSet);
-			} else {
-				app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
-							app.res.descriptorSetLayouts->get("swap"),
-							compUniformBuffer, texDiffuseImage);
-				swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-					compUniformBuffer, app.swapChain.descriptorSet);
-			}
-		}
+
+		// Create pipelines
+		app.gBuffer.pipeline = createGBufferPipeline(app);
+		app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
+
+		app.descriptorPool = createDescriptorPool(app);
+		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app,
+				app.res.descriptorSetLayouts->get("gbuffer"),
+				mvpUniformBuffer, texDiffuseImage, texSpecularImage);
+		app.swapChain.descriptorSet = gIsDebug
+			? createSwapChainDebugDescriptorSet(app,
+					app.res.descriptorSetLayouts->get("swap"),
+					mvpUniformBuffer, texDiffuseImage);
+			: createSwapChainDescriptorSet(app,
+					app.res.descriptorSetLayouts->get("swap"),
+					compUniformBuffer, texDiffuseImage);
+
+			// Create descriptor sets and command buffers for G-Buffer
+		recordSwapChainCommandBuffers(app, nIndices, compUniformBuffer, app.swapChain.descriptorSet);
+		recordGBufferCommandBuffer(app, gbufCommandBuffer, nIndices, vertexBuffer,
+				indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);
 
 		createSemaphores();
 
@@ -335,8 +325,9 @@ private:
 	}
 
 	void cleanupSwapChain() {
-		// this doesn't destroy the descriptorSetLayout/Pool
+		// Destroy the gbuffer and all its attachments
 		app.gBuffer.destroyTransient(app.device);
+		// Destroy the swapchain and all its images and framebuffers
 		app.swapChain.destroyTransient(app.device);
 
 		vkFreeCommandBuffers(app.device, app.commandPool,
@@ -396,7 +387,8 @@ private:
 		cleanupSwapChain();
 
 		{
-			app.swapChain = createSwapChain(app);
+			// FIXME: old swapchain?
+			app.swapChain = createSwapChain(app, VK_NULL_HANDLE);
 			app.swapChain.imageViews = createSwapChainImageViews(app);
 		}
 

@@ -59,6 +59,20 @@ static VkExtent2D chooseSwapExtent(GLFWwindow *window, const VkSurfaceCapabiliti
 	}
 }
 
+static VkCompositeAlphaFlagBitsKHR chooseCompositeAlphaMode(const SwapChainSupportDetails& support) {
+	auto cAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	const std::array<VkCompositeAlphaFlagBitsKHR, 4> flags = {
+		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR
+	};
+	for (auto mode : flags)
+		if (support.capabilities.supportedCompositeAlpha & mode)
+			return mode;
+	return cAlpha;
+}
+
 void SwapChain::destroyTransient(VkDevice device) {
 	for (auto framebuffer : framebuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -74,7 +88,7 @@ void SwapChain::destroyTransient(VkDevice device) {
 	vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
-SwapChain createSwapChain(const Application& app) {
+SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain) {
 	const auto swapChainSupport = querySwapChainSupport(app.physicalDevice, app.surface);
 	const auto surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
 	const auto presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -82,7 +96,8 @@ SwapChain createSwapChain(const Application& app) {
 
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 	if (swapChainSupport.capabilities.maxImageCount > 0 &&
-			swapChainSupport.capabilities.maxImageCount < imageCount) {
+			swapChainSupport.capabilities.maxImageCount < imageCount)
+	{
 		imageCount = swapChainSupport.capabilities.maxImageCount;
 	}
 
@@ -94,7 +109,14 @@ SwapChain createSwapChain(const Application& app) {
 	createInfo.imageColorSpace = surfaceFormat.colorSpace;
 	createInfo.imageExtent = extent;
 	createInfo.imageArrayLayers = 1;
+	// Note: would probably use TRANSFER_DST_BIT if we didn't render directly to the swap chain
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	// Set additional usage flag for blitting from the swapchain images if supported
+	VkFormatProperties formatProps;
+	vkGetPhysicalDeviceFormatProperties(app.physicalDevice, surfaceFormat.format, &formatProps);
+	if (formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)
+		createInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 	auto indices = findQueueFamilies(app.physicalDevice, app.surface);
 	const std::array<uint32_t, 2> queueFamilyIndices = {
@@ -110,10 +132,10 @@ SwapChain createSwapChain(const Application& app) {
 		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	}
 	createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	createInfo.compositeAlpha = chooseCompositeAlphaMode(swapChainSupport);
 	createInfo.presentMode = presentMode;
 	createInfo.clipped = VK_TRUE;
-	createInfo.oldSwapchain = VK_NULL_HANDLE;
+	createInfo.oldSwapchain = oldSwapchain;
 
 	VkSwapchainKHR swapChainHandle;
 	VLKCHECK(vkCreateSwapchainKHR(app.device, &createInfo, nullptr, &swapChainHandle));
@@ -180,9 +202,7 @@ uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailable
 	return imageIndex;
 }
 
-std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, uint32_t nIndices,
-		const Buffer& uniformBuffer, VkDescriptorSet descriptorSet)
-{
+std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app) {
 	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
 
 	VkCommandBufferAllocateInfo allocInfo = {};
@@ -191,6 +211,14 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
+	VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
+
+	return commandBuffers;
+}
+
+void recordSwapChainCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& commandBuffers,
+		uint32_t nIndices, const Buffer& uniformBuffer, VkDescriptorSet descriptorSet)
+{
 	std::array<VkClearValue, 2> clearValues = {};
 	clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
 	clearValues[1].depthStencil = {1.f, 0};
@@ -206,8 +234,6 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-
-	VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
 
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
 		VLKCHECK(vkBeginCommandBuffer(commandBuffers[i], &beginInfo));
@@ -230,8 +256,6 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 
 		VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
 	}
-
-	return commandBuffers;
 }
 
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app) {
@@ -358,21 +382,6 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
 	return descriptorSet;
-}
-
-VkPipelineLayout createSwapChainPipelineLayout(const Application& app) {
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &app.res.descriptorSetLayouts->get("swap");
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-	VkPipelineLayout pipelineLayout;
-	VLKCHECK(vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
-	app.validation.addObjectInfo(pipelineLayout, __FILE__, __LINE__);
-
-	return pipelineLayout;
 }
 
 VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader) {
@@ -535,8 +544,9 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 	return descriptorSetLayout;
 }
 
-VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout, const Buffer& ubo, const Image& tex) {
-
+VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
+		VkDescriptorSetLayout descriptorSetLayout, const Buffer& ubo, const Image& tex)
+{
 	VkDescriptorBufferInfo uboInfo = {};
 	uboInfo.buffer = ubo.handle;
 	uboInfo.offset = 0;

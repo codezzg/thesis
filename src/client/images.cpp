@@ -64,7 +64,7 @@ Image createImage(
 	VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &imageMemory));
 	app.validation.addObjectInfo(imageMemory, __FILE__, __LINE__);
 
-	vkBindImageMemory(app.device, imageHandle, imageMemory, 0);
+	VLKCHECK(vkBindImageMemory(app.device, imageHandle, imageMemory, 0));
 
 	Image image;
 	image.handle = imageHandle;

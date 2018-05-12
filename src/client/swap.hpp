@@ -10,7 +10,7 @@
 struct Application;
 
 struct SwapChain final {
-	VkSwapchainKHR handle;
+	VkSwapchainKHR handle = VK_NULL_HANDLE;
 	VkExtent2D extent;
 	VkFormat imageFormat;
 
@@ -28,7 +28,7 @@ struct SwapChain final {
 	void destroyTransient(VkDevice device);
 };
 
-SwapChain createSwapChain(const Application& app);
+SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
 
 std::vector<VkImageView> createSwapChainImageViews(const Application& app);
 
@@ -39,14 +39,15 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app);
  */
 uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore);
 
-std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, uint32_t nIndices,
-		const Buffer& uBuffer, VkDescriptorSet descSet);
+std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app);
+
+void recordSwapChainCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& buffers,
+		uint32_t nIndices, const Buffer& uBuffer, VkDescriptorSet descSet);
 
 VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer, const Image& texDiffuse);
-VkPipelineLayout createSwapChainPipelineLayout(const Application& app);
 VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader = "composition");
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);

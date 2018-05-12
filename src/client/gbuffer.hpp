@@ -25,6 +25,10 @@ struct GBuffer final {
 	void createAttachments(const Application& app);
 
 	void destroyTransient(VkDevice device) {
+		// The sampler is shared, only destroy it once
+		vkDestroySampler(device, position.sampler);
+		position.sampler = normal.sampler = albedoSpec.sampler = depth.sampler = VK_NULL_HANDLE;
+
 		position.destroy(device);
 		normal.destroy(device);
 		albedoSpec.destroy(device);
@@ -50,8 +54,7 @@ VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app);
 VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer, const Image& texDiffuseImage, const Image& texSpecularImage);
 
-VkPipelineLayout createGBufferPipelineLayout(const Application& app);
 VkPipeline createGBufferPipeline(const Application& app);
 
-VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nIndices,
+void recordGBufferCommandBuffer(const Application app, VkCommandBuffer commandBuffer, uint32_t nIndices,
 		const Buffer& vBuffer, const Buffer& iBuffer, const Buffer& uBuffer, VkDescriptorSet descSet);

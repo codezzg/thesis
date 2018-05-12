@@ -100,10 +100,11 @@ void GBuffer::createAttachments(const Application& app) {
 	albedoSpec = createAlbedoSpecAttachment(app);
 	depth = createDepthAttachment(app);
 
-	position.sampler = createTextureSampler(app);
-	normal.sampler = createTextureSampler(app);
-	albedoSpec.sampler = createTextureSampler(app);
-	depth.sampler = createTextureSampler(app);
+	auto sampler = createTextureSampler(app);
+	position.sampler = sampler;
+	normal.sampler = sampler;
+	albedoSpec.sampler = sampler;
+	depth.sampler = sampler;
 }
 
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
@@ -144,22 +145,6 @@ VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
 	app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
 
 	return descriptorSetLayout;
-}
-
-VkPipelineLayout createGBufferPipelineLayout(const Application& app) {
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &app.res.descriptorSetLayouts->get("gbuffer");
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-	VkPipelineLayout pipelineLayout;
-	VLKCHECK(vkCreatePipelineLayout(app.device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
-	app.validation.addObjectInfo(pipelineLayout, __FILE__, __LINE__);
-
-	return pipelineLayout;
 }
 
 VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
@@ -352,7 +337,7 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	return pipeline;
 }
 
-VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nIndices,
+void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandBuffer, uint32_t nIndices,
 		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
 		VkDescriptorSet descSet)
 {
@@ -376,7 +361,6 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 	beginInfo.pInheritanceInfo = nullptr;
 
-	auto commandBuffer = allocCommandBuffer(app, app.commandPool);
 	vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -396,6 +380,4 @@ VkCommandBuffer createGBufferCommandBuffer(const Application& app, uint32_t nInd
 	vkCmdEndRenderPass(commandBuffer);
 
 	VLKCHECK(vkEndCommandBuffer(commandBuffer));
-
-	return commandBuffer;
 }

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <vector>
 #include <vulkan/vulkan.h>
 
-struct Pipeline {
-	VkPipeline handle;
-	VkPipelineLayout layout;
-};
+struct Application;
+
+VkPipelineLayout createPipelineLayout(const Application& app, VkDescriptorSetLayout descSetLayout,
+		const std::vector<VkPushConstantRange>& pushConstantRanges = {});
