@@ -37,6 +37,9 @@ public:
 	mutable std::unordered_map<uint64_t, std::string> objectsInfo;
 #endif
 	void addObjectInfo(void *handle, const char *file, int line) const;
+
+	// Tries to add details of objectInfo to validation layer's message `msg`.
+	std::string addDetails(const char *msg) const;
 };
 
 //VkResult createDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,

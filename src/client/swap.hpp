@@ -48,7 +48,7 @@ VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
 		const Buffer& uniformBuffer, const Image& texDiffuse, VkSampler texSampler);
-VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader = "composition");
+VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader);
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,

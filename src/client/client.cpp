@@ -190,7 +190,7 @@ private:
 		if (!relEP.await(std::chrono::seconds{ 10 })) {
 			throw std::runtime_error("Connected to server, but server didn't send READY!");
 		}
-		std::cerr << "Received READY.\n";
+		info("Received READY.");
 
 		// Ready to start the main loop
 	}
@@ -214,11 +214,11 @@ private:
 			calcTimeStats(fps, beginTime);
 		}
 
-		debug("closing passiveEP");
+		info("closing passiveEP");
 		passiveEP.close();
-		debug("closing activeEP");
+		info("closing activeEP");
 		activeEP.close();
-		debug("closing relEP");
+		info("closing relEP");
 		relEP.close();
 		vkDeviceWaitIdle(app.device);
 	}
@@ -280,7 +280,7 @@ private:
 		// streamingBufferData now contains [vertices|indices]
 		nVertices = phead.nVertices;
 		nIndices = phead.nIndices;
-		std::cerr << "\nn vertices: " << nVertices << ", n indices: " << nIndices << "\n";
+		debug("\nn vertices: ", nVertices, ", n indices: ", nIndices);
 
 		//constexpr auto HEADER_SIZE = 2 * sizeof(uint64_t);
 		//memcpy(streamingBufferData, data + HEADER_SIZE, nVertices * sizeof(Vertex));
@@ -384,7 +384,7 @@ private:
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app);
 		app.swapChain.renderPass = createLightingRenderPass(app);
-		app.swapChain.pipeline = createSwapChainPipeline(app);
+		app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
 		app.swapChain.depthImage = createDepthImage(app);
 		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
@@ -601,35 +601,36 @@ private:
 		if (gIsDebug)
 			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, nIndices,
 				vertexBuffer, indexBuffer, mvpUniformBuffer, app.res.descriptorSets->get("swap"));
-		else
+		else {
 			recordSwapChainCommandBuffers(app, swapCommandBuffers, nIndices,
 				compUniformBuffer, app.res.descriptorSets->get("swap"));
-		recordGBufferCommandBuffer(app, gbufCommandBuffer, nIndices, vertexBuffer,
+			recordGBufferCommandBuffer(app, gbufCommandBuffer, nIndices, vertexBuffer,
 				indexBuffer, mvpUniformBuffer, app.res.descriptorSets->get("gbuffer"));
+		}
 	}
 };
 
 int main(int argc, char **argv) {
 	if (!Endpoint::init()) {
-		std::cerr << "Failed to initialize sockets." << std::endl;
+		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;
 	}
 	if (!xplatEnableExitHandler()) {
-		std::cerr << "Failed to enable exit handler!" << std::endl;
+		err("Failed to enable exit handler!");
 		return EXIT_FAILURE;
 	}
 	xplatSetExitHandler([] () {
 		if (Endpoint::cleanup())
-			std::cerr << "Successfully cleaned up sockets." << std::endl;
+			info("Successfully cleaned up sockets.");
 		else
-			std::cerr << "Failed to cleanup sockets!" << std::endl;
+			err("Failed to cleanup sockets!");
 	});
 
 	// Parse args
 	int i = argc - 1;
 	while (i > 0) {
 		if (strlen(argv[i]) < 2) {
-			std::cerr << "Invalid flag: -\n";
+			err("Invalid flag: -");
 			return EXIT_FAILURE;
 		}
 		if (argv[i][0] == '-') {

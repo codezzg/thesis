@@ -23,33 +23,33 @@ inline void log(LogLevel debugLv, bool breakLine) {
 template <typename Arg, typename... Args>
 inline void log(LogLevel debugLv, bool breakLine, Arg&& arg, Args&&... args) {
 	if (gDebugLv < debugLv) return;
-	std::cerr << arg << " ";
+	std::cerr << arg;
 	log(debugLv, breakLine, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void err(Args&&... args) {
-	log(LOGLV_ERR, true, "[E]", std::forward<Args>(args)...);
+	log(LOGLV_ERR, true, "[E] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warn(Args&&... args) {
-	log(LOGLV_WARN, true, "[W]", std::forward<Args>(args)...);
+	log(LOGLV_WARN, true, "[W] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void info(Args&&... args) {
-	log(LOGLV_INFO, true, "[I]", std::forward<Args>(args)...);
+	log(LOGLV_INFO, true, "[I] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void debug(Args&&... args) {
-	log(LOGLV_DEBUG, true, "[D]", std::forward<Args>(args)...);
+	log(LOGLV_DEBUG, true, "[D] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void verbose(Args&&... args) {
-	log(LOGLV_VERBOSE, true, "[V]", std::forward<Args>(args)...);
+	log(LOGLV_VERBOSE, true, "[V] ", std::forward<Args>(args)...);
 }
 
 } // end namespace logging

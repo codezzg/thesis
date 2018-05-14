@@ -5,6 +5,7 @@
 #include "vulk_errors.hpp"
 #ifndef NDEBUG
 	#include <sstream>
+	#include "utils.hpp"
 #endif
 
 bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers) {
@@ -37,11 +38,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		const char* msg,
 		void* userData)
 {
-	auto& objectsInfo = reinterpret_cast<Validation*>(userData)->objectsInfo;
+	const auto data = reinterpret_cast<const Validation*>(userData);
+	auto& objectsInfo = data->objectsInfo;
 	auto it = objectsInfo.find(obj);
 	if (it != objectsInfo.end())
 		std::cerr << "[Object created near " << it->second << "]\n";
-	std::cerr << "validation layer: " << msg << "\n" << std::endl;
+	std::cerr << "validation layer: " << data->addDetails(msg) << "\n" << std::endl;
 
 	return VK_FALSE;
 }
@@ -107,4 +109,38 @@ void Validation::addObjectInfo(void *handle, const char *file, int line) const {
 	//std::cerr << "added " << std::hex << "0x" << reinterpret_cast<uint64_t>(handle) << " -> " << ss.str() << std::endl;
 	objectsInfo[reinterpret_cast<uint64_t>(handle)] = ss.str();
 #endif
+}
+
+std::string Validation::addDetails(const char *msg) const {
+#ifndef NDEBUG
+	std::istringstream iss{ msg };
+	std::ostringstream oss;
+	bool pre = true;
+
+	while (iss) {
+		std::string token;
+		iss >> token;
+		if (token == "|")
+			pre = false;
+
+		oss << token << " ";
+		// Skip until after "|"
+		if (pre)
+			continue;
+
+		if (!startsWith(token, "0x"))
+			continue;
+
+		const uint64_t info = std::stoul(token, nullptr, 16);
+		const auto it = objectsInfo.find(info);
+		if (it != objectsInfo.end()) {
+			// only keep basename
+			const auto idx = it->second.find_last_of("/\\");
+			oss << "[[" << it->second.substr(idx + 1) << "]] ";
+		}
+	}
+
+	return oss.str();
+#endif
+	return std::string{ msg };
 }
