@@ -637,7 +637,8 @@ int main(int argc, char **argv) {
 			case 'd': gIsDebug = true; break;
 			case 'c': gUseCamera = true; break;
 			default:
-				std::cout << "Usage: " << argv[0] << " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
+				std::cout << "Usage: " << argv[0]
+					<< " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
 				break;
 			}
 		}

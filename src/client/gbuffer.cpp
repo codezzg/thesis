@@ -348,11 +348,11 @@ void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandB
 	VkRenderPassBeginInfo renderPassBeginInfo = {};
 	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassBeginInfo.renderPass = app.gBuffer.renderPass;
-	renderPassBeginInfo.framebuffer = app.gBuffer.framebuffer;
 	renderPassBeginInfo.renderArea.extent.width = GBUF_DIM;
 	renderPassBeginInfo.renderArea.extent.height = GBUF_DIM;
 	renderPassBeginInfo.clearValueCount = clearValues.size();
 	renderPassBeginInfo.pClearValues = clearValues.data();
+	renderPassBeginInfo.framebuffer = app.gBuffer.framebuffer;
 
 	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -370,11 +370,11 @@ void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandB
 			"offsets should be the same amount of vertexBuffers!");
 	vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers.size(),
 			vertexBuffers.data(), offsets.data());
-	//vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-	//vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			//app.gBuffer.pipelineLayout, 0, 1, &app.gBuffer.descriptorSet, 0, nullptr);
-	//vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
-	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			app.res.pipelineLayouts->get("gbuffer"), 0, 1,
+			&app.res.descriptorSets->get("gbuffer"), 0, nullptr);
+	vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
 	vkCmdEndRenderPass(commandBuffer);
 
 	VLKCHECK(vkEndCommandBuffer(commandBuffer));
