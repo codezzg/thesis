@@ -32,8 +32,21 @@ void main() {
 	vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 	lighting += diffuse;
 
-	fragColor = vec4(lighting, 1.0);
+	if (texCoords.x < 0.5) {
+		if (texCoords.y < 0.5)
+			fragColor = vec4(lighting, 1.0);
+		else
+			fragColor = vec4(albedo, 1.0);
+	} else {
+		if (texCoords.y < 0.5)
+			fragColor = vec4(normal, 1.0);
+		else
+			fragColor = vec4(vec3(specular), 1.0);
+	}
+	/*fragColor = vec4(lighting, 1.0);*/
+	/*fragColor = vec4(vec3(specular), 1.0);*/
 	/*fragColor = vec4(albedo, 1.0);*/
+	/*fragColor = vec4(normal, 1.0);*/
 	/*fragColor = vec4(texCoords, 0.0, 1.0);*/
 	/*fragColor = vec4(fragPos, 1.0);*/
 }

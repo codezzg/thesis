@@ -249,7 +249,7 @@ VkPipeline createGBufferPipeline(const Application& app) {
 
 	VkRect2D scissor = {};
 	scissor.offset = {0, 0};
-	scissor.extent = app.swapChain.extent;
+	scissor.extent = {GBUF_DIM, GBUF_DIM};
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -340,9 +340,9 @@ void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandB
 		VkDescriptorSet descSet)
 {
 	std::array<VkClearValue, 4> clearValues = {};
-	clearValues[0].color = {{ 0, 0, 0, 0 }};
-	clearValues[1].color = {{ 0, 0, 0, 0 }};
-	clearValues[2].color = {{ 0, 0, 0, 0 }};
+	clearValues[0].color = {{ 0, 0, 0.0, 0 }};
+	clearValues[1].color = {{ 0, 0, 0.0, 0 }};
+	clearValues[2].color = {{ 0, 0, 0.2, 0 }};
 	clearValues[3].depthStencil = { 1, 0 };
 
 	VkRenderPassBeginInfo renderPassBeginInfo = {};
