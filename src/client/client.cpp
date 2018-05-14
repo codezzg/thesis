@@ -43,6 +43,7 @@
 #include "textures.hpp"
 #include "xplatform.hpp"
 #include "logging.hpp"
+#include "pipelines.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -98,6 +99,7 @@ private:
 
 	Image texDiffuseImage;
 	Image texSpecularImage;
+	VkSampler texSampler;
 
 	/** Pointer to the memory area staging vertices and indices coming from the server */
 	uint8_t *streamingBufferData = nullptr;
@@ -117,9 +119,9 @@ private:
 		app.swapChain.imageViews = createSwapChainImageViews(app);
 		app.swapChain.renderPass = createLightingRenderPass(app);
 		app.commandPool = createCommandPool(app);
-		swapCommandBuffers = createSwapChainCommandBuffers(app);
 		app.swapChain.depthImage = createDepthImage(app);
 		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		// TODO: pipeline cache
 
 		// Load assets
@@ -127,16 +129,16 @@ private:
 		{
 			// Load textures
 			texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
-			texDiffuseImage.sampler = createTextureSampler(app);
 			texSpecularImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::GREY);
-			texSpecularImage.sampler = createTextureSampler(app);
+			texSampler = createTextureSampler(app);
 		}
 
 		// Create GBuffer
 		app.gBuffer.createAttachments(app);
+		app.gBuffer.sampler = createTextureSampler(app);
 		app.gBuffer.renderPass = createGeometryRenderPass(app);
 		app.gBuffer.framebuffer = createGBufferFramebuffer(app);
-		gbufCommandBuffer = allocCommandBuffer(app);
+		gbufCommandBuffer = allocCommandBuffer(app, app.commandPool);
 
 		prepareBufferMemory();
 
@@ -144,13 +146,13 @@ private:
 		app.res.init(app.device, app.descriptorPool);
 		// Layouts
 		app.res.descriptorSetLayouts->add("gbuffer", createGBufferDescriptorSetLayout(app));
-		app.res.pipelineLayouts->add("gbuffer", createPipelineLayout(app,
-					&app.res.descriptorSetLayouts->get("gbuffer")));
 		app.res.descriptorSetLayouts->add("swap", gIsDebug
-					? createSwapChainDebugDescriptorSetLayout(app);
+					? createSwapChainDebugDescriptorSetLayout(app)
 					: createSwapChainDescriptorSetLayout(app));
+		app.res.pipelineLayouts->add("gbuffer", createPipelineLayout(app,
+					app.res.descriptorSetLayouts->get("gbuffer")));
 		app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
-					&app.res.descriptorSetLayouts->get("swap")));
+					app.res.descriptorSetLayouts->get("swap")));
 
 
 		// Create pipelines
@@ -158,21 +160,18 @@ private:
 		app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
 
 		app.descriptorPool = createDescriptorPool(app);
-		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app,
+		app.res.descriptorSets->add("gbuffer", createGBufferDescriptorSet(app,
 				app.res.descriptorSetLayouts->get("gbuffer"),
-				mvpUniformBuffer, texDiffuseImage, texSpecularImage);
-		app.swapChain.descriptorSet = gIsDebug
+				mvpUniformBuffer, texDiffuseImage, texSpecularImage, texSampler));
+		app.res.descriptorSets->add("swap", gIsDebug
 			? createSwapChainDebugDescriptorSet(app,
 					app.res.descriptorSetLayouts->get("swap"),
-					mvpUniformBuffer, texDiffuseImage);
+					mvpUniformBuffer, texDiffuseImage, texSampler)
 			: createSwapChainDescriptorSet(app,
 					app.res.descriptorSetLayouts->get("swap"),
-					compUniformBuffer, texDiffuseImage);
+					compUniformBuffer, texDiffuseImage, texSampler));
 
-			// Create descriptor sets and command buffers for G-Buffer
-		recordSwapChainCommandBuffers(app, nIndices, compUniformBuffer, app.swapChain.descriptorSet);
-		recordGBufferCommandBuffer(app, gbufCommandBuffer, nIndices, vertexBuffer,
-				indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);
+		recordCommandBuffers();
 
 		createSemaphores();
 
@@ -202,12 +201,9 @@ private:
 		FPSCounter fps;
 		fps.start();
 
-		//updateVertexBuffer();
-		//updateIndexBuffer();
 		updateMVPUniformBuffer();
 		updateCompUniformBuffer();
 
-		auto& clock = Clock::instance();
 		auto beginTime = std::chrono::high_resolution_clock::now();
 
 		while (!glfwWindowShouldClose(app.window)) {
@@ -249,18 +245,12 @@ private:
 			vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
-			if (gIsDebug) {
-				swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
-						vertexBuffer, indexBuffer,
-						mvpUniformBuffer, app.swapChain.descriptorSet);
-			} else {
-				swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-					compUniformBuffer, app.swapChain.descriptorSet);
-			}
+			vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
+			swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
+			gbufCommandBuffer = allocCommandBuffer(app, app.commandPool);
+			recordCommandBuffers();
 		}
 
-		//updateVertexBuffer();
-		//updateIndexBuffer();
 		updateMVPUniformBuffer();
 		updateCompUniformBuffer();
 
@@ -324,26 +314,16 @@ private:
 		fps.report();
 	}
 
-	void cleanupSwapChain() {
-		// Destroy the gbuffer and all its attachments
-		app.gBuffer.destroyTransient(app.device);
-		// Destroy the swapchain and all its images and framebuffers
-		app.swapChain.destroyTransient(app.device);
-
-		vkFreeCommandBuffers(app.device, app.commandPool,
-				static_cast<uint32_t>(swapCommandBuffers.size()),
-				swapCommandBuffers.data());
-		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
-
-		vkResetDescriptorPool(app.device, app.descriptorPool, 0);
-	}
-
 	void cleanup() {
 		cleanupSwapChain();
+
+		app.gBuffer.destroyTransient(app.device);
+		app.gBuffer.destroyPersistent(app.device);
 
 		vkUnmapMemory(app.device, vertexBuffer.memory);
 		vkUnmapMemory(app.device, indexBuffer.memory);
 
+		vkDestroySampler(app.device, texSampler, nullptr);
 		texDiffuseImage.destroy(app.device);
 		texSpecularImage.destroy(app.device);
 
@@ -377,6 +357,20 @@ private:
 		glfwSetCursorPos(window, prevX, prevY);
 	}
 
+	void cleanupSwapChain() {
+		// Destroy the gbuffer and all its attachments
+		//app.gBuffer.destroyTransient(app.device);
+		// Destroy the swapchain and all its images and framebuffers
+		app.swapChain.destroyTransient(app.device);
+
+		vkFreeCommandBuffers(app.device, app.commandPool,
+				static_cast<uint32_t>(swapCommandBuffers.size()),
+				swapCommandBuffers.data());
+		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
+
+		//vkResetDescriptorPool(app.device, app.descriptorPool, 0);
+	}
+
 	void recreateSwapChain() {
 		int width, height;
 		glfwGetWindowSize(app.window, &width, &height);
@@ -386,50 +380,20 @@ private:
 
 		cleanupSwapChain();
 
-		{
-			// FIXME: old swapchain?
-			app.swapChain = createSwapChain(app, VK_NULL_HANDLE);
-			app.swapChain.imageViews = createSwapChainImageViews(app);
-		}
+		// FIXME: old swapchain?
+		app.swapChain = createSwapChain(app);
+		app.swapChain.imageViews = createSwapChainImageViews(app);
+		app.swapChain.renderPass = createLightingRenderPass(app);
+		app.swapChain.pipeline = createSwapChainPipeline(app);
+		app.swapChain.depthImage = createDepthImage(app);
+		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 
-		{
-			app.gBuffer.createAttachments(app);
-			app.gBuffer.renderPass = createGeometryRenderPass(app);
-			app.gBuffer.framebuffer = createGBufferFramebuffer(app);
-			//app.gBuffer = createGBuffer(app, gBufAttachments, geomRenderPass);
-			app.gBuffer.pipeline = createGBufferPipeline(app);
-		}
+		gbufCommandBuffer = allocCommandBuffer(app, app.commandPool);
 
-		{
-			app.swapChain.depthImage = createDepthImage(app);
-
-			const auto lightRenderPass = createLightingRenderPass(app);
-			app.swapChain.renderPass = lightRenderPass;
-			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
-			app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
-
-			if (gIsDebug) {
-				app.swapChain.descriptorSet = createSwapChainDebugDescriptorSet(app,
-						app.res.descriptorSetLayouts->get("swap"),
-						mvpUniformBuffer, texDiffuseImage);
-				swapCommandBuffers = createSwapChainDebugCommandBuffers(app, nIndices,
-					vertexBuffer, indexBuffer,
-					mvpUniformBuffer, app.swapChain.descriptorSet);
-			} else {
-				app.swapChain.descriptorSet = createSwapChainDescriptorSet(app,
-						app.res.descriptorSetLayouts->get("swap"),
-						compUniformBuffer, texDiffuseImage);
-				swapCommandBuffers = createSwapChainCommandBuffers(app, nIndices,
-					compUniformBuffer, app.swapChain.descriptorSet);
-			}
-		}
-
-		app.gBuffer.descriptorSet = createGBufferDescriptorSet(app,
-				app.res.descriptorSetLayouts->get("gbuffer"),
-				mvpUniformBuffer, texDiffuseImage, texSpecularImage);
-		gbufCommandBuffer = createGBufferCommandBuffer(app, nIndices,
-				vertexBuffer, indexBuffer, mvpUniformBuffer, app.gBuffer.descriptorSet);
-
+		recordCommandBuffers();
+		updateMVPUniformBuffer();
+		updateCompUniformBuffer();
 	}
 
 	void createSemaphores() {
@@ -567,26 +531,6 @@ private:
 		VLKCHECK(vkQueueWaitIdle(app.queues.graphics));
 	}
 
-
-	/*
-	void updateVertexBuffer() {
-		// Acquire handle to device memory
-		void *data;
-		vkMapMemory(app.device, vertexBuffer.memory, 0, VERTEX_BUFFER_SIZE, 0, &data);
-		// Copy host memory to device
-		memcpy(data, streamingBufferData, VERTEX_BUFFER_SIZE);
-		vkUnmapMemory(app.device, vertexBuffer.memory);
-	}
-
-	void updateIndexBuffer() {
-		// Acquire handle to device memory
-		void *data;
-		vkMapMemory(app.device, indexBuffer.memory, 0, INDEX_BUFFER_SIZE, 0, &data);
-		// Copy host memory to device
-		memcpy(data, streamingBufferData + VERTEX_BUFFER_SIZE, INDEX_BUFFER_SIZE);
-		vkUnmapMemory(app.device, indexBuffer.memory);
-	}*/
-
 	void updateMVPUniformBuffer() {
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -606,6 +550,7 @@ private:
 				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
 		ubo.proj[1][1] *= -1;
 
+		// FIXME: permanent mapping
 		void *data;
 		vkMapMemory(app.device, mvpUniformBuffer.memory, 0, sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
@@ -616,6 +561,7 @@ private:
 		CompositionUniformBufferObject ubo = {};
 		ubo.viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0 };
 
+		// FIXME: permanent mapping
 		void *data;
 		vkMapMemory(app.device, compUniformBuffer.memory, 0, sizeof(ubo), 0, &data);
 		memcpy(data, &ubo, sizeof(ubo));
@@ -649,6 +595,17 @@ private:
 		camera = createCamera();
 		cameraCtrl = std::make_unique<CameraController>(camera);
 		activeEP.setCamera(&camera);
+	}
+
+	void recordCommandBuffers() {
+		if (gIsDebug)
+			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, nIndices,
+				vertexBuffer, indexBuffer, mvpUniformBuffer, app.res.descriptorSets->get("swap"));
+		else
+			recordSwapChainCommandBuffers(app, swapCommandBuffers, nIndices,
+				compUniformBuffer, app.res.descriptorSets->get("swap"));
+		recordGBufferCommandBuffer(app, gbufCommandBuffer, nIndices, vertexBuffer,
+				indexBuffer, mvpUniformBuffer, app.res.descriptorSets->get("gbuffer"));
 	}
 };
 

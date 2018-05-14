@@ -9,9 +9,11 @@
 #include "commands.hpp"
 #include <array>
 
+static constexpr auto GBUF_DIM = 2048;
+
 static Image createPosAttachment(const Application& app) {
 	auto positionImg = createImage(app,
-		app.swapChain.extent.width, app.swapChain.extent.height,
+		GBUF_DIM, GBUF_DIM,
 		formats::position,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -27,7 +29,7 @@ static Image createPosAttachment(const Application& app) {
 
 static Image createNormalAttachment(const Application& app) {
 	auto normalImg = createImage(app,
-		app.swapChain.extent.width, app.swapChain.extent.height,
+		GBUF_DIM, GBUF_DIM,
 		formats::normal,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -42,7 +44,7 @@ static Image createNormalAttachment(const Application& app) {
 
 static Image createAlbedoSpecAttachment(const Application& app) {
 	auto albedoSpecImg = createImage(app,
-		app.swapChain.extent.width, app.swapChain.extent.height,
+		GBUF_DIM, GBUF_DIM,
 		formats::albedoSpec,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -58,7 +60,7 @@ static Image createAlbedoSpecAttachment(const Application& app) {
 
 static Image createDepthAttachment(const Application& app) {
 	auto depthImg = createImage(app,
-		app.swapChain.extent.width, app.swapChain.extent.height,
+		GBUF_DIM, GBUF_DIM,
 		formats::depth,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -83,8 +85,8 @@ VkFramebuffer createGBufferFramebuffer(const Application& app) {
 	fbInfo.renderPass = app.gBuffer.renderPass;
 	fbInfo.attachmentCount = attachments.size();
 	fbInfo.pAttachments = attachments.data();
-	fbInfo.width = app.swapChain.extent.width;
-	fbInfo.height = app.swapChain.extent.height;
+	fbInfo.width = GBUF_DIM,
+	fbInfo.height = GBUF_DIM,
 	fbInfo.layers = 1;
 
 	VkFramebuffer fb;
@@ -99,12 +101,6 @@ void GBuffer::createAttachments(const Application& app) {
 	normal = createNormalAttachment(app);
 	albedoSpec = createAlbedoSpecAttachment(app);
 	depth = createDepthAttachment(app);
-
-	auto sampler = createTextureSampler(app);
-	position.sampler = sampler;
-	normal.sampler = sampler;
-	albedoSpec.sampler = sampler;
-	depth.sampler = sampler;
 }
 
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
@@ -148,7 +144,8 @@ VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
 }
 
 VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer, const Image& texDiffuseImage, const Image& texSpecularImage)
+		const Buffer& uniformBuffer, const Image& texDiffuseImage, const Image& texSpecularImage,
+		VkSampler texSampler)
 {
 	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
 	VkDescriptorSetAllocateInfo allocInfo = {};
@@ -169,12 +166,12 @@ VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorS
 	VkDescriptorImageInfo texDiffuseInfo = {};
 	texDiffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	texDiffuseInfo.imageView = texDiffuseImage.view;
-	texDiffuseInfo.sampler = texDiffuseImage.sampler;
+	texDiffuseInfo.sampler = texSampler;
 
 	VkDescriptorImageInfo texSpecularInfo = {};
 	texSpecularInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	texSpecularInfo.imageView = texSpecularImage.view;
-	texSpecularInfo.sampler = texSpecularImage.sampler;
+	texSpecularInfo.sampler = texSampler;
 
 	std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
 	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -245,8 +242,8 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	VkViewport viewport = {};
 	viewport.x = 0.f;
 	viewport.y = 0.f;
-	viewport.width = static_cast<float>(app.swapChain.extent.width);
-	viewport.height = static_cast<float>(app.swapChain.extent.height);
+	viewport.width = static_cast<float>(GBUF_DIM);
+	viewport.height = static_cast<float>(GBUF_DIM);
 	viewport.minDepth = 0.f;
 	viewport.maxDepth = 1.f;
 
@@ -337,7 +334,8 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	return pipeline;
 }
 
-void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandBuffer, uint32_t nIndices,
+void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandBuffer,
+		uint32_t nIndices,
 		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
 		VkDescriptorSet descSet)
 {

@@ -39,7 +39,7 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app);
  */
 uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore);
 
-std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app);
+std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool);
 
 void recordSwapChainCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& buffers,
 		uint32_t nIndices, const Buffer& uBuffer, VkDescriptorSet descSet);
@@ -47,12 +47,13 @@ void recordSwapChainCommandBuffers(const Application& app, std::vector<VkCommand
 VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
 VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer, const Image& texDiffuse);
+		const Buffer& uniformBuffer, const Image& texDiffuse, VkSampler texSampler);
 VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader = "composition");
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer, const Image& tex);
-std::vector<VkCommandBuffer> createSwapChainDebugCommandBuffers(const Application& app, uint32_t nIndices,
-		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
+		const Buffer& uniformBuffer, const Image& tex, VkSampler texSampler);
+void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& buffers,
+		uint32_t nIndices, const Buffer& vertexBuffer,
+		const Buffer& indexBuffer, const Buffer& uniformBuffer,
 		VkDescriptorSet descriptorSet);

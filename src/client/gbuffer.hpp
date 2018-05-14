@@ -11,6 +11,7 @@ struct Application;
 struct GBuffer final {
 	VkFramebuffer framebuffer;
 
+	VkSampler sampler;
 	Image position;
 	Image normal;
 	Image albedoSpec;
@@ -25,10 +26,6 @@ struct GBuffer final {
 	void createAttachments(const Application& app);
 
 	void destroyTransient(VkDevice device) {
-		// The sampler is shared, only destroy it once
-		vkDestroySampler(device, position.sampler);
-		position.sampler = normal.sampler = albedoSpec.sampler = depth.sampler = VK_NULL_HANDLE;
-
 		position.destroy(device);
 		normal.destroy(device);
 		albedoSpec.destroy(device);
@@ -37,6 +34,10 @@ struct GBuffer final {
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyRenderPass(device, renderPass, nullptr);
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
+	}
+
+	void destroyPersistent(VkDevice device) {
+		vkDestroySampler(device, sampler, nullptr);
 	}
 };
 
@@ -52,9 +53,12 @@ GBuffer createGBuffer(const Application& app, const std::vector<Image>& attachme
 VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app);
 
 VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer, const Image& texDiffuseImage, const Image& texSpecularImage);
+		const Buffer& uniformBuffer, const Image& texDiffuseImage, const Image& texSpecularImage,
+		VkSampler texSampler);
 
 VkPipeline createGBufferPipeline(const Application& app);
 
-void recordGBufferCommandBuffer(const Application app, VkCommandBuffer commandBuffer, uint32_t nIndices,
-		const Buffer& vBuffer, const Buffer& iBuffer, const Buffer& uBuffer, VkDescriptorSet descSet);
+void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandBuffer,
+		uint32_t nIndices,
+		const Buffer& vBuffer, const Buffer& iBuffer, const Buffer& uBuffer,
+		VkDescriptorSet descSet);

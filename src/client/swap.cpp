@@ -202,12 +202,12 @@ uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailable
 	return imageIndex;
 }
 
-std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app) {
+std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool) {
 	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
 
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = app.commandPool;
+	allocInfo.commandPool = commandPool;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
@@ -307,7 +307,7 @@ VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app)
 }
 
 VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer, const Image& texDiffuseImage)
+		const Buffer& uniformBuffer, const Image& texDiffuseImage, VkSampler texSampler)
 {
 	const auto& gPosition = app.gBuffer.position;
 	//const auto& gAlbedoSpec = texDiffuseImage;
@@ -328,17 +328,17 @@ VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescripto
 	VkDescriptorImageInfo gPositionInfo = {};
 	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gPositionInfo.imageView = gPosition.view;
-	gPositionInfo.sampler = gPosition.sampler;
+	gPositionInfo.sampler = app.gBuffer.sampler;
 
 	VkDescriptorImageInfo gNormalInfo = {};
 	gNormalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gNormalInfo.imageView = gNormal.view;
-	gNormalInfo.sampler = gNormal.sampler;
+	gNormalInfo.sampler = app.gBuffer.sampler;
 
 	VkDescriptorImageInfo gAlbedoSpecInfo = {};
 	gAlbedoSpecInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gAlbedoSpecInfo.imageView = gAlbedoSpec.view;
-	gAlbedoSpecInfo.sampler = gAlbedoSpec.sampler;
+	gAlbedoSpecInfo.sampler = app.gBuffer.sampler;
 
 	VkDescriptorBufferInfo bufferInfo = {};
 	bufferInfo.buffer = uniformBuffer.handle;
@@ -545,7 +545,8 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 }
 
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
-		VkDescriptorSetLayout descriptorSetLayout, const Buffer& ubo, const Image& tex)
+		VkDescriptorSetLayout descriptorSetLayout, const Buffer& ubo, const Image& tex,
+		VkSampler texSampler)
 {
 	VkDescriptorBufferInfo uboInfo = {};
 	uboInfo.buffer = ubo.handle;
@@ -555,7 +556,7 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 	VkDescriptorImageInfo texInfo = {};
 	texInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	texInfo.imageView = tex.view;
-	texInfo.sampler = tex.sampler;
+	texInfo.sampler = texSampler;
 
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -589,20 +590,11 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 	return descriptorSet;
 }
 
-std::vector<VkCommandBuffer> createSwapChainDebugCommandBuffers(const Application& app, uint32_t nIndices,
+void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& commandBuffers,
+		uint32_t nIndices,
 		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
 		VkDescriptorSet descriptorSet)
 {
-	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
-
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = app.commandPool;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
-
-	VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, commandBuffers.data()));
-
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -643,6 +635,4 @@ std::vector<VkCommandBuffer> createSwapChainDebugCommandBuffers(const Applicatio
 
 		VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
 	}
-
-	return commandBuffers;
 }
