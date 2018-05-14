@@ -1,6 +1,7 @@
 #include "server_endpoint.hpp"
 #include <chrono>
 #include <thread>
+#include <cstring>
 #include <iostream>
 #include <unordered_map>
 #include "config.hpp"

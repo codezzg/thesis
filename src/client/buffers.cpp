@@ -1,5 +1,6 @@
 #include "buffers.hpp"
 #include <array>
+#include <cstring>
 #include "commands.hpp"
 #include "phys_device.hpp"
 #include "application.hpp"
