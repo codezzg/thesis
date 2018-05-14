@@ -39,10 +39,6 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		void* userData)
 {
 	const auto data = reinterpret_cast<const Validation*>(userData);
-	auto& objectsInfo = data->objectsInfo;
-	auto it = objectsInfo.find(obj);
-	if (it != objectsInfo.end())
-		std::cerr << "[Object created near " << it->second << "]\n";
 	std::cerr << "validation layer |" << layerPrefix << "|: " << data->addDetails(msg) << "\n" << std::endl;
 
 	return VK_FALSE;
@@ -115,18 +111,11 @@ std::string Validation::addDetails(const char *msg) const {
 #ifndef NDEBUG
 	std::istringstream iss{ msg };
 	std::ostringstream oss;
-	bool pre = true;
 
 	while (iss) {
 		std::string token;
 		iss >> token;
-		if (token == "|")
-			pre = false;
-
 		oss << token << " ";
-		// Skip until after "|"
-		if (pre)
-			continue;
 
 		if (!startsWith(token, "0x"))
 			continue;

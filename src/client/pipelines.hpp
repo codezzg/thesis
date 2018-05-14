@@ -7,3 +7,5 @@ struct Application;
 
 VkPipelineLayout createPipelineLayout(const Application& app, VkDescriptorSetLayout descSetLayout,
 		const std::vector<VkPushConstantRange>& pushConstantRanges = {});
+
+VkPipelineCache createPipelineCache(const Application& app);

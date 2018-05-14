@@ -35,14 +35,15 @@ struct Application final {
 	VkDescriptorPool descriptorPool;
 
 	SwapChain swapChain;
+	Image depthImage;
 
 	GBuffer gBuffer;
 
 	Buffer screenQuadBuffer;
 
-	Image depthImage;
-
 	Resources res;
+
+	VkPipelineCache pipelineCache;
 
 	void init();
 	void cleanup();

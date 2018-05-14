@@ -19,6 +19,17 @@ VkPipelineLayout createPipelineLayout(const Application& app, VkDescriptorSetLay
 	return pipelineLayout;
 }
 
+VkPipelineCache createPipelineCache(const Application& app) {
+	VkPipelineCacheCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+
+	VkPipelineCache pipelineCache;
+	VLKCHECK(vkCreatePipelineCache(app.device, &createInfo, nullptr, &pipelineCache));
+	app.validation.addObjectInfo(pipelineCache, __FILE__, __LINE__);
+
+	return pipelineCache;
+}
+
 /*
 VkPipelineCreateInfo getBasePipelineCreateInfo(const Application& app) {
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};

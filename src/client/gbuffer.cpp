@@ -324,7 +324,7 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	pipelineInfo.basePipelineIndex = -1;
 
 	VkPipeline pipeline;
-	VLKCHECK(vkCreateGraphicsPipelines(app.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+	VLKCHECK(vkCreateGraphicsPipelines(app.device, app.pipelineCache, 1, &pipelineInfo, nullptr, &pipeline));
 	app.validation.addObjectInfo(pipeline, __FILE__, __LINE__);
 
 	// Cleanup

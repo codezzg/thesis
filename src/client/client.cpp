@@ -56,7 +56,7 @@ using std::size_t;
 bool gUseCamera = false;
 bool gIsDebug = false;
 
-class HelloTriangleApplication final {
+class VulkanClient final {
 public:
 	void run() {
 		app.init();
@@ -128,7 +128,7 @@ private:
 		app.swapChain.depthImage = createDepthImage(app);
 		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
-		// TODO: pipeline cache
+		app.pipelineCache = createPipelineCache(app);
 
 		// Load assets
 		app.screenQuadBuffer = createScreenQuadVertexBuffer(app);
@@ -184,6 +184,14 @@ private:
 		prepareCamera();
 	}
 
+	void startNetwork() {
+		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT, SOCK_DGRAM);
+		passiveEP.runLoop();
+
+		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT, SOCK_DGRAM);
+		activeEP.runLoop();
+	}
+
 	void connectToServer() {
 		relEP.startActive(cfg::SERVER_RELIABLE_IP, cfg::SERVER_RELIABLE_PORT, SOCK_STREAM);
 		relEP.runLoop();
@@ -230,14 +238,6 @@ private:
 		vkDeviceWaitIdle(app.device);
 	}
 
-	void startNetwork() {
-		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT, SOCK_DGRAM);
-		passiveEP.runLoop();
-
-		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT, SOCK_DGRAM);
-		activeEP.runLoop();
-	}
-
 	void runFrame() {
 		static size_t pvs = nVertices,
 		              pis = nIndices;
@@ -264,13 +264,14 @@ private:
 		cameraCtrl->processInput(app.window);
 
 		if (gIsDebug)
-			drawFrame2();
+			drawFrameForward();
 		else
 			drawFrame();
 	}
 
 	void receiveData() {
-		//std::cerr << "receive data. curFrame = " << curFrame << ", passive.get = " << passiveEP.getFrameId() << "\n";
+		verbose("receive data. curFrame = ", curFrame, ", passive.get = ", passiveEP.getFrameId());
+
 		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame)
 			return;
 
@@ -314,70 +315,9 @@ private:
 			dt = clock.targetDeltaTime;
 		clock.update(dt);
 		beginTime = endTime;
-		//std::cerr << "dt = " << clock.deltaTime() << " (estimate FPS = " <<
-			//1 / clock.deltaTime() << ")\n";
 
 		fps.addFrame();
 		fps.report();
-	}
-
-	void cleanup() {
-		cleanupSwapChain();
-
-		app.gBuffer.destroyTransient(app.device);
-		app.gBuffer.destroyPersistent(app.device);
-
-		vkUnmapMemory(app.device, vertexBuffer.memory);
-		vkUnmapMemory(app.device, indexBuffer.memory);
-		vkUnmapMemory(app.device, mvpUniformBuffer.memory);
-		vkUnmapMemory(app.device, compUniformBuffer.memory);
-
-		vkDestroySampler(app.device, texSampler, nullptr);
-		texDiffuseImage.destroy(app.device);
-		texSpecularImage.destroy(app.device);
-
-		mvpUniformBuffer.destroy(app.device);
-		compUniformBuffer.destroy(app.device);
-		indexBuffer.destroy(app.device);
-		vertexBuffer.destroy(app.device);
-
-		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
-		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
-		vkDestroySemaphore(app.device, gBufRenderFinishedSemaphore, nullptr);
-
-		delete [] streamingBufferData;
-
-		app.res.cleanup();
-		app.cleanup();
-	}
-
-	static void onWindowResized(GLFWwindow *window, int, int) {
-		auto appl = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
-		appl->recreateSwapChain();
-	}
-
-	static void cursorPosCallback(GLFWwindow *window, double xpos, double ypos) {
-		static double prevX = cfg::WIDTH / 2.0,
-		              prevY = cfg::HEIGHT / 2.0;
-		auto appl = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
-		appl->cameraCtrl->turn(xpos - prevX, prevY - ypos);
-		//prevX = xpos;
-		//prevY = ypos;
-		glfwSetCursorPos(window, prevX, prevY);
-	}
-
-	void cleanupSwapChain() {
-		// Destroy the gbuffer and all its attachments
-		//app.gBuffer.destroyTransient(app.device);
-		// Destroy the swapchain and all its images and framebuffers
-		app.swapChain.destroyTransient(app.device);
-
-		vkFreeCommandBuffers(app.device, app.commandPool,
-				static_cast<uint32_t>(swapCommandBuffers.size()),
-				swapCommandBuffers.data());
-		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
-
-		//vkResetDescriptorPool(app.device, app.descriptorPool, 0);
 	}
 
 	void recreateSwapChain() {
@@ -413,7 +353,7 @@ private:
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &gBufRenderFinishedSemaphore));
 	}
 
-	void drawFrame2() {
+	void drawFrameForward() {
 		const auto imageIndex = acquireNextSwapImage(app, imageAvailableSemaphore);
 		if (imageIndex < 0) {
 			recreateSwapChain();
@@ -546,14 +486,15 @@ private:
 		auto ubo = reinterpret_cast<MVPUniformBufferObject*>(mvpUboData);
 
 		if (gUseCamera) {
-			ubo->model = glm::mat4{1.0f};
+			ubo->model = glm::mat4{};
 			ubo->view = camera.viewMatrix();
 		} else {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(
 					currentTime - startTime).count();
-			ubo->model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
-			ubo->view = glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
+			ubo->model = glm::rotate(glm::mat4{}, time * glm::radians(90.f), glm::vec3{ 0.f, -1.f, 0.f });
+			ubo->view = glm::lookAt(glm::vec3{ 140, 140, 140 },
+					glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
 		}
 		ubo->proj = glm::perspective(glm::radians(60.f),
 				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
@@ -561,7 +502,7 @@ private:
 	}
 
 	void updateCompUniformBuffer() {
-		auto ubo = reinterpret_cast<CompositionUniformBufferObject*>(compUboData);;
+		auto ubo = reinterpret_cast<CompositionUniformBufferObject*>(compUboData);
 		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0 };
 	}
 
@@ -607,6 +548,65 @@ private:
 				indexBuffer, mvpUniformBuffer, app.res.descriptorSets->get("gbuffer"));
 		}
 	}
+
+	void cleanupSwapChain() {
+		// Destroy the gbuffer and all its attachments
+		//app.gBuffer.destroyTransient(app.device);
+		// Destroy the swapchain and all its images and framebuffers
+		app.swapChain.destroyTransient(app.device);
+
+		vkFreeCommandBuffers(app.device, app.commandPool,
+				static_cast<uint32_t>(swapCommandBuffers.size()),
+				swapCommandBuffers.data());
+		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
+	}
+
+	void cleanup() {
+		cleanupSwapChain();
+
+		app.gBuffer.destroyTransient(app.device);
+		app.gBuffer.destroyPersistent(app.device);
+
+		vkUnmapMemory(app.device, vertexBuffer.memory);
+		vkUnmapMemory(app.device, indexBuffer.memory);
+		vkUnmapMemory(app.device, mvpUniformBuffer.memory);
+		vkUnmapMemory(app.device, compUniformBuffer.memory);
+
+		vkDestroySampler(app.device, texSampler, nullptr);
+		texDiffuseImage.destroy(app.device);
+		texSpecularImage.destroy(app.device);
+
+		mvpUniformBuffer.destroy(app.device);
+		compUniformBuffer.destroy(app.device);
+		indexBuffer.destroy(app.device);
+		vertexBuffer.destroy(app.device);
+
+		vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
+
+		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
+		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
+		vkDestroySemaphore(app.device, gBufRenderFinishedSemaphore, nullptr);
+
+		delete [] streamingBufferData;
+
+		app.res.cleanup();
+		app.cleanup();
+	}
+
+	static void onWindowResized(GLFWwindow *window, int, int) {
+		auto appl = reinterpret_cast<VulkanClient*>(glfwGetWindowUserPointer(window));
+		appl->recreateSwapChain();
+	}
+
+	static void cursorPosCallback(GLFWwindow *window, double xpos, double ypos) {
+		static double prevX = cfg::WIDTH / 2.0,
+		              prevY = cfg::HEIGHT / 2.0;
+		auto appl = reinterpret_cast<VulkanClient*>(glfwGetWindowUserPointer(window));
+		appl->cameraCtrl->turn(xpos - prevX, prevY - ypos);
+		//prevX = xpos;
+		//prevY = ypos;
+		glfwSetCursorPos(window, prevX, prevY);
+	}
 };
 
 int main(int argc, char **argv) {
@@ -645,7 +645,7 @@ int main(int argc, char **argv) {
 		--i;
 	}
 
-	HelloTriangleApplication app;
+	VulkanClient app;
 
 	try {
 		app.run();

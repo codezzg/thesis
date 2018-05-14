@@ -85,7 +85,7 @@ void parseArgs(int argc, char **argv) {
 		switch (argv[i][1]) {
 		case 'v': {
 			int lv = 1;
-			int j = 2;
+			unsigned j = 2;
 			while (j < strlen(argv[i]) && argv[i][j] == 'v') {
 				++lv;
 				++j;
