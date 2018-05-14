@@ -3,8 +3,11 @@
 #include "formats.hpp"
 #include "window.hpp"
 #include "vulk_errors.hpp"
+#include "logging.hpp"
 #include <set>
 #include <array>
+
+using namespace logging;
 
 static VkInstance createInstance(const Validation& validation) {
 	VkApplicationInfo appInfo = {};
@@ -106,6 +109,11 @@ void Application::init() {
 #endif
 	window = initWindow();
 	instance = createInstance(validation);
+
+	uint32_t version;
+	vkEnumerateInstanceVersion(&version);
+	info("Vulkan: using version ", VK_VERSION_MAJOR(version), ".", VK_VERSION_MINOR(version), ".", VK_VERSION_PATCH(version));
+
 	validation.init(instance);
 
 	surface = createSurface(instance, window);
