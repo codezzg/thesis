@@ -4,6 +4,7 @@
 #include "window.hpp"
 #include "vulk_errors.hpp"
 #include <set>
+#include <array>
 
 static VkInstance createInstance(const Validation& validation) {
 	VkApplicationInfo appInfo = {};

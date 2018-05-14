@@ -7,6 +7,7 @@
 #include "shaders.hpp"
 #include "vertex.hpp"
 #include "commands.hpp"
+#include "logging.hpp"
 #include <array>
 
 static constexpr auto GBUF_DIM = 2048;
@@ -342,7 +343,7 @@ void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandB
 	std::array<VkClearValue, 4> clearValues = {};
 	clearValues[0].color = {{ 0, 0, 0.0, 0 }};
 	clearValues[1].color = {{ 0, 0, 0.0, 0 }};
-	clearValues[2].color = {{ 0, 0, 0.2, 0 }};
+	clearValues[2].color = {{ 0.f, 0.f, 0.2f, 0.f }};
 	clearValues[3].depthStencil = { 1, 0 };
 
 	VkRenderPassBeginInfo renderPassBeginInfo = {};

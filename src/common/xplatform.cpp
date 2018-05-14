@@ -20,7 +20,7 @@ static bool gCalledExitHandler;
 #ifdef _WIN32
 static BOOL wrapper(DWORD signalType) {
 	if (gCalledExitHandler)
-		return;
+		return false;
 
 	switch (signalType) {
 	case CTRL_C_EVENT:

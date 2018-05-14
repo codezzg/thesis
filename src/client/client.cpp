@@ -160,7 +160,6 @@ private:
 		app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
 					app.res.descriptorSetLayouts->get("swap")));
 
-
 		// Create pipelines
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");

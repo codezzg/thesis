@@ -4,6 +4,7 @@
 #include "third_party/stb_image.h"
 #include "formats.hpp"
 #include "buffers.hpp"
+#include "logging.hpp"
 #include "vulk_errors.hpp"
 #include <vulkan/vulkan.h>
 
