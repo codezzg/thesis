@@ -105,10 +105,16 @@ private:
 	uint8_t *streamingBufferData = nullptr;
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
+
 	/** Permanently mapped pointer to device vertex data (vertexBuffer.memory) */
 	void *vertexData = nullptr;
 	/** Permanently mapped pointer to device index data (indexBuffer.memory) */
 	void *indexData = nullptr;
+	/** Permanently mapped pointer to mvp uniform buffer */
+	void *mvpUboData = nullptr;
+	/** Permanently mapped pointer to comp uniform buffer */
+	void *compUboData = nullptr;
+
 	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
 	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
 
@@ -219,7 +225,8 @@ private:
 		info("closing activeEP");
 		activeEP.close();
 		info("closing relEP");
-		relEP.close();
+		relEP.close(); // FIXME why it hangs sometimes?
+		info("waiting device idle");
 		vkDeviceWaitIdle(app.device);
 	}
 
@@ -322,6 +329,8 @@ private:
 
 		vkUnmapMemory(app.device, vertexBuffer.memory);
 		vkUnmapMemory(app.device, indexBuffer.memory);
+		vkUnmapMemory(app.device, mvpUniformBuffer.memory);
+		vkUnmapMemory(app.device, compUniformBuffer.memory);
 
 		vkDestroySampler(app.device, texSampler, nullptr);
 		texDiffuseImage.destroy(app.device);
@@ -534,38 +543,26 @@ private:
 	void updateMVPUniformBuffer() {
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
-		MVPUniformBufferObject ubo = {};
+		auto ubo = reinterpret_cast<MVPUniformBufferObject*>(mvpUboData);
 
 		if (gUseCamera) {
-			ubo.model = glm::mat4{1.0f};
-			ubo.view = camera.viewMatrix();
+			ubo->model = glm::mat4{1.0f};
+			ubo->view = camera.viewMatrix();
 		} else {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(
 					currentTime - startTime).count();
-			ubo.model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
-			ubo.view = glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
+			ubo->model = glm::rotate(glm::mat4{1.0f}, time * glm::radians(90.f), glm::vec3{0.f, -1.f, 0.f});
+			ubo->view = glm::lookAt(glm::vec3{140,140,140},glm::vec3{0,0,0},glm::vec3{0,1,0});
 		}
-		ubo.proj = glm::perspective(glm::radians(60.f),
+		ubo->proj = glm::perspective(glm::radians(60.f),
 				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
-		ubo.proj[1][1] *= -1;
-
-		// FIXME: permanent mapping
-		void *data;
-		vkMapMemory(app.device, mvpUniformBuffer.memory, 0, sizeof(ubo), 0, &data);
-		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(app.device, mvpUniformBuffer.memory);
+		ubo->proj[1][1] *= -1;
 	}
 
 	void updateCompUniformBuffer() {
-		CompositionUniformBufferObject ubo = {};
-		ubo.viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0 };
-
-		// FIXME: permanent mapping
-		void *data;
-		vkMapMemory(app.device, compUniformBuffer.memory, 0, sizeof(ubo), 0, &data);
-		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(app.device, compUniformBuffer.memory);
+		auto ubo = reinterpret_cast<CompositionUniformBufferObject*>(compUboData);;
+		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0 };
 	}
 
 
@@ -584,9 +581,11 @@ private:
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		// Map vertex/index device memory to host
-		vkMapMemory(app.device, vertexBuffer.memory, 0, VERTEX_BUFFER_SIZE, 0, &vertexData);
-		vkMapMemory(app.device, indexBuffer.memory, 0, INDEX_BUFFER_SIZE, 0, &indexData);
+		// Map device memory to host
+		vkMapMemory(app.device, vertexBuffer.memory, 0, vertexBuffer.size, 0, &vertexData);
+		vkMapMemory(app.device, indexBuffer.memory, 0, indexBuffer.size, 0, &indexData);
+		vkMapMemory(app.device, mvpUniformBuffer.memory, 0, mvpUniformBuffer.size, 0, &mvpUboData);
+		vkMapMemory(app.device, compUniformBuffer.memory, 0, compUniformBuffer.size, 0, &compUboData);
 	}
 
 

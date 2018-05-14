@@ -34,7 +34,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		uint64_t obj,
 		std::size_t /*location*/,
 		int32_t /*code*/,
-		const char* /*layerPrefix*/,
+		const char* layerPrefix,
 		const char* msg,
 		void* userData)
 {
@@ -43,7 +43,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	auto it = objectsInfo.find(obj);
 	if (it != objectsInfo.end())
 		std::cerr << "[Object created near " << it->second << "]\n";
-	std::cerr << "validation layer: " << data->addDetails(msg) << "\n" << std::endl;
+	std::cerr << "validation layer |" << layerPrefix << "|: " << data->addDetails(msg) << "\n" << std::endl;
 
 	return VK_FALSE;
 }
