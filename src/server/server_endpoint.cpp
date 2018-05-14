@@ -90,11 +90,11 @@ void ServerActiveEndpoint::loopFunc() {
 		const LimitFrameTime lft{ targetFrameTime - delay };
 
 		// Wait for the new frame data from the client
-		info("Waiting for client data...");
+		debug("Waiting for client data...");
 		shared.loopCv.wait(loopUlk);
 		//shared.loopCv.wait_for(loopMtx, 0.033s);
 
-		info("Received data from frame ", shared.clientFrame);
+		debug("Received data from frame ", shared.clientFrame);
 
 		int64_t frameId = -1;
 		std::array<uint8_t, FrameData().payload.size()> clientData;

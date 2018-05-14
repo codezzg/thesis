@@ -20,17 +20,8 @@ layout (set = 0, binding = 2) uniform UniformBufferObject {
 	mat4 proj;
 } ubo;
 
-
-vec2 positions[3] = vec2[](
-	vec2(0.0, -0.5),
-	vec2(0.5, 0.5),
-	vec2(-0.5, 0.5)
-);
-
 void main() {
-	vec3 pos = vec3(positions[gl_VertexIndex % 3] * 100.0, 0.0);
-
-	vec4 worldPos = ubo.model * vec4(pos, 1.0);
+	vec4 worldPos = ubo.model * vec4(inPos, 1.0);
 	outPos = worldPos.xyz;
 	outTexCoords = inTexCoords;
 

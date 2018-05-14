@@ -349,8 +349,8 @@ void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandB
 	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassBeginInfo.renderPass = app.gBuffer.renderPass;
 	renderPassBeginInfo.framebuffer = app.gBuffer.framebuffer;
-	renderPassBeginInfo.renderArea.extent.width = app.swapChain.extent.width;
-	renderPassBeginInfo.renderArea.extent.height = app.swapChain.extent.height;
+	renderPassBeginInfo.renderArea.extent.width = GBUF_DIM;
+	renderPassBeginInfo.renderArea.extent.height = GBUF_DIM;
 	renderPassBeginInfo.clearValueCount = clearValues.size();
 	renderPassBeginInfo.pClearValues = clearValues.data();
 

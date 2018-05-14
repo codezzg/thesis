@@ -101,8 +101,9 @@ public:
 	{}
 
 	~DescriptorSetMap() {
-		for (auto& pair : resources)
-			vkFreeDescriptorSets(device, descriptorPool, 1, &pair.second);
+		// These get freed automatically by vkDestroyDescriptorPool
+		//for (auto& pair : resources)
+			//vkFreeDescriptorSets(device, descriptorPool, 1, &pair.second);
 	}
 
 	VkDescriptorSet create(const StringId& name, const VkDescriptorSetAllocateInfo& allocInfo) {
