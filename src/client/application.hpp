@@ -45,6 +45,8 @@ struct Application final {
 
 	VkPipelineCache pipelineCache;
 
+	VkRenderPass renderPass;
+
 	void init();
 	void cleanup();
 };

@@ -21,8 +21,6 @@ struct GBuffer final {
 
 	VkPipeline pipeline;
 
-	VkRenderPass renderPass;
-
 	void createAttachments(const Application& app);
 
 	void destroyTransient(VkDevice device) {
@@ -32,7 +30,6 @@ struct GBuffer final {
 		depth.destroy(device);
 
 		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyRenderPass(device, renderPass, nullptr);
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
 	}
 

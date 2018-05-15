@@ -23,8 +23,6 @@ struct SwapChain final {
 
 	VkPipeline pipeline;
 
-	VkRenderPass renderPass;
-
 	void destroyTransient(VkDevice device);
 };
 
@@ -33,6 +31,7 @@ SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain = 
 std::vector<VkImageView> createSwapChainImageViews(const Application& app);
 
 std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app);
+std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app);
 
 /** Returns the index of the next swapchain image, or -1 in case of failure.
  *  Will also signal the given semaphore.
@@ -41,19 +40,11 @@ uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailable
 
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool);
 
-void recordSwapChainCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& buffers,
-		uint32_t nIndices, const Buffer& uBuffer, VkDescriptorSet descSet);
-
-VkDescriptorPool createSwapChainDescriptorPool(const Application& app);
-VkDescriptorSetLayout createSwapChainDescriptorSetLayout(const Application& app);
-VkDescriptorSet createSwapChainDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer, const Image& texDiffuse, VkSampler texSampler);
-VkPipeline createSwapChainPipeline(const Application& app, const std::string& shader);
+VkPipeline createSwapChainPipeline(const Application& app);
 
 VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
-VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
+VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 		const Buffer& uniformBuffer, const Image& tex, VkSampler texSampler);
 void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& buffers,
-		uint32_t nIndices, const Buffer& vertexBuffer,
-		const Buffer& indexBuffer, const Buffer& uniformBuffer,
-		VkDescriptorSet descriptorSet);
+		uint32_t nIndices, const Buffer& vertexBuffer, const Buffer& indexBuffer);
+VkPipeline createSwapChainDebugPipeline(const Application& app);

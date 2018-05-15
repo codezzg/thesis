@@ -17,7 +17,8 @@ static Image createPosAttachment(const Application& app) {
 		GBUF_DIM, GBUF_DIM,
 		formats::position,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT// | VK_IMAGE_USAGE_SAMPLED_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto positionImgView = createImageView(app, positionImg.handle,
 			positionImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -33,7 +34,8 @@ static Image createNormalAttachment(const Application& app) {
 		GBUF_DIM, GBUF_DIM,
 		formats::normal,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT// | VK_IMAGE_USAGE_SAMPLED_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto normalImgView = createImageView(app, normalImg.handle,
 			normalImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -48,7 +50,8 @@ static Image createAlbedoSpecAttachment(const Application& app) {
 		GBUF_DIM, GBUF_DIM,
 		formats::albedoSpec,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT// | VK_IMAGE_USAGE_SAMPLED_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto albedoSpecImgView = createImageView(app, albedoSpecImg.handle,
 			albedoSpecImg.format,
@@ -71,30 +74,6 @@ static Image createDepthAttachment(const Application& app) {
 	depthImg.view = depthImgView;
 
 	return depthImg;
-}
-
-VkFramebuffer createGBufferFramebuffer(const Application& app) {
-	const std::array<VkImageView, 4> attachments = {{
-		app.gBuffer.position.view,
-		app.gBuffer.normal.view,
-		app.gBuffer.albedoSpec.view,
-		app.gBuffer.depth.view
-	}};
-
-	VkFramebufferCreateInfo fbInfo = {};
-	fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-	fbInfo.renderPass = app.gBuffer.renderPass;
-	fbInfo.attachmentCount = attachments.size();
-	fbInfo.pAttachments = attachments.data();
-	fbInfo.width = GBUF_DIM,
-	fbInfo.height = GBUF_DIM,
-	fbInfo.layers = 1;
-
-	VkFramebuffer fb;
-	VLKCHECK(vkCreateFramebuffer(app.device, &fbInfo, nullptr, &fb));
-	app.validation.addObjectInfo(fb, __FILE__, __LINE__);
-
-	return fb;
 }
 
 void GBuffer::createAttachments(const Application& app) {
@@ -318,8 +297,8 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pDynamicState = nullptr;
-	pipelineInfo.layout = app.res.pipelineLayouts->get("gbuffer");
-	pipelineInfo.renderPass = app.gBuffer.renderPass;
+	pipelineInfo.layout = app.res.pipelineLayouts->get("multi");
+	pipelineInfo.renderPass = app.renderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	pipelineInfo.basePipelineIndex = -1;
@@ -333,50 +312,4 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
 
 	return pipeline;
-}
-
-void recordGBufferCommandBuffer(const Application& app, VkCommandBuffer commandBuffer,
-		uint32_t nIndices,
-		const Buffer& vertexBuffer, const Buffer& indexBuffer, const Buffer& uniformBuffer,
-		VkDescriptorSet descSet)
-{
-	std::array<VkClearValue, 4> clearValues = {};
-	clearValues[0].color = {{ 0, 0, 0.0, 0 }};
-	clearValues[1].color = {{ 0, 0, 0.0, 0 }};
-	clearValues[2].color = {{ 0.f, 0.f, 0.2f, 0.f }};
-	clearValues[3].depthStencil = { 1, 0 };
-
-	VkRenderPassBeginInfo renderPassBeginInfo = {};
-	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassBeginInfo.renderPass = app.gBuffer.renderPass;
-	renderPassBeginInfo.renderArea.extent.width = GBUF_DIM;
-	renderPassBeginInfo.renderArea.extent.height = GBUF_DIM;
-	renderPassBeginInfo.clearValueCount = clearValues.size();
-	renderPassBeginInfo.pClearValues = clearValues.data();
-	renderPassBeginInfo.framebuffer = app.gBuffer.framebuffer;
-
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-	beginInfo.pInheritanceInfo = nullptr;
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
-
-	const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
-	const std::array<VkDeviceSize, 1> offsets = { 0 };
-	static_assert(vertexBuffers.size() == offsets.size(),
-			"offsets should be the same amount of vertexBuffers!");
-	vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers.size(),
-			vertexBuffers.data(), offsets.data());
-	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			app.res.pipelineLayouts->get("gbuffer"), 0, 1,
-			&app.res.descriptorSets->get("gbuffer"), 0, nullptr);
-	vkCmdDrawIndexed(commandBuffer, nIndices, 1, 0, 0, 0);
-	vkCmdEndRenderPass(commandBuffer);
-
-	VLKCHECK(vkEndCommandBuffer(commandBuffer));
 }

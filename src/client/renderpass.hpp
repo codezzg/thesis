@@ -8,3 +8,4 @@ struct Application;
 
 VkRenderPass createGeometryRenderPass(const Application& app);
 VkRenderPass createLightingRenderPass(const Application& app);
+VkRenderPass createMultipassRenderPass(const Application& app);

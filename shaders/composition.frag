@@ -1,14 +1,16 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+/*precision mediump int; precision highp float;*/
+
 layout (location = 0) in vec2 texCoords;
 
 layout (location = 0) out vec4 fragColor;
 
-layout (set = 0, binding = 0) uniform sampler2D gPosition;
-layout (set = 0, binding = 1) uniform sampler2D gNormal;
-layout (set = 0, binding = 2) uniform sampler2D gAlbedoSpec;
-layout (set = 0, binding = 3) uniform CompositionUniformBuffer {
+layout (input_attachment_index = 0, set = 0, binding = 3) uniform subpassInput gPosition;
+layout (input_attachment_index = 1, set = 0, binding = 4) uniform subpassInput gNormal;
+layout (input_attachment_index = 2, set = 0, binding = 5) uniform subpassInput gAlbedoSpec;
+layout (set = 0, binding = 6) uniform CompositionUniformBuffer {
 	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
 	// about avoiding using vec3
 	vec4 viewPos; // w is used as 'showGBufTexture'
@@ -17,10 +19,10 @@ layout (set = 0, binding = 3) uniform CompositionUniformBuffer {
 #define AMBIENT_LIGHT 0.3
 
 void main() {
-	vec3 fragPos = texture(gPosition, texCoords).rgb;
-	vec3 normal = texture(gNormal, texCoords).rgb;
-	vec3 albedo = texture(gAlbedoSpec, texCoords).rgb;
-	float specular = texture(gAlbedoSpec, texCoords).a;
+	vec3 fragPos = subpassLoad(gPosition).rgb;
+	vec3 normal = subpassLoad(gNormal).rgb;
+	vec3 albedo = subpassLoad(gAlbedoSpec).rgb;
+	float specular = subpassLoad(gAlbedoSpec).a;
 
 	const float ambient = AMBIENT_LIGHT;
 	vec3 lighting = albedo * ambient;

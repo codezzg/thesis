@@ -144,7 +144,8 @@ Image createDepthImage(const Application& app) {
 	auto depthImage = createImage(app,
 			app.swapChain.extent.width, app.swapChain.extent.height,
 			formats::depth,
-			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+				| VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	depthImage.view = createImageView(app, depthImage.handle,
 			formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);

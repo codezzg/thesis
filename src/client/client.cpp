@@ -44,6 +44,7 @@
 #include "xplatform.hpp"
 #include "logging.hpp"
 #include "pipelines.hpp"
+#include "multipass.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -87,9 +88,7 @@ private:
 	std::unique_ptr<CameraController> cameraCtrl;
 
 	std::vector<VkCommandBuffer> swapCommandBuffers;
-	VkCommandBuffer gbufCommandBuffer;
 
-	VkSemaphore gBufRenderFinishedSemaphore;
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 
@@ -126,10 +125,18 @@ private:
 		// Create basic Vulkan resources
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app);
-		app.swapChain.renderPass = createLightingRenderPass(app);
+		app.renderPass = gIsDebug
+			? createLightingRenderPass(app)
+			: createMultipassRenderPass(app);
+
+		if (!gIsDebug)
+			app.gBuffer.createAttachments(app);
+
 		app.commandPool = createCommandPool(app);
 		app.swapChain.depthImage = createDepthImage(app);
-		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		app.swapChain.framebuffers = gIsDebug
+			? createSwapChainFramebuffers(app)
+			: createSwapChainMultipassFramebuffers(app);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
@@ -142,44 +149,36 @@ private:
 			texSampler = createTextureSampler(app);
 		}
 
-		// Create GBuffer
-		app.gBuffer.createAttachments(app);
-		app.gBuffer.sampler = createTextureSampler(app);
-		app.gBuffer.renderPass = createGeometryRenderPass(app);
-		app.gBuffer.framebuffer = createGBufferFramebuffer(app);
-		gbufCommandBuffer = allocCommandBuffer(app, app.commandPool);
+		// TODO: needed?
+		if (!gIsDebug)
+			app.gBuffer.sampler = createTextureSampler(app);
 
 		prepareBufferMemory();
 
 		// Initialize resource maps
 		app.res.init(app.device, app.descriptorPool);
-		// Layouts
-		app.res.descriptorSetLayouts->add("gbuffer", createGBufferDescriptorSetLayout(app));
-		app.res.descriptorSetLayouts->add("swap", gIsDebug
-					? createSwapChainDebugDescriptorSetLayout(app)
-					: createSwapChainDescriptorSetLayout(app));
-		app.res.pipelineLayouts->add("gbuffer", createPipelineLayout(app,
-					app.res.descriptorSetLayouts->get("gbuffer")));
-		app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
-					app.res.descriptorSetLayouts->get("swap")));
-
-		// Create pipelines
-		app.gBuffer.pipeline = createGBufferPipeline(app);
-		app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
 
 		app.descriptorPool = createDescriptorPool(app);
-		app.res.descriptorSets->add("gbuffer", createGBufferDescriptorSet(app,
-				app.res.descriptorSetLayouts->get("gbuffer"),
-				mvpUniformBuffer, texDiffuseImage, texSpecularImage, texSampler));
-		app.res.descriptorSets->add("swap", gIsDebug
-			? createSwapChainDebugDescriptorSet(app,
-					app.res.descriptorSetLayouts->get("swap"),
-					mvpUniformBuffer, texDiffuseImage, texSampler)
-			: createSwapChainDescriptorSet(app,
-					app.res.descriptorSetLayouts->get("swap"),
-					compUniformBuffer, texDiffuseImage, texSampler));
 
-		recordCommandBuffers();
+		// Create pipelines
+		if (gIsDebug) {
+			app.res.descriptorSetLayouts->add("swap", createSwapChainDebugDescriptorSetLayout(app));
+			app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
+						app.res.descriptorSetLayouts->get("swap")));
+			app.swapChain.pipeline = createSwapChainDebugPipeline(app);
+			app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app, mvpUniformBuffer,
+					texDiffuseImage, texSampler));
+		} else {
+			app.res.descriptorSetLayouts->add("multi", createMultipassDescriptorSetLayout(app));
+			app.res.pipelineLayouts->add("multi", createPipelineLayout(app,
+						app.res.descriptorSetLayouts->get("multi")));
+			app.gBuffer.pipeline = createGBufferPipeline(app);
+			app.swapChain.pipeline = createSwapChainPipeline(app);
+			app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, mvpUniformBuffer,
+					compUniformBuffer, texDiffuseImage, texSpecularImage, texSampler));
+		}
+
+		recordAllCommandBuffers();
 
 		createSemaphores();
 
@@ -255,10 +254,8 @@ private:
 			vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
-			vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
 			swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
-			gbufCommandBuffer = allocCommandBuffer(app, app.commandPool);
-			recordCommandBuffers();
+			recordAllCommandBuffers();
 		}
 
 		updateMVPUniformBuffer();
@@ -335,15 +332,19 @@ private:
 		// FIXME: old swapchain?
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app);
-		app.swapChain.renderPass = createLightingRenderPass(app);
-		app.swapChain.pipeline = createSwapChainPipeline(app, gIsDebug ? "3d" : "composition");
+		app.renderPass = gIsDebug
+			? createLightingRenderPass(app)
+			: createMultipassRenderPass(app);
+		app.swapChain.pipeline = gIsDebug
+			? createSwapChainDebugPipeline(app)
+			: createSwapChainPipeline(app);
 		app.swapChain.depthImage = createDepthImage(app);
-		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		app.swapChain.framebuffers = gIsDebug
+			? createSwapChainFramebuffers(app)
+			: createSwapChainMultipassFramebuffers(app);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 
-		gbufCommandBuffer = allocCommandBuffer(app, app.commandPool);
-
-		recordCommandBuffers();
+		recordAllCommandBuffers();
 		updateMVPUniformBuffer();
 		updateCompUniformBuffer();
 	}
@@ -353,7 +354,6 @@ private:
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &imageAvailableSemaphore));
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &renderFinishedSemaphore));
-		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &gBufRenderFinishedSemaphore));
 	}
 
 	void drawFrameForward() {
@@ -412,13 +412,11 @@ private:
 			return;
 		}
 
-		drawGBuffer();
-		drawSwap(imageIndex);
-
+		renderFrame(imageIndex);
 		submitFrame(imageIndex);
 	}
 
-	void drawGBuffer() {
+	void renderFrame(uint32_t imageIndex) {
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -431,31 +429,9 @@ private:
 		submitInfo.pWaitDstStageMask = waitStages.data();
 
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &gbufCommandBuffer;
-
-		// Signal semaphore when done
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &gBufRenderFinishedSemaphore;
-
-		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
-	}
-
-	void drawSwap(uint32_t imageIndex) {
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-		// Wait for G-buffer
-		const std::array<VkPipelineStageFlags, 1> waitStages = {
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-		};
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &gBufRenderFinishedSemaphore;
-		submitInfo.pWaitDstStageMask = waitStages.data();
-
-		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &swapCommandBuffers[imageIndex];
 
-		// Signal once done
+		// Signal semaphore when done
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = &renderFinishedSemaphore;
 
@@ -547,15 +523,12 @@ private:
 		activeEP.setCamera(&camera);
 	}
 
-	void recordCommandBuffers() {
-		if (gIsDebug)
+	void recordAllCommandBuffers() {
+		if (gIsDebug) {
 			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, nIndices,
-				vertexBuffer, indexBuffer, mvpUniformBuffer, app.res.descriptorSets->get("swap"));
-		else {
-			recordSwapChainCommandBuffers(app, swapCommandBuffers, nIndices,
-				compUniformBuffer, app.res.descriptorSets->get("swap"));
-			recordGBufferCommandBuffer(app, gbufCommandBuffer, nIndices, vertexBuffer,
-				indexBuffer, mvpUniformBuffer, app.res.descriptorSets->get("gbuffer"));
+				vertexBuffer, indexBuffer);
+		} else {
+			recordMultipassCommandBuffers(app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer);
 		}
 	}
 
@@ -565,10 +538,11 @@ private:
 		// Destroy the swapchain and all its images and framebuffers
 		app.swapChain.destroyTransient(app.device);
 
+		vkDestroyRenderPass(app.device, app.renderPass, nullptr);
+
 		vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
-		vkFreeCommandBuffers(app.device, app.commandPool, 1, &gbufCommandBuffer);
 	}
 
 	void cleanup() {
@@ -595,7 +569,6 @@ private:
 
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
-		vkDestroySemaphore(app.device, gBufRenderFinishedSemaphore, nullptr);
 
 		delete [] streamingBufferData;
 

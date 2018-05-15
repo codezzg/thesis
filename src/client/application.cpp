@@ -81,11 +81,13 @@ static void createLogicalDevice(Application& app) {
 
 // FIXME: use a meaningful number of descriptorcount
 VkDescriptorPool createDescriptorPool(const Application& app) {
-	std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 10;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = 10;
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+	poolSizes[2].descriptorCount = 10;
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
