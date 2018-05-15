@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <thread>
 
 /** This class provides convenient RAII frame time limiting.
  *  Use like this:
@@ -28,15 +29,19 @@ class LimitFrameTime final {
 	const std::chrono::time_point<std::chrono::high_resolution_clock> beginFrameTime;
 
 public:
+	bool enabled = true;
+
 	explicit LimitFrameTime(std::chrono::milliseconds targetFrameTime)
 		: targetFrameTime(targetFrameTime)
 		, beginFrameTime(std::chrono::high_resolution_clock::now())
 	{}
 
 	~LimitFrameTime() {
-		const auto timeSpared = targetFrameTime - getFrameDuration();
-		if (timeSpared.count() > 0)
-			std::this_thread::sleep_for(timeSpared);
+		if (enabled) {
+			const auto timeSpared = targetFrameTime - getFrameDuration();
+			if (timeSpared.count() > 0)
+				std::this_thread::sleep_for(timeSpared);
+		}
 	}
 
 	std::chrono::milliseconds getFrameDuration() const {

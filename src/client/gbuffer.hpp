@@ -12,7 +12,7 @@ struct GBuffer final {
 	Image position;
 	Image normal;
 	Image albedoSpec;
-	Image depth;
+	//Image depth;
 
 	VkDescriptorSet descriptorSet;
 
@@ -24,7 +24,7 @@ struct GBuffer final {
 		position.destroy(device);
 		normal.destroy(device);
 		albedoSpec.destroy(device);
-		depth.destroy(device);
+		//depth.destroy(device);
 
 		vkDestroyPipeline(device, pipeline, nullptr);
 	}

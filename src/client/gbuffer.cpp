@@ -10,11 +10,12 @@
 #include "logging.hpp"
 #include <array>
 
-static constexpr auto GBUF_DIM = 2048;
+//static constexpr auto GBUF_DIM = 2048;
 
 static Image createPosAttachment(const Application& app) {
 	auto positionImg = createImage(app,
-		GBUF_DIM, GBUF_DIM,
+		//GBUF_DIM, GBUF_DIM,
+		app.swapChain.extent.width, app.swapChain.extent.height,
 		formats::position,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
@@ -31,7 +32,8 @@ static Image createPosAttachment(const Application& app) {
 
 static Image createNormalAttachment(const Application& app) {
 	auto normalImg = createImage(app,
-		GBUF_DIM, GBUF_DIM,
+		//GBUF_DIM, GBUF_DIM,
+		app.swapChain.extent.width, app.swapChain.extent.height,
 		formats::normal,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
@@ -47,7 +49,8 @@ static Image createNormalAttachment(const Application& app) {
 
 static Image createAlbedoSpecAttachment(const Application& app) {
 	auto albedoSpecImg = createImage(app,
-		GBUF_DIM, GBUF_DIM,
+		//GBUF_DIM, GBUF_DIM,
+		app.swapChain.extent.width, app.swapChain.extent.height,
 		formats::albedoSpec,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
@@ -124,14 +127,14 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	VkViewport viewport = {};
 	viewport.x = 0.f;
 	viewport.y = 0.f;
-	viewport.width = static_cast<float>(GBUF_DIM);
-	viewport.height = static_cast<float>(GBUF_DIM);
+	viewport.width = static_cast<float>(app.swapChain.extent.width);//GBUF_DIM);
+	viewport.height = static_cast<float>(app.swapChain.extent.height);//GBUF_DIM);
 	viewport.minDepth = 0.f;
 	viewport.maxDepth = 1.f;
 
 	VkRect2D scissor = {};
 	scissor.offset = { 0, 0 };
-	scissor.extent = { GBUF_DIM, GBUF_DIM };
+	scissor.extent = app.swapChain.extent;// { GBUF_DIM, GBUF_DIM };
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;

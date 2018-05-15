@@ -26,6 +26,7 @@
 #include "config.hpp"
 #include "data.hpp"
 #include "window.hpp"
+#include "frame_utils.hpp"
 #include "phys_device.hpp"
 #include "commands.hpp"
 #include "application.hpp"
@@ -56,6 +57,7 @@ using std::size_t;
 
 bool gUseCamera = false;
 bool gIsDebug = false;
+bool gLimitFrameTime = true;
 
 class VulkanClient final {
 public:
@@ -255,6 +257,9 @@ private:
 		auto beginTime = std::chrono::high_resolution_clock::now();
 
 		while (!glfwWindowShouldClose(app.window)) {
+			LimitFrameTime lft { std::chrono::milliseconds{ 16 } };
+			lft.enabled = gLimitFrameTime;
+
 			glfwPollEvents();
 
 			runFrame();
@@ -370,7 +375,16 @@ private:
 			app.swapChain.pipeline = createSwapChainDebugPipeline(app);
 			app.swapChain.framebuffers = createSwapChainFramebuffers(app, app.swapChain);
 		} else {
+			app.gBuffer.createAttachments(app);
 			app.renderPass = createMultipassRenderPass(app);
+
+			vkFreeDescriptorSets(app.device, app.descriptorPool, 1,
+					&app.res.descriptorSets->get("multi"));
+			app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app,
+					mvpUniformBuffer, compUniformBuffer,
+					texDiffuseImage, texSpecularImage, texSampler));
+
+			app.gBuffer.pipeline = createGBufferPipeline(app);
 			app.swapChain.pipeline = createSwapChainPipeline(app);
 			app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 		}
@@ -566,7 +580,7 @@ private:
 
 	void cleanupSwapChain() {
 		// Destroy the gbuffer and all its attachments
-		//app.gBuffer.destroyTransient(app.device);
+		app.gBuffer.destroyTransient(app.device);
 		// Destroy the swapchain and all its images and framebuffers
 		app.swapChain.destroyTransient(app.device);
 
@@ -580,7 +594,7 @@ private:
 	void cleanup() {
 		cleanupSwapChain();
 
-		app.gBuffer.destroyTransient(app.device);
+		//app.gBuffer.destroyTransient(app.device);
 
 		vkUnmapMemory(app.device, vertexBuffer.memory);
 		vkUnmapMemory(app.device, indexBuffer.memory);
@@ -633,6 +647,9 @@ private:
 			break;
 		case GLFW_KEY_G:
 			appl->showGBufTex = !appl->showGBufTex;
+			break;
+		case GLFW_KEY_T:
+			gLimitFrameTime = !gLimitFrameTime;
 			break;
 		default:
 			break;
