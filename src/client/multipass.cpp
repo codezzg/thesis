@@ -160,17 +160,17 @@ VkDescriptorSet createMultipassDescriptorSet(const Application& app,
 	VkDescriptorImageInfo gPositionInfo = {};
 	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gPositionInfo.imageView = app.gBuffer.position.view;
-	gPositionInfo.sampler = app.gBuffer.sampler;
+	gPositionInfo.sampler = texSampler;
 
 	VkDescriptorImageInfo gNormalInfo = {};
 	gNormalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gNormalInfo.imageView = app.gBuffer.normal.view;
-	gNormalInfo.sampler = app.gBuffer.sampler;
+	gNormalInfo.sampler = texSampler;
 
 	VkDescriptorImageInfo gAlbedoSpecInfo = {};
 	gAlbedoSpecInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gAlbedoSpecInfo.imageView = app.gBuffer.albedoSpec.view;
-	gAlbedoSpecInfo.sampler = app.gBuffer.sampler;
+	gAlbedoSpecInfo.sampler = texSampler;
 
 	VkDescriptorBufferInfo mvpUboInfo = {};
 	mvpUboInfo.buffer = mvpUbo.handle;

@@ -70,7 +70,11 @@ public:
 		}
 		glfwSetKeyCallback(app.window, VulkanClient::keyCallback);
 
-		initVulkan();
+		if (!gIsDebug)
+			initVulkan(); // deferred rendering
+		else
+			initVulkanForward(); // forward rendering
+
 		connectToServer();
 		mainLoop();
 		cleanup();
@@ -125,18 +129,14 @@ private:
 		// Create basic Vulkan resources
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app);
-		app.renderPass = gIsDebug
-			? createLightingRenderPass(app)
-			: createMultipassRenderPass(app);
 
-		if (!gIsDebug)
-			app.gBuffer.createAttachments(app);
+		app.renderPass = createMultipassRenderPass(app);
+
+		app.gBuffer.createAttachments(app);
 
 		app.commandPool = createCommandPool(app);
 		app.swapChain.depthImage = createDepthImage(app);
-		app.swapChain.framebuffers = gIsDebug
-			? createSwapChainFramebuffers(app)
-			: createSwapChainMultipassFramebuffers(app);
+		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
@@ -149,9 +149,49 @@ private:
 			texSampler = createTextureSampler(app);
 		}
 
-		// TODO: needed?
-		if (!gIsDebug)
-			app.gBuffer.sampler = createTextureSampler(app);
+		prepareBufferMemory();
+
+		// Initialize resource maps
+		app.res.init(app.device, app.descriptorPool);
+
+		app.descriptorPool = createDescriptorPool(app);
+
+		// Create pipelines
+		app.res.descriptorSetLayouts->add("multi", createMultipassDescriptorSetLayout(app));
+		app.res.pipelineLayouts->add("multi", createPipelineLayout(app,
+					app.res.descriptorSetLayouts->get("multi")));
+		app.gBuffer.pipeline = createGBufferPipeline(app);
+		app.swapChain.pipeline = createSwapChainPipeline(app);
+		app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, mvpUniformBuffer,
+				compUniformBuffer, texDiffuseImage, texSpecularImage, texSampler));
+
+		recordAllCommandBuffers();
+
+		createSemaphores();
+
+		prepareCamera();
+	}
+
+	void initVulkanForward() {
+		// Create basic Vulkan resources
+		app.swapChain = createSwapChain(app);
+		app.swapChain.imageViews = createSwapChainImageViews(app);
+		app.renderPass = createLightingRenderPass(app);
+
+		app.commandPool = createCommandPool(app);
+		app.swapChain.depthImage = createDepthImage(app);
+		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
+		app.pipelineCache = createPipelineCache(app);
+
+		// Load assets
+		app.screenQuadBuffer = createScreenQuadVertexBuffer(app);
+		{
+			// Load textures
+			texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA);
+			texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY);
+			texSampler = createTextureSampler(app);
+		}
 
 		prepareBufferMemory();
 
@@ -161,22 +201,12 @@ private:
 		app.descriptorPool = createDescriptorPool(app);
 
 		// Create pipelines
-		if (gIsDebug) {
-			app.res.descriptorSetLayouts->add("swap", createSwapChainDebugDescriptorSetLayout(app));
-			app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
-						app.res.descriptorSetLayouts->get("swap")));
-			app.swapChain.pipeline = createSwapChainDebugPipeline(app);
-			app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app, mvpUniformBuffer,
-					texDiffuseImage, texSampler));
-		} else {
-			app.res.descriptorSetLayouts->add("multi", createMultipassDescriptorSetLayout(app));
-			app.res.pipelineLayouts->add("multi", createPipelineLayout(app,
-						app.res.descriptorSetLayouts->get("multi")));
-			app.gBuffer.pipeline = createGBufferPipeline(app);
-			app.swapChain.pipeline = createSwapChainPipeline(app);
-			app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, mvpUniformBuffer,
-					compUniformBuffer, texDiffuseImage, texSpecularImage, texSampler));
-		}
+		app.res.descriptorSetLayouts->add("swap", createSwapChainDebugDescriptorSetLayout(app));
+		app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
+					app.res.descriptorSetLayouts->get("swap")));
+		app.swapChain.pipeline = createSwapChainDebugPipeline(app);
+		app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app, mvpUniformBuffer,
+				texDiffuseImage, texSampler));
 
 		recordAllCommandBuffers();
 
@@ -329,20 +359,20 @@ private:
 
 		cleanupSwapChain();
 
-		// FIXME: old swapchain?
+		// TODO: pass old swapchain?
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app);
-		app.renderPass = gIsDebug
-			? createLightingRenderPass(app)
-			: createMultipassRenderPass(app);
-		app.swapChain.pipeline = gIsDebug
-			? createSwapChainDebugPipeline(app)
-			: createSwapChainPipeline(app);
 		app.swapChain.depthImage = createDepthImage(app);
-		app.swapChain.framebuffers = gIsDebug
-			? createSwapChainFramebuffers(app)
-			: createSwapChainMultipassFramebuffers(app);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
+		if (gIsDebug) {
+			app.renderPass = createLightingRenderPass(app);
+			app.swapChain.pipeline = createSwapChainDebugPipeline(app);
+			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		} else {
+			app.renderPass = createMultipassRenderPass(app);
+			app.swapChain.pipeline = createSwapChainPipeline(app);
+			app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app);
+		}
 
 		recordAllCommandBuffers();
 		updateMVPUniformBuffer();
