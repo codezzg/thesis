@@ -7,6 +7,7 @@
 #include <vector>
 #include <glm/gtx/string_cast.hpp>
 #include <cstring>
+#include "FPSCounter.hpp"
 #include "model.hpp"
 #include "tcp_messages.hpp"
 #include "data.hpp"
@@ -15,6 +16,7 @@
 #include "camera.hpp"
 #include "logging.hpp"
 #include "serialization.hpp"
+#include "clock.hpp"
 #include "server_appstage.hpp"
 #include "server.hpp"
 
@@ -85,6 +87,13 @@ void ServerActiveEndpoint::loopFunc() {
 	auto delay = 0ms;
 	auto& shared = server.sharedData;
 
+	FPSCounter fps;
+	fps.start();
+
+	auto& clock = Clock::instance();
+
+	info("Active Endpoint targetFrameTime = ", targetFrameTime.count(), " ms");
+
 	// Send frame datagrams to the client
 	while (!terminated) {
 		const LimitFrameTime lft{ targetFrameTime - delay };
@@ -115,6 +124,9 @@ void ServerActiveEndpoint::loopFunc() {
 		if (frameId >= 0)
 			sendFrameData(frameId, memory, nVertices, nIndices);
 
+		fps.addFrame();
+		fps.report();
+		clock.update(asSeconds(lft.getFrameDuration()));
 		delay = lft.getFrameDelay();
 	}
 }

@@ -12,6 +12,7 @@
 #include "logging.hpp"
 
 using namespace logging;
+using namespace std::literals::chrono_literals;
 
 static constexpr auto MEMSIZE = 1 << 24;
 
@@ -45,6 +46,8 @@ int main(int argc, char **argv) {
 
 	Server server;
 	gServer = &server;
+
+	server.activeEP.targetFrameTime = 16ms;
 
 	/// Allocate server memory buffer
 	auto serverMemory = std::unique_ptr<uint8_t>{ new uint8_t[MEMSIZE] };

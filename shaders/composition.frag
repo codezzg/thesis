@@ -11,8 +11,10 @@ layout (set = 0, binding = 2) uniform sampler2D gAlbedoSpec;
 layout (set = 0, binding = 3) uniform CompositionUniformBuffer {
 	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
 	// about avoiding using vec3
-	vec4 viewPos; // w is unused
+	vec4 viewPos; // w is used as 'showGBufTexture'
 } ubo;
+
+#define AMBIENT_LIGHT 0.3
 
 void main() {
 	vec3 fragPos = texture(gPosition, texCoords).rgb;
@@ -20,28 +22,33 @@ void main() {
 	vec3 albedo = texture(gAlbedoSpec, texCoords).rgb;
 	float specular = texture(gAlbedoSpec, texCoords).a;
 
-	const float ambient = 0.3;
+	const float ambient = AMBIENT_LIGHT;
 	vec3 lighting = albedo * ambient;
 	vec3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
 
 	// For now just 1 light, hardcoded
 	const vec3 lightPos = vec3(10.0, 50.0, 1.0);
-	const vec3 lightColor = vec3(1.0, 1.0, 1.0);
+	const vec3 lightColor = vec3(1.0, 0.0, 1.0);
 
 	vec3 lightDir = normalize(lightPos - fragPos);
 	vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 	lighting += diffuse;
 
-	if (texCoords.x < 0.5) {
-		if (texCoords.y < 0.5)
-			fragColor = vec4(lighting, 1.0);
-		else
-			fragColor = vec4(albedo, 1.0);
+	bool showGBufTexs = ubo.viewPos.w != 0.0;
+	if (showGBufTexs) {
+		if (texCoords.x < 0.5) {
+			if (texCoords.y < 0.5)
+				fragColor = vec4(lighting, 1.0);
+			else
+				fragColor = vec4(albedo, 1.0);
+		} else {
+			if (texCoords.y < 0.5)
+				fragColor = vec4(normal, 1.0);
+			else
+				fragColor = vec4(vec3(specular), 1.0);
+		}
 	} else {
-		if (texCoords.y < 0.5)
-			fragColor = vec4(normal, 1.0);
-		else
-			fragColor = vec4(vec3(specular), 1.0);
+		fragColor = vec4(lighting, 1.0);
 	}
 	/*fragColor = vec4(lighting, 1.0);*/
 	/*fragColor = vec4(vec3(specular), 1.0);*/

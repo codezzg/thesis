@@ -50,3 +50,8 @@ public:
 		return delay.count() > 0 ? delay : 0ms;
 	}
 };
+
+template <typename T>
+constexpr float asSeconds(const T& duration) {
+	return std::chrono::duration_cast<std::chrono::duration<float>>(duration).count();
+}

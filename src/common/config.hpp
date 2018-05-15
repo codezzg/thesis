@@ -6,7 +6,8 @@ constexpr int WIDTH = 800;
 constexpr int HEIGHT = 600;
 
 constexpr auto MODEL_PATH = "models/chalet.obj";
-constexpr auto TEXTURE_PATH = "textures/chalet.jpg";
+constexpr auto TEX_DIFFUSE_PATH = "textures/chalet.jpg";
+constexpr auto TEX_SPECULAR_PATH = "textures/chalet_spec.jpg";
 //constexpr auto TEXTURE_PATH = "textures/texture.jpg";
 
 constexpr uint32_t PACKET_MAGIC = 0x14101991;

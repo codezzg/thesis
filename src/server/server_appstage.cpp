@@ -4,6 +4,7 @@
 #include <iostream>
 #include "serialization.hpp"
 #include <cmath>
+#include "clock.hpp"
 #include <vector>
 #include <unordered_map>
 
@@ -15,9 +16,9 @@ struct Sphere {
 static void wiggle(Model& model, const Camera& camera) {
 	static float t = 0;
 	for (int i = 0; i < model.nVertices; ++i) {
-		model.vertices[i].pos += std::cos(t * 10 + i * 0.01);
+		model.vertices[i].pos += 0.1 * std::cos(t * 10 + i * 0.01);
 	}
-	t += 0.033f;
+	t += Clock::instance().deltaTime();
 }
 
 static Sphere calcBoundingSphere(const Model& model) {
@@ -70,7 +71,7 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 	const auto camera = deserializeCamera(clientData);
 
 	// STUB
-	wiggle(model, camera);
+	//wiggle(model, camera);
 
 	const auto& frustum = calcFrustum(camera.projMatrix());
 	const auto sphere = calcBoundingSphere(model);

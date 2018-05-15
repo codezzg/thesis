@@ -67,6 +67,7 @@ public:
 			glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 			glfwSetCursorPosCallback(app.window, cursorPosCallback);
 		}
+		glfwSetKeyCallback(app.window, VulkanClient::keyCallback);
 
 		initVulkan();
 		connectToServer();
@@ -115,6 +116,8 @@ private:
 	/** Permanently mapped pointer to comp uniform buffer */
 	void *compUboData = nullptr;
 
+	bool showGBufTex = false;
+
 	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
 	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
 
@@ -134,8 +137,8 @@ private:
 		app.screenQuadBuffer = createScreenQuadVertexBuffer(app);
 		{
 			// Load textures
-			texDiffuseImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::RGBA);
-			texSpecularImage = createTextureImage(app, cfg::TEXTURE_PATH, TextureFormat::GREY);
+			texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA);
+			texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY);
 			texSampler = createTextureSampler(app);
 		}
 
@@ -188,6 +191,7 @@ private:
 		passiveEP.runLoop();
 
 		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT, SOCK_DGRAM);
+		activeEP.targetFrameTime = std::chrono::milliseconds{ 16 };
 		activeEP.runLoop();
 	}
 
@@ -485,26 +489,33 @@ private:
 		auto ubo = reinterpret_cast<MVPUniformBufferObject*>(mvpUboData);
 
 		if (gUseCamera) {
-			ubo->model = glm::mat4{};
+			ubo->model = glm::mat4{ 1.0f };
 			ubo->view = camera.viewMatrix();
 		} else {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(
 					currentTime - startTime).count();
-			ubo->model = glm::rotate(glm::mat4{}, time * glm::radians(90.f), glm::vec3{ 0.f, -1.f, 0.f });
+			ubo->model = glm::rotate(glm::mat4{ 1.0f },
+					time * glm::radians(89.f), glm::vec3{ 0.f, -1.f, 0.f });
 			ubo->view = glm::lookAt(glm::vec3{ 140, 140, 140 },
 					glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
 		}
 		ubo->proj = glm::perspective(glm::radians(60.f),
 				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
+		// Flip y
 		ubo->proj[1][1] *= -1;
 	}
 
 	void updateCompUniformBuffer() {
 		auto ubo = reinterpret_cast<CompositionUniformBufferObject*>(compUboData);
-		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0 };
+		ubo->viewPos = glm::vec4{
+			camera.position.x,
+			camera.position.y,
+			camera.position.z,
+			showGBufTex,
+		};
+		debug("viewPos = ", ubo->viewPos);
 	}
-
 
 	void prepareBufferMemory() {
 		// Prepare buffer memory
@@ -606,6 +617,23 @@ private:
 		//prevY = ypos;
 		glfwSetCursorPos(window, prevX, prevY);
 	}
+
+	static void keyCallback(GLFWwindow *window, int key, int /*scancode*/, int action, int) {
+		if (action != GLFW_PRESS)
+			return;
+
+		auto appl = reinterpret_cast<VulkanClient*>(glfwGetWindowUserPointer(window));
+		switch (key) {
+		case GLFW_KEY_Q:
+			glfwSetWindowShouldClose(window, GLFW_TRUE);
+			break;
+		case GLFW_KEY_G:
+			appl->showGBufTex = !appl->showGBufTex;
+			break;
+		default:
+			break;
+		}
+	}
 };
 
 int main(int argc, char **argv) {
@@ -635,6 +663,15 @@ int main(int argc, char **argv) {
 			switch (argv[i][1]) {
 			case 'd': gIsDebug = true; break;
 			case 'c': gUseCamera = true; break;
+			case 'v': {
+				int lv = 1;
+				unsigned j = 2;
+				while (j < strlen(argv[i]) && argv[i][j] == 'v') {
+					++lv;
+					++j;
+				}
+				gDebugLv = static_cast<LogLevel>(lv);
+			} break;
 			default:
 				std::cout << "Usage: " << argv[0]
 					<< " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";

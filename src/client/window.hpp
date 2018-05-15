@@ -4,6 +4,8 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 
+class VulkanClient;
+
 GLFWwindow* initWindow();
 
 void cleanupWindow(GLFWwindow* window);

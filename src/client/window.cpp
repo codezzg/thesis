@@ -10,11 +10,6 @@ GLFWwindow* initWindow() {
 
 	auto window = glfwCreateWindow(cfg::WIDTH, cfg::HEIGHT, "Vulkan", nullptr, nullptr);
 
-	glfwSetKeyCallback(window, [] (GLFWwindow *window, int key, int /*scancode*/, int action, int) {
-		if (key == GLFW_KEY_Q && action == GLFW_PRESS)
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
-	});
-
 	return window;
 }
 
@@ -34,4 +29,3 @@ std::vector<const char*> getRequiredExtensions(bool validationEnabled) {
 
 	return extensions;
 }
-

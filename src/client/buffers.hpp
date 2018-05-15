@@ -23,7 +23,7 @@ struct MVPUniformBufferObject final {
 };
 
 struct CompositionUniformBufferObject final {
-	glm::vec4 viewPos;
+	glm::vec4 viewPos; // w used as 'showGbufTex'
 };
 
 Buffer createBuffer(
