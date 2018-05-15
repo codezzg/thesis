@@ -19,23 +19,22 @@ struct Application final {
 
 	//ApplicationMemory memory;
 
-	GLFWwindow* window;
+	GLFWwindow* window = nullptr;
 
-	VkInstance instance;
-	VkSurfaceKHR surface;
+	VkInstance instance = VK_NULL_HANDLE;
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-	VkDevice device;
+	VkDevice device = VK_NULL_HANDLE;
 
 	Queues queues;
 
 	Validation validation;
 
-	VkCommandPool commandPool;
-	VkDescriptorPool descriptorPool;
+	VkCommandPool commandPool = VK_NULL_HANDLE;
+	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 
 	SwapChain swapChain;
-	Image depthImage;
 
 	GBuffer gBuffer;
 
@@ -43,9 +42,9 @@ struct Application final {
 
 	Resources res;
 
-	VkPipelineCache pipelineCache;
+	VkPipelineCache pipelineCache = VK_NULL_HANDLE;
 
-	VkRenderPass renderPass;
+	VkRenderPass renderPass = VK_NULL_HANDLE;
 
 	void init();
 	void cleanup();

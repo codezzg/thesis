@@ -27,6 +27,7 @@ void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommand
 
 		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
 
+		//// First subpass
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -41,11 +42,9 @@ void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommand
 
 		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
 
+		//// Second subpass
 		vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
 
-		//vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-				//app.res.pipelineLayouts->get("swap"), 0, 1,
-				//&app.res.descriptorSets->get("swap"), 0, nullptr);
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
 
 		vertexBuffers[0] = app.screenQuadBuffer.handle;

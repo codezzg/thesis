@@ -17,7 +17,7 @@ static Image createPosAttachment(const Application& app) {
 		GBUF_DIM, GBUF_DIM,
 		formats::position,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT// | VK_IMAGE_USAGE_SAMPLED_BIT
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto positionImgView = createImageView(app, positionImg.handle,
@@ -34,7 +34,7 @@ static Image createNormalAttachment(const Application& app) {
 		GBUF_DIM, GBUF_DIM,
 		formats::normal,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT// | VK_IMAGE_USAGE_SAMPLED_BIT
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto normalImgView = createImageView(app, normalImg.handle,
@@ -50,7 +50,7 @@ static Image createAlbedoSpecAttachment(const Application& app) {
 		GBUF_DIM, GBUF_DIM,
 		formats::albedoSpec,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT// | VK_IMAGE_USAGE_SAMPLED_BIT
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto albedoSpecImgView = createImageView(app, albedoSpecImg.handle,
@@ -62,125 +62,27 @@ static Image createAlbedoSpecAttachment(const Application& app) {
 	return albedoSpecImg;
 }
 
+/*
 static Image createDepthAttachment(const Application& app) {
 	auto depthImg = createImage(app,
 		GBUF_DIM, GBUF_DIM,
 		formats::depth,
 		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	auto depthImgView = createImageView(app, depthImg.handle, depthImg.format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 	depthImg.view = depthImgView;
 
 	return depthImg;
-}
+}*/
 
 void GBuffer::createAttachments(const Application& app) {
 	position = createPosAttachment(app);
 	normal = createNormalAttachment(app);
 	albedoSpec = createAlbedoSpecAttachment(app);
-	depth = createDepthAttachment(app);
-}
-
-VkDescriptorSetLayout createGBufferDescriptorSetLayout(const Application& app) {
-	// texDiffuse: sampler2D
-	VkDescriptorSetLayoutBinding texDiffuseLayoutBinding = {};
-	texDiffuseLayoutBinding.binding = 0;
-	texDiffuseLayoutBinding.descriptorCount = 1;
-	texDiffuseLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	texDiffuseLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	// texSpecular: sampler2D
-	VkDescriptorSetLayoutBinding texSpecularLayoutBinding = {};
-	texSpecularLayoutBinding.binding = 1;
-	texSpecularLayoutBinding.descriptorCount = 1;
-	texSpecularLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	texSpecularLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	// ubo: { model, view, proj }
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-	uboLayoutBinding.binding = 2;
-	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-	const std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
-		texDiffuseLayoutBinding,
-		texSpecularLayoutBinding,
-		uboLayoutBinding,
-	};
-
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = bindings.size();
-	layoutInfo.pBindings = bindings.data();
-
-	VkDescriptorSetLayout descriptorSetLayout;
-	VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
-	app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
-
-	return descriptorSetLayout;
-}
-
-VkDescriptorSet createGBufferDescriptorSet(const Application& app, VkDescriptorSetLayout descriptorSetLayout,
-		const Buffer& uniformBuffer, const Image& texDiffuseImage, const Image& texSpecularImage,
-		VkSampler texSampler)
-{
-	const std::array<VkDescriptorSetLayout, 1> layouts = { descriptorSetLayout };
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = app.descriptorPool;
-	allocInfo.descriptorSetCount = layouts.size();
-	allocInfo.pSetLayouts = layouts.data();
-
-	VkDescriptorSet descriptorSet;
-	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
-	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
-
-	VkDescriptorBufferInfo bufferInfo = {};
-	bufferInfo.buffer = uniformBuffer.handle;
-	bufferInfo.offset = 0;
-	bufferInfo.range = uniformBuffer.size;
-
-	VkDescriptorImageInfo texDiffuseInfo = {};
-	texDiffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	texDiffuseInfo.imageView = texDiffuseImage.view;
-	texDiffuseInfo.sampler = texSampler;
-
-	VkDescriptorImageInfo texSpecularInfo = {};
-	texSpecularInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	texSpecularInfo.imageView = texSpecularImage.view;
-	texSpecularInfo.sampler = texSampler;
-
-	std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
-	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[0].dstSet = descriptorSet;
-	descriptorWrites[0].dstBinding = 0;
-	descriptorWrites[0].dstArrayElement = 0;
-	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWrites[0].descriptorCount = 1;
-	descriptorWrites[0].pImageInfo = &texDiffuseInfo;
-
-	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[1].dstSet = descriptorSet;
-	descriptorWrites[1].dstBinding = 1;
-	descriptorWrites[1].dstArrayElement = 0;
-	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWrites[1].descriptorCount = 1;
-	descriptorWrites[1].pImageInfo = &texSpecularInfo;
-
-	descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[2].dstSet = descriptorSet;
-	descriptorWrites[2].dstBinding = 2;
-	descriptorWrites[2].dstArrayElement = 0;
-	descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorWrites[2].descriptorCount = 1;
-	descriptorWrites[2].pBufferInfo = &bufferInfo;
-
-	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
-
-	return descriptorSet;
+	//depth = createDepthAttachment(app);
 }
 
 VkPipeline createGBufferPipeline(const Application& app) {
@@ -228,8 +130,8 @@ VkPipeline createGBufferPipeline(const Application& app) {
 	viewport.maxDepth = 1.f;
 
 	VkRect2D scissor = {};
-	scissor.offset = {0, 0};
-	scissor.extent = {GBUF_DIM, GBUF_DIM};
+	scissor.offset = { 0, 0 };
+	scissor.extent = { GBUF_DIM, GBUF_DIM };
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;

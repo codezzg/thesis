@@ -80,6 +80,7 @@ void SwapChain::destroyTransient(VkDevice device) {
 	for (auto imageView : imageViews)
 		vkDestroyImageView(device, imageView, nullptr);
 
+	//vkDestroyImageView(device, depthOnlyView, nullptr);
 	depthImage.destroy(device);
 
 	vkDestroySwapchainKHR(device, handle, nullptr);
@@ -151,24 +152,26 @@ SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain) {
 	return swapChain;
 }
 
-std::vector<VkImageView> createSwapChainImageViews(const Application& app) {
-	std::vector<VkImageView> imageViews{ app.swapChain.images.size() };
+std::vector<VkImageView> createSwapChainImageViews(const Application& app, const SwapChain& swapChain) {
+	std::vector<VkImageView> imageViews{ swapChain.images.size() };
 
-	for (std::size_t i = 0; i < app.swapChain.images.size(); ++i) {
+	for (std::size_t i = 0; i < swapChain.images.size(); ++i) {
 		imageViews[i] = createImageView(app,
-			app.swapChain.images[i], app.swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+			swapChain.images[i], swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
 
 	return imageViews;
 }
 
-std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app) {
-	std::vector<VkFramebuffer> framebuffers{ app.swapChain.imageViews.size() };
+std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app, const SwapChain& swapChain) {
+	assert(app.renderPass != VK_NULL_HANDLE && "app.renderPass must be valid!");
 
-	for (std::size_t i = 0; i < app.swapChain.imageViews.size(); ++i) {
+	std::vector<VkFramebuffer> framebuffers{ swapChain.imageViews.size() };
+
+	for (std::size_t i = 0; i < swapChain.imageViews.size(); ++i) {
 		const std::array<VkImageView, 2> attachments = {
-			app.swapChain.imageViews[i],
-			app.swapChain.depthImage.view,
+			swapChain.imageViews[i],
+			swapChain.depthImage.view,
 		};
 
 		VkFramebufferCreateInfo framebufferInfo = {};
@@ -176,8 +179,8 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app) {
 		framebufferInfo.renderPass = app.renderPass;
 		framebufferInfo.attachmentCount = attachments.size();
 		framebufferInfo.pAttachments = attachments.data();
-		framebufferInfo.width = app.swapChain.extent.width;
-		framebufferInfo.height = app.swapChain.extent.height;
+		framebufferInfo.width = swapChain.extent.width;
+		framebufferInfo.height = swapChain.extent.height;
 		framebufferInfo.layers = 1;
 
 		VLKCHECK(vkCreateFramebuffer(app.device, &framebufferInfo, nullptr, &framebuffers[i]));
@@ -186,13 +189,15 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app) {
 	return framebuffers;
 }
 
-std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app) {
-	std::vector<VkFramebuffer> framebuffers{ app.swapChain.imageViews.size() };
+std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app, const SwapChain& swapChain) {
+	assert(app.renderPass != VK_NULL_HANDLE && "app.renderPass must be valid!");
 
-	for (std::size_t i = 0; i < app.swapChain.imageViews.size(); ++i) {
+	std::vector<VkFramebuffer> framebuffers{ swapChain.imageViews.size() };
+
+	for (std::size_t i = 0; i < swapChain.imageViews.size(); ++i) {
 		const std::array<VkImageView, 5> attachments = {
-			app.swapChain.imageViews[i],
-			app.swapChain.depthImage.view,
+			swapChain.imageViews[i],
+			swapChain.depthImage.view,
 			app.gBuffer.position.view,
 			app.gBuffer.normal.view,
 			app.gBuffer.albedoSpec.view,
@@ -203,8 +208,8 @@ std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Applicatio
 		framebufferInfo.renderPass = app.renderPass;
 		framebufferInfo.attachmentCount = attachments.size();
 		framebufferInfo.pAttachments = attachments.data();
-		framebufferInfo.width = app.swapChain.extent.width;
-		framebufferInfo.height = app.swapChain.extent.height;
+		framebufferInfo.width = swapChain.extent.width;
+		framebufferInfo.height = swapChain.extent.height;
 		framebufferInfo.layers = 1;
 
 		VLKCHECK(vkCreateFramebuffer(app.device, &framebufferInfo, nullptr, &framebuffers[i]));
@@ -230,6 +235,8 @@ uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailable
 
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool) {
 	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
+
+	assert(commandBuffers.size() > 0 && "0 framebuffers in the swap chain??");
 
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;

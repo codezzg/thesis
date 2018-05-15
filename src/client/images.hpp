@@ -17,7 +17,10 @@ struct Image final {
 	}
 };
 
-VkImageView createImageView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+VkImageView createImageView(const Application& app,
+		VkImage image,
+		VkFormat format,
+		VkImageAspectFlags aspectFlags);
 
 /** Creates a new image. The returned Image will NOT have valid `view` and `sampler` handles, as they're optional
  *  and are set externally.

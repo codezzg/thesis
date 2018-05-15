@@ -128,7 +128,7 @@ private:
 	void initVulkan() {
 		// Create basic Vulkan resources
 		app.swapChain = createSwapChain(app);
-		app.swapChain.imageViews = createSwapChainImageViews(app);
+		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
 
 		app.renderPass = createMultipassRenderPass(app);
 
@@ -136,7 +136,9 @@ private:
 
 		app.commandPool = createCommandPool(app);
 		app.swapChain.depthImage = createDepthImage(app);
-		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app);
+		//app.swapChain.depthOnlyView = createImageView(app, app.swapChain.depthImage.handle,
+				//formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);
+		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
@@ -175,12 +177,12 @@ private:
 	void initVulkanForward() {
 		// Create basic Vulkan resources
 		app.swapChain = createSwapChain(app);
-		app.swapChain.imageViews = createSwapChainImageViews(app);
-		app.renderPass = createLightingRenderPass(app);
+		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
+		app.renderPass = createForwardRenderPass(app);
 
 		app.commandPool = createCommandPool(app);
 		app.swapChain.depthImage = createDepthImage(app);
-		app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+		app.swapChain.framebuffers = createSwapChainFramebuffers(app, app.swapChain);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
@@ -361,18 +363,18 @@ private:
 
 		// TODO: pass old swapchain?
 		app.swapChain = createSwapChain(app);
-		app.swapChain.imageViews = createSwapChainImageViews(app);
+		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
 		app.swapChain.depthImage = createDepthImage(app);
-		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		if (gIsDebug) {
-			app.renderPass = createLightingRenderPass(app);
+			app.renderPass = createForwardRenderPass(app);
 			app.swapChain.pipeline = createSwapChainDebugPipeline(app);
-			app.swapChain.framebuffers = createSwapChainFramebuffers(app);
+			app.swapChain.framebuffers = createSwapChainFramebuffers(app, app.swapChain);
 		} else {
 			app.renderPass = createMultipassRenderPass(app);
 			app.swapChain.pipeline = createSwapChainPipeline(app);
-			app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app);
+			app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 		}
+		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 
 		recordAllCommandBuffers();
 		updateMVPUniformBuffer();
@@ -579,7 +581,6 @@ private:
 		cleanupSwapChain();
 
 		app.gBuffer.destroyTransient(app.device);
-		app.gBuffer.destroyPersistent(app.device);
 
 		vkUnmapMemory(app.device, vertexBuffer.memory);
 		vkUnmapMemory(app.device, indexBuffer.memory);
