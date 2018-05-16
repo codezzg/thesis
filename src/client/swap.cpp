@@ -145,9 +145,9 @@ SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain) {
 	swapChain.extent = extent;
 	swapChain.imageFormat = surfaceFormat.format;
 
-	vkGetSwapchainImagesKHR(app.device, swapChain.handle, &imageCount, nullptr);
+	VLKCHECK(vkGetSwapchainImagesKHR(app.device, swapChain.handle, &imageCount, nullptr));
 	swapChain.images.resize(imageCount);
-	vkGetSwapchainImagesKHR(app.device, swapChain.handle, &imageCount, swapChain.images.data());
+	VLKCHECK(vkGetSwapchainImagesKHR(app.device, swapChain.handle, &imageCount, swapChain.images.data()));
 
 	return swapChain;
 }
@@ -283,7 +283,6 @@ VkPipeline createSwapChainPipeline(const Application& app) {
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-	//inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	VkViewport viewport = {};
@@ -463,7 +462,7 @@ void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCo
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 		beginInfo.pInheritanceInfo = nullptr;
 
-		vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
+		VLKCHECK(vkBeginCommandBuffer(commandBuffers[i], &beginInfo));
 
 		VkRenderPassBeginInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -490,10 +489,7 @@ void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCo
 				app.res.pipelineLayouts->get("swap"), 0, 1,
 				&app.res.descriptorSets->get("swap"), 0, nullptr);
 		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
-		//std::cerr << (app.swapChain.screenQuadBuffer.size / sizeof(Vertex)) << "\n";
-		//vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
-		//std::cerr << "recreating command buffer with v = "
-			//<< nVertices << ", i = " << nIndices << "\n";
+
 		vkCmdEndRenderPass(commandBuffers[i]);
 
 		VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
@@ -533,7 +529,7 @@ VkPipeline createSwapChainDebugPipeline(const Application& app) {
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	VkViewport viewport = {};

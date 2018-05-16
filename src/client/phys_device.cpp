@@ -1,6 +1,7 @@
 #include "phys_device.hpp"
 #include <unordered_set>
 #include "vulk_utils.hpp"
+#include "vulk_errors.hpp"
 
 const std::vector<const char*> gDeviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -22,7 +23,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR s
 		}
 
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
+		VLKCHECK(vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport));
 		if (queueFamily.queueCount > 0 && presentSupport) {
 			indices.presentFamily = i;
 		}
@@ -39,23 +40,23 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR s
 
 SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
 	SwapChainSupportDetails details;
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &details.capabilities);
+	VLKCHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &details.capabilities));
 
 	uint32_t formatCount;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, nullptr);
+	VLKCHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, nullptr));
 
 	if (formatCount != 0) {
 		details.formats.resize(formatCount);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, details.formats.data());
+		VLKCHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, details.formats.data()));
 	}
 
 	uint32_t presentModeCount;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface, &presentModeCount, nullptr);
+	VLKCHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface, &presentModeCount, nullptr));
 
 	if (presentModeCount != 0) {
 		details.presentModes.resize(presentModeCount);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface,
-				&presentModeCount, details.presentModes.data());
+		VLKCHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface,
+				&presentModeCount, details.presentModes.data()));
 	}
 
 	return details;
@@ -81,10 +82,10 @@ bool isDeviceSuitable(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
 
 bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
 	uint32_t extensionCount;
-	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, nullptr);
+	VLKCHECK(vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, nullptr));
 
 	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, availableExtensions.data());
+	VLKCHECK(vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, availableExtensions.data()));
 
 	std::unordered_set<std::string> requiredExtensions(gDeviceExtensions.begin(), gDeviceExtensions.end());
 
@@ -96,14 +97,14 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
 
 VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
 	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+	VLKCHECK(vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr));
 
 	if (deviceCount == 0) {
 		throw std::runtime_error("failed to find GPUs with Vulkan support!");
 	}
 
 	std::vector<VkPhysicalDevice> devices(deviceCount);
-	vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+	VLKCHECK(vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data()));
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	for (const auto& device : devices) {

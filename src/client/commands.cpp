@@ -26,7 +26,7 @@ VkCommandBuffer allocCommandBuffer(const Application& app, VkCommandPool command
 	allocInfo.commandBufferCount = 1;
 
 	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(app.device, &allocInfo, &commandBuffer);
+	VLKCHECK(vkAllocateCommandBuffers(app.device, &allocInfo, &commandBuffer));
 	app.validation.addObjectInfo(commandBuffer, __FILE__, __LINE__);
 
 	return commandBuffer;
@@ -53,8 +53,8 @@ void endSingleTimeCommands(VkDevice device, VkQueue graphicsQueue,
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 
-	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(graphicsQueue);
+	VLKCHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
+	VLKCHECK(vkQueueWaitIdle(graphicsQueue));
 
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }

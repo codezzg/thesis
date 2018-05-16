@@ -274,7 +274,7 @@ private:
 		info("closing relEP");
 		relEP.close(); // FIXME why it hangs sometimes?
 		info("waiting device idle");
-		vkDeviceWaitIdle(app.device);
+		VLKCHECK(vkDeviceWaitIdle(app.device));
 	}
 
 	void runFrame() {
@@ -287,7 +287,7 @@ private:
 		if (nVertices != pvs || nIndices != pis) {
 			pvs = nVertices;
 			pis = nIndices;
-			vkDeviceWaitIdle(app.device);
+			VLKCHECK(vkDeviceWaitIdle(app.device));
 			vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
@@ -378,8 +378,8 @@ private:
 			app.gBuffer.createAttachments(app);
 			app.renderPass = createMultipassRenderPass(app);
 
-			vkFreeDescriptorSets(app.device, app.descriptorPool, 1,
-					&app.res.descriptorSets->get("multi"));
+			VLKCHECK(vkFreeDescriptorSets(app.device, app.descriptorPool, 1,
+					&app.res.descriptorSets->get("multi")));
 			app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app,
 					mvpUniformBuffer, compUniformBuffer,
 					texDiffuseImage, texSpecularImage, texSampler));
@@ -448,7 +448,7 @@ private:
 			throw std::runtime_error("failed to present swap chain image!");
 		}
 
-		vkQueueWaitIdle(app.queues.present);
+		VLKCHECK(vkQueueWaitIdle(app.queues.present));
 	}
 
 	void drawFrame() {
@@ -555,10 +555,10 @@ private:
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		// Map device memory to host
-		vkMapMemory(app.device, vertexBuffer.memory, 0, vertexBuffer.size, 0, &vertexData);
-		vkMapMemory(app.device, indexBuffer.memory, 0, indexBuffer.size, 0, &indexData);
-		vkMapMemory(app.device, mvpUniformBuffer.memory, 0, mvpUniformBuffer.size, 0, &mvpUboData);
-		vkMapMemory(app.device, compUniformBuffer.memory, 0, compUniformBuffer.size, 0, &compUboData);
+		VLKCHECK(vkMapMemory(app.device, vertexBuffer.memory, 0, vertexBuffer.size, 0, &vertexData));
+		VLKCHECK(vkMapMemory(app.device, indexBuffer.memory, 0, indexBuffer.size, 0, &indexData));
+		VLKCHECK(vkMapMemory(app.device, mvpUniformBuffer.memory, 0, mvpUniformBuffer.size, 0, &mvpUboData));
+		VLKCHECK(vkMapMemory(app.device, compUniformBuffer.memory, 0, compUniformBuffer.size, 0, &compUboData));
 	}
 
 
@@ -580,7 +580,8 @@ private:
 
 	void cleanupSwapChain() {
 		// Destroy the gbuffer and all its attachments
-		app.gBuffer.destroyTransient(app.device);
+		if (!gIsDebug)
+			app.gBuffer.destroyTransient(app.device);
 		// Destroy the swapchain and all its images and framebuffers
 		app.swapChain.destroyTransient(app.device);
 
@@ -593,8 +594,6 @@ private:
 
 	void cleanup() {
 		cleanupSwapChain();
-
-		//app.gBuffer.destroyTransient(app.device);
 
 		vkUnmapMemory(app.device, vertexBuffer.memory);
 		vkUnmapMemory(app.device, indexBuffer.memory);

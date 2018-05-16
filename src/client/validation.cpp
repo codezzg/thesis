@@ -10,10 +10,10 @@
 
 bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers) {
 	uint32_t layerCount;
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+	VLKCHECK(vkEnumerateInstanceLayerProperties(&layerCount, nullptr));
 
 	std::vector<VkLayerProperties> availableLayers(layerCount);
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+	VLKCHECK(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data()));
 
 	for (const auto layerName : requestedLayers) {
 		if (std::none_of(availableLayers.begin(), availableLayers.end(),
