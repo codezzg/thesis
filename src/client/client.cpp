@@ -1,3 +1,4 @@
+/** @author Giacomo Parolini, 2018 */
 #include <array>
 #include <unordered_map>
 #include <iostream>
@@ -70,7 +71,7 @@ public:
 			glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 			glfwSetCursorPosCallback(app.window, cursorPosCallback);
 		}
-		glfwSetKeyCallback(app.window, VulkanClient::keyCallback);
+		glfwSetKeyCallback(app.window, keyCallback);
 
 		if (!gIsDebug)
 			initVulkan(); // deferred rendering
@@ -260,6 +261,10 @@ private:
 			LimitFrameTime lft { std::chrono::milliseconds{ 16 } };
 			lft.enabled = gLimitFrameTime;
 
+			// Check if we disconnected
+			if (!relEP.isConnected())
+				break;
+
 			glfwPollEvents();
 
 			runFrame();
@@ -267,12 +272,14 @@ private:
 			calcTimeStats(fps, beginTime);
 		}
 
+		// Close sockets
 		info("closing passiveEP");
 		passiveEP.close();
 		info("closing activeEP");
 		activeEP.close();
 		info("closing relEP");
 		relEP.close(); // FIXME why it hangs sometimes?
+
 		info("waiting device idle");
 		VLKCHECK(vkDeviceWaitIdle(app.device));
 	}
@@ -540,25 +547,41 @@ private:
 	}
 
 	void prepareBufferMemory() {
-		// Prepare buffer memory
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
 
-		vertexBuffer = createBuffer(app, VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		indexBuffer = createBuffer(app, INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		mvpUniformBuffer = createBuffer(app, sizeof(MVPUniformBufferObject),
+		// These buffers are all created una-tantum.
+		BufferAllocator bufAllocator;
+
+		// vertex buffer
+		bufAllocator.addBuffer(vertexBuffer,
+				VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		// index buffer
+		bufAllocator.addBuffer(indexBuffer,
+				INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		// mvp ubo
+		bufAllocator.addBuffer(mvpUniformBuffer,
+				sizeof(MVPUniformBufferObject),
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		compUniformBuffer = createBuffer(app, sizeof(CompositionUniformBufferObject),
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		// comp ubo
+		bufAllocator.addBuffer(compUniformBuffer,
+				sizeof(CompositionUniformBufferObject),
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		bufAllocator.create(app);
 
 		// Map device memory to host
-		VLKCHECK(vkMapMemory(app.device, vertexBuffer.memory, 0, vertexBuffer.size, 0, &vertexData));
-		VLKCHECK(vkMapMemory(app.device, indexBuffer.memory, 0, indexBuffer.size, 0, &indexData));
-		VLKCHECK(vkMapMemory(app.device, mvpUniformBuffer.memory, 0, mvpUniformBuffer.size, 0, &mvpUboData));
-		VLKCHECK(vkMapMemory(app.device, compUniformBuffer.memory, 0, compUniformBuffer.size, 0, &compUboData));
+		VLKCHECK(vkMapMemory(app.device, vertexBuffer.memory, vertexBuffer.offset,
+					vertexBuffer.size, 0, &vertexData));
+		VLKCHECK(vkMapMemory(app.device, indexBuffer.memory, indexBuffer.offset,
+					indexBuffer.size, 0, &indexData));
+		VLKCHECK(vkMapMemory(app.device, mvpUniformBuffer.memory, mvpUniformBuffer.offset,
+					mvpUniformBuffer.size, 0, &mvpUboData));
+		VLKCHECK(vkMapMemory(app.device, compUniformBuffer.memory, compUniformBuffer.offset,
+					compUniformBuffer.size, 0, &compUboData));
 	}
 
 
@@ -604,10 +627,12 @@ private:
 		texDiffuseImage.destroy(app.device);
 		texSpecularImage.destroy(app.device);
 
-		mvpUniformBuffer.destroy(app.device);
-		compUniformBuffer.destroy(app.device);
-		indexBuffer.destroy(app.device);
-		vertexBuffer.destroy(app.device);
+		destroyAllBuffers(app.device, {
+			mvpUniformBuffer,
+			compUniformBuffer,
+			indexBuffer,
+			vertexBuffer
+		});
 
 		vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
 

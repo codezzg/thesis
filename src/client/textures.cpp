@@ -14,6 +14,7 @@ Image createTextureImage(const Application& app, const char *texturePath, Textur
 			format == TextureFormat::RGBA
 				? STBI_rgb_alpha
 				: STBI_grey);
+
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
 
