@@ -5,6 +5,7 @@
 #include <memory>
 #include <array>
 #include "endpoint_xplatform.hpp"
+#include "tcp_messages.hpp"
 
 struct FrameData;
 
@@ -13,9 +14,22 @@ bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len);
 
 bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len);
 
-bool validatePacket(uint8_t *packetBuf, int64_t frameId);
+/** Checks whether the data contained in `packetBuf` conforms to our
+ *  UDP protocol or not (i.e. has the proper header)
+ */
+bool validateUDPPacket(uint8_t *packetBuf, int64_t frameId);
 
+/** Dumps the content of `packet` into file `fname` */
 void dumpPacket(const char *fname, const FrameData& packet);
+
+/** Receives a message from socket expecting it to be a TCP message conforming to
+ *  our protocol, and fills both `buffer` with the entire packet receives and
+ *  `type` with the MsgType extracted from that message.
+ */
+bool receiveTCPMsg(socket_t socket, uint8_t *buffer, std::size_t len, MsgType& type);
+
+/** Like `receiveTCPMsg`, but returns true if and only if a message of type `type` was received. */
+bool expectTCPMsg(socket_t socket, uint8_t *buffer, std::size_t len, MsgType type);
 //
 
 /** Base abstract class for a network endpoint running in a separate thread.

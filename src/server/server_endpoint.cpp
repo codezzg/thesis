@@ -81,11 +81,10 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 //};
 void ServerActiveEndpoint::loopFunc() {
 
-	std::mutex loopMtx;
-	std::unique_lock<std::mutex> loopUlk{ loopMtx };
-
 	auto delay = 0ms;
 	auto& shared = server.sharedData;
+
+	std::mutex loopMtx;
 
 	FPSCounter fps;
 	fps.start();
@@ -100,6 +99,7 @@ void ServerActiveEndpoint::loopFunc() {
 
 		// Wait for the new frame data from the client
 		debug("Waiting for client data...");
+		std::unique_lock<std::mutex> loopUlk{ loopMtx };
 		shared.loopCv.wait(loopUlk);
 		//shared.loopCv.wait_for(loopMtx, 0.033s);
 
@@ -176,7 +176,7 @@ void ServerPassiveEndpoint::loopFunc() {
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
-		if (!validatePacket(packetBuf.data(), latestFrame))
+		if (!validateUDPPacket(packetBuf.data(), latestFrame))
 			continue;
 
 		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
@@ -224,39 +224,6 @@ void ServerReliableEndpoint::loopFunc() {
 	}
 }
 
-
-/** Receives a message from `socket` into `buffer` and fills the `msgType` variable according to the
- *  type of message received (i.e. the message header)
- */
-static bool receiveClientMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType& msgType) {
-
-	msgType = MsgType::UNKNOWN;
-
-	const auto count = recv(socket, reinterpret_cast<char*>(buffer), bufsize, 0);
-	if (count < 0) {
-		err("Error receiving message: [", count, "] ", xplatGetErrorString(), " G(", xplatGetError(), ")");
-		return false;
-	} else if (count == sizeof(buffer)) {
-		warn("Warning: datagram was truncated as it's too large.");
-		return false;
-	} else if (count == 0) {
-		warn("Received EOF.");
-		return false;
-	}
-
-	// TODO: validate message header
-
-	// Check type of message (TODO) -- currently the message type is determined by its first byte.
-	msgType = byte2msg(buffer[0]);
-
-	return true;
-}
-
-static bool expectClientMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType expectedType) {
-	MsgType type;
-	return receiveClientMsg(socket, buffer, bufsize, type) && type == expectedType;
-}
-
 /** This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
 static void keepaliveTask(socket_t clientSocket, std::condition_variable& cv,
 		std::chrono::time_point<std::chrono::system_clock>& latestPing)
@@ -265,7 +232,7 @@ static void keepaliveTask(socket_t clientSocket, std::condition_variable& cv,
 
 	while (true) {
 		MsgType type;
-		if (!receiveClientMsg(clientSocket, buffer.data(), buffer.size(), type)) {
+		if (!receiveTCPMsg(clientSocket, buffer.data(), buffer.size(), type)) {
 			cv.notify_one();
 			break;
 		}
@@ -285,7 +252,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		std::array<uint8_t, 1> buffer = {};
 
 		// Perform handshake
-		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::HELO))
+		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::HELO))
 			goto dropclient;
 
 		buffer[0] = msg2byte(MsgType::HELO_ACK);
@@ -296,7 +263,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		// TODO
 
 		// Wait for ready signal from client
-		if (!expectClientMsg(clientSocket, buffer.data(), buffer.size(), MsgType::READY))
+		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::READY))
 			goto dropclient;
 
 		// Starts UDP loops and send ready to client
@@ -317,7 +284,6 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(loopCv), std::ref(latestPing) };
 
 		const auto& roLatestPing = latestPing;
-		std::mutex loopMtx;
 		std::unique_lock<std::mutex> loopUlk{ loopMtx };
 		const auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
 
@@ -339,6 +305,11 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 
 dropclient:
 	info("TCP: Dropping client ", readableAddr);
+	{
+		// Send disconnect message
+		std::array<uint8_t, 1> buffer = { msg2byte(MsgType::DISCONNECT) };
+		sendPacket(clientSocket, buffer.data(), buffer.size());
+	}
 	server.sharedData.loopCv.notify_all();
 	server.passiveEP.close();
 	server.activeEP.close();

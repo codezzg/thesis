@@ -10,6 +10,8 @@ enum class MsgType : uint8_t {
 	READY      = 0x03,
 	/** Keep the connection alive */
 	KEEPALIVE  = 0x04,
+	/** Announce own disconnection */
+	DISCONNECT = 0x05,
 	UNKNOWN,
 };
 

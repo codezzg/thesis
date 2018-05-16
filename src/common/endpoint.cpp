@@ -124,7 +124,7 @@ bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 }
 
 
-bool validatePacket(uint8_t *packetBuf, int64_t frameId) {
+bool validateUDPPacket(uint8_t *packetBuf, int64_t frameId) {
 	const auto packet = reinterpret_cast<FrameData*>(packetBuf);
 	if (packet->header.magic != cfg::PACKET_MAGIC) {
 		info("Packet has invalid magic: dropping.");
@@ -158,4 +158,36 @@ bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
 	}
 	verbose("Sent data ", data);
 	return true;
+}
+
+/** Receives a message from `socket` into `buffer` and fills the `msgType` variable according to the
+ *  type of message received (i.e. the message header)
+ */
+bool receiveTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType& msgType) {
+
+	msgType = MsgType::UNKNOWN;
+
+	const auto count = recv(socket, reinterpret_cast<char*>(buffer), bufsize, 0);
+	if (count < 0) {
+		err("Error receiving message: [", count, "] ", xplatGetErrorString(), " G(", xplatGetError(), ")");
+		return false;
+	} else if (count == sizeof(buffer)) {
+		warn("Warning: datagram was truncated as it's too large.");
+		return false;
+	} else if (count == 0) {
+		warn("Received EOF.");
+		return false;
+	}
+
+	// TODO: validate message header
+
+	// Check type of message (TODO) -- currently the message type is determined by its first byte.
+	msgType = byte2msg(buffer[0]);
+
+	return true;
+}
+
+bool expectTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType expectedType) {
+	MsgType type;
+	return receiveTCPMsg(socket, buffer, bufsize, type) && type == expectedType;
 }

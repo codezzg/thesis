@@ -64,12 +64,12 @@ public:
  */
 class ClientReliableEndpoint : public Endpoint {
 
+	bool connected = false;
+
 	std::condition_variable cv;
 
 	void loopFunc() override;
 	void onClose() override;
-
-	bool sendKeepAlive();
 
 public:
 	/** Call this after starting this socket to block the caller thread until the next step
@@ -78,4 +78,6 @@ public:
 	 */
 	bool await(std::chrono::seconds timeout);
 	void proceed() { cv.notify_one(); }
+
+	bool isConnected() const { return connected; }
 };

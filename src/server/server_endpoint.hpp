@@ -68,6 +68,8 @@ public:
 class ServerReliableEndpoint : public Endpoint {
 
 	Server& server;
+
+	std::mutex loopMtx;
 	std::condition_variable loopCv;
 
 	void loopFunc() override;

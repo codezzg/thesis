@@ -34,7 +34,7 @@ void ClientPassiveEndpoint::loopFunc() {
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
-		if (!validatePacket(packetBuf.data(), frameId))
+		if (!validateUDPPacket(packetBuf.data(), frameId))
 			continue;
 
 		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
@@ -158,6 +158,23 @@ static bool sendReadyAndWait(socket_t socket) {
 	return byte2msg(buf[0]) == MsgType::READY;
 }
 
+static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_variable& cv) {
+
+	std::unique_lock<std::mutex> ulk{ mtx };
+	const auto msg = msg2byte(MsgType::KEEPALIVE);
+
+	while (true) {
+		// Using a condition variable instead of sleep_for since we want to be able to interrupt it.
+		const auto r = cv.wait_for(ulk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
+		if (r == std::cv_status::no_timeout) {
+			info("keepalive task: interrupted");
+			break;
+		}
+		if (!sendPacket(socket, &msg, 1))
+			warn("Failed to send keepalive.");
+	}
+}
+
 /* The logic here goes as follows:
  * - the client starts this thread via runLoop()
  * - the client waits for the handshake via await()
@@ -174,33 +191,49 @@ void ClientReliableEndpoint::loopFunc() {
 	cv.notify_one();
 
 	std::mutex mtx;
-	std::unique_lock<std::mutex> ulk{ mtx };
+	{
+		std::unique_lock<std::mutex> ulk{ mtx };
+		// Wait for the main thread to tell us to proceed
+		cv.wait(ulk);
+	}
 
-	// Wait for the main thread to tell us to proceed
-	cv.wait(ulk);
 	if (!sendReadyAndWait(socket)) {
 		err("[ ERROR ] Sending or awaiting ready failed.");
 		return;
 	}
 	cv.notify_one();
 
-	while (!terminated) {
-		// use a condition variable instead of sleep_for since we want to be able to interrupt it.
-		cv.wait_for(ulk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
-		int attempts = 0;
-		while (!sendKeepAlive() && !terminated) {
-			cv.wait_for(ulk, (1 + attempts) * 1s);
-			if (++attempts > cfg::CLIENT_KEEPALIVE_MAX_ATTEMPTS) {
-				warn("Failed to send keepalive.");
-			}
-		}
-		// TODO: server response?
-	}
-}
+	// Spawn the keepalive routine
+	std::thread keepaliveThread {
+		keepaliveTask,
+		socket,
+		std::ref(mtx),
+		std::ref(cv),
+	};
 
-bool ClientReliableEndpoint::sendKeepAlive() {
-	uint8_t ping = msg2byte(MsgType::KEEPALIVE);
-	return sendPacket(socket, &ping, 1);
+	std::array<uint8_t, 1> buffer = {};
+	connected = true;
+	while (connected) {
+		MsgType type;
+		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), type)) {
+			connected = false;
+			break;
+		}
+
+		switch (type) {
+		case MsgType::DISCONNECT:
+			connected = false;
+			break;
+		default:
+			break;
+		}
+	}
+
+	info("Closing TCP connection.");
+	cv.notify_all();
+	if (keepaliveThread.joinable())
+		keepaliveThread.join();
+	info("Keepalive thread joined.");
 }
 
 void ClientReliableEndpoint::onClose() {

@@ -30,11 +30,13 @@ int xplatSockClose(socket_t sock) {
 	status = shutdown(sock, SD_BOTH);
 	if (status == 0 || WSAGetLastError() == WSAENOTCONN) {
 		status = closesocket(sock);
+		logging::info("Socket ", sock, " shut down.");
 #else
 	// This may fail if the socket is UDP, just don't care
 	status = shutdown(sock, SHUT_RDWR);
 	if (status == 0 || errno == ENOTCONN) {
 		status = close(sock);
+		logging::info("Socket ", sock, " shut down.");
 #endif
 	} else logging::warn("Error shutting down the socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 
