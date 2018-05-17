@@ -129,8 +129,6 @@ void Application::cleanup() {
 	vkDestroyCommandPool(device, commandPool, nullptr);
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
-	screenQuadBuffer.destroy(device);
-
 	validation.cleanup();
 
 	vkDestroyDevice(device, nullptr);

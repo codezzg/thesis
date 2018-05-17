@@ -12,59 +12,6 @@
 
 //static constexpr auto GBUF_DIM = 2048;
 
-static Image createPosAttachment(const Application& app) {
-	auto positionImg = createImage(app,
-		//GBUF_DIM, GBUF_DIM,
-		app.swapChain.extent.width, app.swapChain.extent.height,
-		formats::position,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	auto positionImgView = createImageView(app, positionImg.handle,
-			positionImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
-
-	positionImg.view = positionImgView;
-
-	return positionImg;
-}
-
-
-static Image createNormalAttachment(const Application& app) {
-	auto normalImg = createImage(app,
-		//GBUF_DIM, GBUF_DIM,
-		app.swapChain.extent.width, app.swapChain.extent.height,
-		formats::normal,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	auto normalImgView = createImageView(app, normalImg.handle,
-			normalImg.format, VK_IMAGE_ASPECT_COLOR_BIT);
-
-	normalImg.view = normalImgView;
-
-	return normalImg;
-}
-
-static Image createAlbedoSpecAttachment(const Application& app) {
-	auto albedoSpecImg = createImage(app,
-		//GBUF_DIM, GBUF_DIM,
-		app.swapChain.extent.width, app.swapChain.extent.height,
-		formats::albedoSpec,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	auto albedoSpecImgView = createImageView(app, albedoSpecImg.handle,
-			albedoSpecImg.format,
-			VK_IMAGE_ASPECT_COLOR_BIT);
-
-	albedoSpecImg.view = albedoSpecImgView;
-
-	return albedoSpecImg;
-}
-
 /*
 static Image createDepthAttachment(const Application& app) {
 	auto depthImg = createImage(app,
@@ -82,10 +29,43 @@ static Image createDepthAttachment(const Application& app) {
 }*/
 
 void GBuffer::createAttachments(const Application& app) {
-	position = createPosAttachment(app);
-	normal = createNormalAttachment(app);
-	albedoSpec = createAlbedoSpecAttachment(app);
-	//depth = createDepthAttachment(app);
+	ImageAllocator imgAlloc;
+
+	// position
+	imgAlloc.addImage(position,
+		app.swapChain.extent.width, app.swapChain.extent.height,
+		formats::position,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	// normal
+	imgAlloc.addImage(normal,
+		app.swapChain.extent.width, app.swapChain.extent.height,
+		formats::normal,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	// albedoSpec
+	imgAlloc.addImage(albedoSpec,
+		app.swapChain.extent.width, app.swapChain.extent.height,
+		formats::albedoSpec,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	imgAlloc.create(app);
+
+	position.view = createImageView(app, position.handle, position.format, VK_IMAGE_ASPECT_COLOR_BIT);
+	normal.view = createImageView(app, normal.handle, normal.format, VK_IMAGE_ASPECT_COLOR_BIT);
+	albedoSpec.view = createImageView(app, albedoSpec.handle, albedoSpec.format, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 VkPipeline createGBufferPipeline(const Application& app) {

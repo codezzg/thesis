@@ -199,14 +199,18 @@ private:
 		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
 
 		// Load textures
-		texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA, stagingBuffer);
-		texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY, stagingBuffer);
+		TextureLoader texLoader{ stagingBuffer };
+		texLoader.addTexture(texDiffuseImage, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA);
+		texLoader.addTexture(texSpecularImage, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY);
+		texLoader.create(app);
+		//texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA, stagingBuffer);
+		//texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY, stagingBuffer);
 		texSampler = createTextureSampler(app);
 
 		prepareBufferMemory(stagingBuffer);
 
-		unmapBuffersMemory(app.device, { &stagingBuffer });
-		stagingBuffer.destroy(app.device);
+		unmapBuffersMemory(app.device, { stagingBuffer });
+		destroyBuffer(app.device, stagingBuffer);
 	}
 
 	void startNetwork() {
@@ -578,7 +582,6 @@ private:
 		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
 	}
 
-
 	void prepareCamera() {
 		// Prepare camera
 		camera = createCamera();
@@ -613,21 +616,21 @@ private:
 		cleanupSwapChain();
 
 		unmapBuffersMemory(app.device, {
-			&vertexBuffer,
-			&indexBuffer,
-			&mvpUniformBuffer,
-			&compUniformBuffer
+			vertexBuffer,
+			indexBuffer,
+			mvpUniformBuffer,
+			compUniformBuffer,
 		});
 
 		vkDestroySampler(app.device, texSampler, nullptr);
-		texDiffuseImage.destroy(app.device);
-		texSpecularImage.destroy(app.device);
+		destroyAllImages(app.device, { texDiffuseImage, texSpecularImage });
 
 		destroyAllBuffers(app.device, {
 			mvpUniformBuffer,
 			compUniformBuffer,
 			indexBuffer,
-			vertexBuffer
+			vertexBuffer,
+			app.screenQuadBuffer
 		});
 
 		vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);

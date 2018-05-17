@@ -12,11 +12,11 @@
 
 using namespace logging;
 
-void Buffer::destroy(VkDevice device) {
-	vkDestroyBuffer(device, handle, nullptr);
-	vkFreeMemory(device, memory, nullptr);
+void destroyBuffer(VkDevice device, Buffer& buffer) {
+	vkDestroyBuffer(device, buffer.handle, nullptr);
+	vkFreeMemory(device, buffer.memory, nullptr);
 #ifndef NDEBUG
-	gMemMonitor.newFree(memory);
+	gMemMonitor.newFree(buffer.memory);
 #endif
 }
 
@@ -47,17 +47,13 @@ void BufferAllocator::create(const Application& app) {
 	// (memory type) => (memory size)
 	std::unordered_map<uint32_t, VkDeviceSize> requiredSizes;
 
-	struct BufMemInfo {
-		uint32_t memTypeNeeded;
-	};
+	uint32_t memTypeNeeded;
 
-	std::vector<BufMemInfo> bufInfos;
-	bufInfos.reserve(createInfos.size());
+	std::vector<uint32_t> memTypesNeeded;
+	memTypesNeeded.reserve(createInfos.size());
 
 	// Create the buffers and figure out what memory they need
 	for (unsigned i = 0; i < createInfos.size(); ++i) {
-		BufMemInfo bufMemInfo = {};
-
 		VkBuffer bufHandle;
 		VLKCHECK(vkCreateBuffer(app.device, &createInfos[i], nullptr, &bufHandle));
 		app.validation.addObjectInfo(bufHandle, __FILE__, __LINE__);
@@ -68,11 +64,10 @@ void BufferAllocator::create(const Application& app) {
 
 		const auto memType = findMemoryType(app.physicalDevice,
 				memRequirements.memoryTypeBits, properties[i]);
-		bufMemInfo.memTypeNeeded = memType;
 		buffers[i]->offset = requiredSizes[memType];
 		requiredSizes[memType] += memRequirements.size;
 
-		bufInfos.emplace_back(bufMemInfo);
+		memTypesNeeded.emplace_back(memType);
 	}
 
 	// The newly allocated device memories
@@ -88,16 +83,19 @@ void BufferAllocator::create(const Application& app) {
 		VkDeviceMemory bufferMemory;
 		VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &bufferMemory));
 		app.validation.addObjectInfo(bufferMemory, __FILE__, __LINE__);
+#ifndef NDEBUG
+		gMemMonitor.newAlloc(bufferMemory, allocInfo);
+#endif
 
 		memories[pair.first] = bufferMemory;
 	}
 
 	// Bind the memory to the buffers
 	for (unsigned i = 0; i < buffers.size(); ++i) {
-		auto& info = bufInfos[i];
+		auto& memType = memTypesNeeded[i];
 		auto buf = buffers[i];
-		VLKCHECK(vkBindBufferMemory(app.device, buf->handle, memories[info.memTypeNeeded], buf->offset));
-		buf->memory = memories[info.memTypeNeeded];
+		VLKCHECK(vkBindBufferMemory(app.device, buf->handle, memories[memType], buf->offset));
+		buf->memory = memories[memType];
 	}
 
 	info("Created ", buffers.size(), " buffers via ", memories.size(), " allocations.");
@@ -156,11 +154,13 @@ void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, 
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }
 
-void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image,
+		uint32_t width, uint32_t height, VkDeviceSize bufOffset) 
+{
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	VkBufferImageCopy region = {};
-	region.bufferOffset = 0;
+	region.bufferOffset = bufOffset;
 	region.bufferRowLength = 0;
 	region.bufferImageHeight = 0;
 	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -226,10 +226,10 @@ void mapBuffersMemory(VkDevice device, const std::vector<Buffer*>& buffers) {
 	}
 }
 
-void unmapBuffersMemory(VkDevice device, const std::vector<Buffer*>& buffers) {
+void unmapBuffersMemory(VkDevice device, const std::vector<Buffer>& buffers) {
 	std::unordered_set<VkDeviceMemory> mems;
 	for (const auto b : buffers)
-		mems.emplace(b->memory);
+		mems.emplace(b.memory);
 
 	for (auto& mem : mems)
 		vkUnmapMemory(device, mem);

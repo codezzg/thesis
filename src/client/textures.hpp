@@ -14,11 +14,21 @@ enum class TextureFormat {
 
 // TODO
 class TextureLoader final {
-	Buffer stagingBuffer;
+	struct ImageInfo {
+		VkFormat format;
+		uint32_t width;
+		uint32_t height;
+	};
+
+	Buffer& stagingBuffer;
+	std::size_t stagingBufferOffset = 0;
+
+	std::vector<ImageInfo> imageInfos;
 	std::vector<Image*> images;
 
 public:
-	/** Schedules `image` to be loaded */
+	explicit TextureLoader(Buffer& stagingBuffer) : stagingBuffer{ stagingBuffer } {}
+
 	void addTexture(Image& image, const char *texturePath, TextureFormat format);
 
 	void create(const Application& app);

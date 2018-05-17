@@ -81,7 +81,7 @@ void SwapChain::destroyTransient(VkDevice device) {
 		vkDestroyImageView(device, imageView, nullptr);
 
 	//vkDestroyImageView(device, depthOnlyView, nullptr);
-	depthImage.destroy(device);
+	destroyImage(device, depthImage);
 
 	vkDestroySwapchainKHR(device, handle, nullptr);
 

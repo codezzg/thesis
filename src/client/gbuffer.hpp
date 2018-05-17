@@ -21,9 +21,14 @@ struct GBuffer final {
 	void createAttachments(const Application& app);
 
 	void destroyTransient(VkDevice device) {
-		position.destroy(device);
-		normal.destroy(device);
-		albedoSpec.destroy(device);
+		destroyAllImages(device, {
+			position,
+			normal,
+			albedoSpec,
+		});
+		//position.destroy(device);
+		//normal.destroy(device);
+		//albedoSpec.destroy(device);
 		//depth.destroy(device);
 
 		vkDestroyPipeline(device, pipeline, nullptr);

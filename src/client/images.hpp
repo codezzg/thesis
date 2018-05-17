@@ -1,16 +1,40 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <tuple>
+#include <vector>
 
 struct Application;
 
 struct Image final {
 	VkImage handle;
 	VkDeviceMemory memory;
-	VkImageView view;
+	VkDeviceSize offset; // offset into underlying device memory
+	VkImageView view = VK_NULL_HANDLE;
 	VkFormat format;
+};
 
-	void destroy(VkDevice device);
+/** Use this class to allocate a bunch of images at once.
+ *  This allocator will attempt to minimize the number of allocations by reusing the same memory
+ *  for multiple images with proper offsets.
+ */
+class ImageAllocator final {
+	std::vector<VkImageCreateInfo> createInfos;
+	std::vector<VkMemoryPropertyFlags> properties;
+	std::vector<Image*> images;
+
+public:
+	/** Schedules a new image to be created and binds it to `image`. */
+	void addImage(Image& image,
+		uint32_t width,
+		uint32_t height,
+		VkFormat format,
+		VkImageTiling tiling,
+		VkImageUsageFlags usage,
+		VkMemoryPropertyFlags properties);
+
+	/** Creates the scheduled buffers and allocates their memory. */
+	void create(const Application& app);
 };
 
 VkImageView createImageView(const Application& app,
@@ -18,8 +42,8 @@ VkImageView createImageView(const Application& app,
 		VkFormat format,
 		VkImageAspectFlags aspectFlags);
 
-/** Creates a new image. The returned Image will NOT have valid `view` and `sampler` handles, as they're optional
- *  and are set externally.
+/** Creates a new image. The returned Image will NOT have a view attached.
+ *  Note: prefer allocating many images at once using ImageAllocator.
  */
 Image createImage(
 		const Application& app,
@@ -35,3 +59,8 @@ void transitionImageLayout(const Application& app,
 		VkImageLayout oldLayout, VkImageLayout newLayout);
 
 Image createDepthImage(const Application& app);
+
+void destroyImage(VkDevice, Image image);
+
+/** @see destroyAllBuffers */
+void destroyAllImages(VkDevice device, const std::vector<Image>& images);

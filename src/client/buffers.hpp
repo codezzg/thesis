@@ -24,8 +24,6 @@ struct Buffer final {
 	VkDeviceSize offset;
 	/** Host-mapped pointer, if any */
 	void *ptr = nullptr;
-
-	void destroy(VkDevice device);
 };
 
 struct MVPUniformBufferObject final {
@@ -80,7 +78,10 @@ Buffer createBuffer(
 Buffer createStagingBuffer(const Application& app, VkDeviceSize size);
 
 void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, 
+		uint32_t width, uint32_t height, VkDeviceSize bufOffset = 0);
+
+void destroyBuffer(VkDevice device, Buffer& buffer);
 
 /** Destroys all given buffers and frees the underlying memory in a safe way
  *  (i.e. frees once if several buffers share the same memory)
@@ -95,7 +96,7 @@ void mapBuffersMemory(VkDevice device,
 		/* inout */ const std::vector<Buffer*>& buffers);
 
 /** Does the opposite of `mapBuffersMemory` */
-void unmapBuffersMemory(VkDevice device, const std::vector<Buffer*>& buffers);
+void unmapBuffersMemory(VkDevice device, const std::vector<Buffer>& buffers);
 
 /** @return the parameters to create a screen quad buffer with. */
 BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties();

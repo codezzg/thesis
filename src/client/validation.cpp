@@ -117,7 +117,7 @@ std::string Validation::addDetails(const char *msg) const {
 		iss >> token;
 		oss << token << " ";
 
-		if (!startsWith(token, "0x"))
+		if (!startsWith(token, "0x") || token.length() > 4 /* handles are usually small numbers */)
 			continue;
 
 		const uint64_t info = std::stoul(token, nullptr, 16);
