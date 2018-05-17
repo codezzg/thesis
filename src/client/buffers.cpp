@@ -47,8 +47,6 @@ void BufferAllocator::create(const Application& app) {
 	// (memory type) => (memory size)
 	std::unordered_map<uint32_t, VkDeviceSize> requiredSizes;
 
-	uint32_t memTypeNeeded;
-
 	std::vector<uint32_t> memTypesNeeded;
 	memTypesNeeded.reserve(createInfos.size());
 
@@ -155,7 +153,7 @@ void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, 
 }
 
 void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image,
-		uint32_t width, uint32_t height, VkDeviceSize bufOffset) 
+		uint32_t width, uint32_t height, VkDeviceSize bufOffset)
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
@@ -176,7 +174,7 @@ void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image,
 }
 
 Buffer createStagingBuffer(const Application& app, VkDeviceSize size) {
-	auto buf = createBuffer(app, 
+	auto buf = createBuffer(app,
 		size,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
