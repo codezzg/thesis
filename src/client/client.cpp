@@ -62,7 +62,7 @@ bool gLimitFrameTime = true;
 
 class VulkanClient final {
 public:
-	void run() {
+	void run(const char *ip) {
 		app.init();
 
 		glfwSetWindowUserPointer(app.window, this);
@@ -78,8 +78,8 @@ public:
 		else
 			initVulkanForward(); // forward rendering
 
-		connectToServer();
-		mainLoop();
+		connectToServer(ip);
+		mainLoop(ip);
 		cleanup();
 	}
 
@@ -213,17 +213,17 @@ private:
 		destroyBuffer(app.device, stagingBuffer);
 	}
 
-	void startNetwork() {
-		passiveEP.startPassive(cfg::CLIENT_PASSIVE_IP, cfg::CLIENT_PASSIVE_PORT, SOCK_DGRAM);
+	void startNetwork(const char *serverIp) {
+		passiveEP.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		passiveEP.runLoop();
 
-		activeEP.startActive(cfg::CLIENT_ACTIVE_IP, cfg::CLIENT_ACTIVE_PORT, SOCK_DGRAM);
+		activeEP.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
 		activeEP.targetFrameTime = std::chrono::milliseconds{ 16 };
 		activeEP.runLoop();
 	}
 
-	void connectToServer() {
-		relEP.startActive(cfg::SERVER_RELIABLE_IP, cfg::SERVER_RELIABLE_PORT, SOCK_STREAM);
+	void connectToServer(const char *serverIp) {
+		relEP.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
 		relEP.runLoop();
 		if (!relEP.await(std::chrono::seconds{ 10 })) {
 			throw std::runtime_error("Failed connecting to server!");
@@ -239,8 +239,8 @@ private:
 		// Ready to start the main loop
 	}
 
-	void mainLoop() {
-		startNetwork();
+	void mainLoop(const char *serverIp) {
+		startNetwork(serverIp);
 
 		FPSCounter fps;
 		fps.start();
@@ -698,6 +698,8 @@ int main(int argc, char **argv) {
 
 	// Parse args
 	int i = argc - 1;
+	std::string serverIp = "127.0.0.1";
+	int posArgs = 0;
 	while (i > 0) {
 		if (strlen(argv[i]) < 2) {
 			err("Invalid flag: -");
@@ -721,6 +723,15 @@ int main(int argc, char **argv) {
 					<< " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
 				break;
 			}
+		} else {
+			// Positional args: [serverIp]
+			switch (posArgs++) {
+			case 0:
+				serverIp = std::string{ argv[i] };
+				break;
+			default:
+				break;
+			}
 		}
 		--i;
 	}
@@ -728,7 +739,7 @@ int main(int argc, char **argv) {
 	VulkanClient app;
 
 	try {
-		app.run();
+		app.run(serverIp.c_str());
 	} catch (const std::runtime_error& e) {
 		std::cerr << e.what() << std::endl;
 		return EXIT_FAILURE;

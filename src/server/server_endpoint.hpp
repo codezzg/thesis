@@ -81,6 +81,8 @@ class ServerReliableEndpoint : public Endpoint {
 	void onClose() override;
 
 public:
+	std::string serverIp;
+
 	explicit ServerReliableEndpoint(Server& server)
 		: server{ server }
 	{}

@@ -18,11 +18,12 @@ static constexpr auto MEMSIZE = 1 << 24;
 
 Server *gServer;
 
-static void parseArgs(int argc, char **argv);
+static void parseArgs(int argc, char **argv, std::string& ip);
 
 int main(int argc, char **argv) {
 
-	parseArgs(argc, argv);
+	std::string ip = "0.0.0.0";
+	parseArgs(argc, argv, ip);
 
 	std::cerr << "Debug level = " << static_cast<int>(gDebugLv) << "\n";
 
@@ -48,6 +49,7 @@ int main(int argc, char **argv) {
 	gServer = &server;
 
 	server.activeEP.targetFrameTime = 16ms;
+	server.relEP.serverIp = ip;
 
 	/// Allocate server memory buffer
 	auto serverMemory = std::unique_ptr<uint8_t>{ new uint8_t[MEMSIZE] };
@@ -73,32 +75,41 @@ int main(int argc, char **argv) {
 
 
 	/// Start TCP socket and wait for connections
-	server.relEP.startPassive(cfg::SERVER_RELIABLE_IP, cfg::SERVER_RELIABLE_PORT, SOCK_STREAM);
+	server.relEP.startPassive(ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
 	server.relEP.runLoopSync();
 }
 
-void parseArgs(int argc, char **argv) {
+void parseArgs(int argc, char **argv, std::string& ip) {
 	int i = argc - 1;
+	int posArgs = 0;
 	while (i > 0) {
 		if (strlen(argv[i]) < 2) {
 			std::cerr << "Invalid flag -.\n";
 			std::exit(EXIT_FAILURE);
 		}
-		if (argv[i][0] != '-') continue;
-
-		switch (argv[i][1]) {
-		case 'v': {
-			int lv = 1;
-			unsigned j = 2;
-			while (j < strlen(argv[i]) && argv[i][j] == 'v') {
-				++lv;
-				++j;
+		if (argv[i][0] == '-') {
+			switch (argv[i][1]) {
+			case 'v': {
+				int lv = 1;
+				unsigned j = 2;
+				while (j < strlen(argv[i]) && argv[i][j] == 'v') {
+					++lv;
+					++j;
+				}
+				gDebugLv = static_cast<LogLevel>(lv);
+			} break;
+			default:
+				std::cerr << "Usage: " << argv[0] << " [-v[vvv...]]\n";
+				std::exit(EXIT_FAILURE);
 			}
-			gDebugLv = static_cast<LogLevel>(lv);
-		} break;
-		default:
-			  std::cerr << "Usage: " << argv[0] << " [-v[vvv...]]\n";
-			  std::exit(EXIT_FAILURE);
+		} else {
+			switch (posArgs++) {
+			case 0:
+				ip = std::string{ argv[i] };
+				break;
+			default:
+				break;
+			}
 		}
 		--i;
 	}

@@ -267,8 +267,8 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 			goto dropclient;
 
 		// Starts UDP loops and send ready to client
-		server.passiveEP.startPassive(cfg::SERVER_PASSIVE_IP, cfg::SERVER_PASSIVE_PORT, SOCK_DGRAM);
-		server.activeEP.startActive(cfg::SERVER_ACTIVE_IP, cfg::SERVER_ACTIVE_PORT, SOCK_DGRAM);
+		server.passiveEP.startPassive(readableAddr, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
+		server.activeEP.startActive(readableAddr, cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		server.passiveEP.runLoop();
 		server.activeEP.runLoop();
 
@@ -276,7 +276,6 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		if (!sendPacket(clientSocket, buffer.data(), buffer.size()))
 			goto dropclient;
 	}
-
 
 	{
 		// Periodically check keepalive, or drop the client
