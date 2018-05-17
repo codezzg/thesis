@@ -10,11 +10,7 @@ struct Image final {
 	VkImageView view;
 	VkFormat format;
 
-	void destroy(VkDevice device) {
-		vkDestroyImageView(device, view, nullptr);
-		vkDestroyImage(device, handle, nullptr);
-		vkFreeMemory(device, memory, nullptr);
-	}
+	void destroy(VkDevice device);
 };
 
 VkImageView createImageView(const Application& app,

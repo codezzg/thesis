@@ -3,6 +3,10 @@
 #include <cassert>
 #include <stdexcept>
 
+#ifndef NDEBUG
+MemoryMonitor gMemMonitor;
+#endif
+
 MemoryChunk createMemoryChunk(VkDevice device, VkDeviceSize size, uint32_t memoryTypeIndex) {
 	VkMemoryAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;

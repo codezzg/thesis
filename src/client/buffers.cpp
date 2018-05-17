@@ -8,8 +8,21 @@
 #include "vertex.hpp"
 #include "vulk_errors.hpp"
 #include "logging.hpp"
+#include "vulk_memory.hpp"
 
 using namespace logging;
+
+void Buffer::destroy(VkDevice device) {
+	vkDestroyBuffer(device, handle, nullptr);
+	vkFreeMemory(device, memory, nullptr);
+#ifndef NDEBUG
+	gMemMonitor.newFree(memory);
+#endif
+}
+
+void BufferAllocator::addBuffer(Buffer& buffer, const BufferAllocator::BufferCreateInfo& info) {
+	addBuffer(buffer, std::get<0>(info), std::get<1>(info), std::get<2>(info));
+}
 
 void BufferAllocator::addBuffer(
 		Buffer& buffer,
@@ -117,6 +130,9 @@ Buffer createBuffer(
 	VkDeviceMemory bufferMemory;
 	VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &bufferMemory));
 	app.validation.addObjectInfo(bufferMemory, __FILE__, __LINE__);
+#ifndef NDEBUG
+	gMemMonitor.newAlloc(bufferMemory, allocInfo);
+#endif
 
 	VLKCHECK(vkBindBufferMemory(app.device, bufferHandle, bufferMemory, 0));
 
@@ -159,32 +175,16 @@ void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, u
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }
 
-static const std::array<Vertex, 4> quadVertices = {
-	// position, normal, texCoords
-	Vertex{ glm::vec3{ -1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 1.0f } },
-	Vertex{ glm::vec3{ -1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 0.0f } },
-	Vertex{ glm::vec3{  1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f } },
-	Vertex{ glm::vec3{  1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 0.0f } },
-};
+Buffer createStagingBuffer(const Application& app, VkDeviceSize size) {
+	auto buf = createBuffer(app, 
+		size,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+	);
 
-Buffer createScreenQuadVertexBuffer(const Application& app) {
-	auto stagingBuffer = createBuffer(app, sizeof(Vertex) * quadVertices.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	VLKCHECK(vkMapMemory(app.device, buf.memory, 0, buf.size, 0, &buf.ptr));
 
-	void* data;
-	VLKCHECK(vkMapMemory(app.device, stagingBuffer.memory, 0, stagingBuffer.size, 0, &data));
-	memcpy(data, quadVertices.data(), stagingBuffer.size);
-	vkUnmapMemory(app.device, stagingBuffer.memory);
-
-	auto buffer = createBuffer(app, sizeof(Vertex) * quadVertices.size(),
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-	copyBuffer(app, stagingBuffer.handle, buffer.handle, buffer.size);
-
-	stagingBuffer.destroy(app.device);
-
-	return buffer;
+	return buf;
 }
 
 void destroyAllBuffers(VkDevice device, const std::vector<Buffer>& buffers) {
@@ -194,6 +194,64 @@ void destroyAllBuffers(VkDevice device, const std::vector<Buffer>& buffers) {
 		vkDestroyBuffer(device, b.handle, nullptr);
 	}
 
-	for (auto& mem : mems)
+	for (auto& mem : mems) {
 		vkFreeMemory(device, mem, nullptr);
+#ifndef NDEBUG
+		gMemMonitor.newFree(mem);
+#endif
+	}
+}
+
+void mapBuffersMemory(VkDevice device, const std::vector<Buffer*>& buffers) {
+	// 1. Figure out how many memories are to be bound and their size
+	// 2. Bind a pointer to the whole memory chunk for each one of them
+	// 3. Assign pointers in `mappedPointers` to different offsets of these base pointers.
+
+	struct MemInfo {
+		VkDeviceSize size;
+		void *ptr;
+	};
+	std::unordered_map<VkDeviceMemory, MemInfo> mems;
+
+	for (const auto b : buffers)
+		mems[b->memory].size += b->size;
+
+	for (auto& mem : mems)
+		VLKCHECK(vkMapMemory(device, mem.first, 0, mem.second.size, 0, &mem.second.ptr));
+
+	for (unsigned i = 0; i < buffers.size(); ++i) {
+		auto& b = buffers[i];
+		const auto& mem = mems[b->memory];
+		b->ptr = reinterpret_cast<uint8_t*>(mem.ptr) + b->offset;
+	}
+}
+
+void unmapBuffersMemory(VkDevice device, const std::vector<Buffer*>& buffers) {
+	std::unordered_set<VkDeviceMemory> mems;
+	for (const auto b : buffers)
+		mems.emplace(b->memory);
+
+	for (auto& mem : mems)
+		vkUnmapMemory(device, mem);
+}
+
+BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties() {
+	return std::make_tuple(
+		sizeof(Vertex) * 4,
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+	);
+}
+
+void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf) {
+	const std::array<Vertex, 4> quadVertices = {
+		// position, normal, texCoords
+		Vertex{ glm::vec3{ -1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 1.0f } },
+		Vertex{ glm::vec3{ -1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 0.0f } },
+		Vertex{ glm::vec3{  1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f } },
+		Vertex{ glm::vec3{  1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 0.0f } },
+	};
+
+	memcpy(stagingBuf.ptr, quadVertices.data(), quadVertices.size() * sizeof(Vertex));
+	copyBuffer(app, stagingBuf.handle, screenQuadBuf.handle, quadVertices.size() * sizeof(Vertex));
 }

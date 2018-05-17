@@ -4,6 +4,16 @@
 #include "phys_device.hpp"
 #include "commands.hpp"
 #include "formats.hpp"
+#include "vulk_memory.hpp"
+
+void Image::destroy(VkDevice device) {
+	vkDestroyImageView(device, view, nullptr);
+	vkDestroyImage(device, handle, nullptr);
+	vkFreeMemory(device, memory, nullptr);
+#ifndef NDEBUG
+	gMemMonitor.newFree(memory);
+#endif
+}
 
 VkImageView createImageView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
 	VkImageViewCreateInfo createInfo = {};
@@ -63,6 +73,9 @@ Image createImage(
 	VkDeviceMemory imageMemory;
 	VLKCHECK(vkAllocateMemory(app.device, &allocInfo, nullptr, &imageMemory));
 	app.validation.addObjectInfo(imageMemory, __FILE__, __LINE__);
+#ifndef NDEBUG
+	gMemMonitor.newAlloc(imageMemory, allocInfo);
+#endif
 
 	VLKCHECK(vkBindImageMemory(app.device, imageHandle, imageMemory, 0));
 

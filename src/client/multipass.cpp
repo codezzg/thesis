@@ -2,13 +2,14 @@
 #include "buffers.hpp"
 #include "images.hpp"
 #include "application.hpp"
+#include <array>
 
 void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& commandBuffers,
 		uint32_t nIndices, const Buffer& vBuffer, const Buffer& iBuffer)
 {
 	std::array<VkClearValue, 5> clearValues = {};
 	clearValues[0].color = { 0.f, 0.0f, 0.f, 1.f };
-	clearValues[1].depthStencil = { 1.f, 0.f };
+	clearValues[1].depthStencil = { 1, 0 };
 
 	VkRenderPassBeginInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

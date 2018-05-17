@@ -113,19 +113,10 @@ private:
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
 
-	/** Permanently mapped pointer to device vertex data (vertexBuffer.memory) */
-	void *vertexData = nullptr;
-	/** Permanently mapped pointer to device index data (indexBuffer.memory) */
-	void *indexData = nullptr;
-	/** Permanently mapped pointer to mvp uniform buffer */
-	void *mvpUboData = nullptr;
-	/** Permanently mapped pointer to comp uniform buffer */
-	void *compUboData = nullptr;
-
 	bool showGBufTex = false;
 
-	static constexpr size_t VERTEX_BUFFER_SIZE = 1<<24;
-	static constexpr size_t INDEX_BUFFER_SIZE = 1<<24;
+	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = 1 << 24;
+	static constexpr VkDeviceSize INDEX_BUFFER_SIZE = 1 << 24;
 
 
 	void initVulkan() {
@@ -145,16 +136,7 @@ private:
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
-		// Load assets
-		app.screenQuadBuffer = createScreenQuadVertexBuffer(app);
-		{
-			// Load textures
-			texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA);
-			texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY);
-			texSampler = createTextureSampler(app);
-		}
-
-		prepareBufferMemory();
+		loadAssets();
 
 		// Initialize resource maps
 		app.res.init(app.device, app.descriptorPool);
@@ -189,16 +171,7 @@ private:
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
-		// Load assets
-		app.screenQuadBuffer = createScreenQuadVertexBuffer(app);
-		{
-			// Load textures
-			texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA);
-			texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY);
-			texSampler = createTextureSampler(app);
-		}
-
-		prepareBufferMemory();
+		loadAssets();
 
 		// Initialize resource maps
 		app.res.init(app.device, app.descriptorPool);
@@ -218,6 +191,22 @@ private:
 		createSemaphores();
 
 		prepareCamera();
+	}
+
+	void loadAssets() {
+		constexpr VkDeviceSize STAGING_BUFFER_SIZE = 1 << 27;
+
+		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
+
+		// Load textures
+		texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA, stagingBuffer);
+		texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY, stagingBuffer);
+		texSampler = createTextureSampler(app);
+
+		prepareBufferMemory(stagingBuffer);
+
+		unmapBuffersMemory(app.device, { &stagingBuffer });
+		stagingBuffer.destroy(app.device);
 	}
 
 	void startNetwork() {
@@ -327,7 +316,7 @@ private:
 
 		// Copy received data into the streaming buffer
 		PayloadHeader phead;
-		passiveEP.retreive(phead, reinterpret_cast<Vertex*>(vertexData), reinterpret_cast<Index*>(indexData));
+		passiveEP.retreive(phead, reinterpret_cast<Vertex*>(vertexBuffer.ptr), reinterpret_cast<Index*>(indexBuffer.ptr));
 
 		// streamingBufferData now contains [vertices|indices]
 		nVertices = phead.nVertices;
@@ -515,7 +504,7 @@ private:
 	void updateMVPUniformBuffer() {
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
-		auto ubo = reinterpret_cast<MVPUniformBufferObject*>(mvpUboData);
+		auto ubo = reinterpret_cast<MVPUniformBufferObject*>(mvpUniformBuffer.ptr);
 
 		if (gUseCamera) {
 			ubo->model = glm::mat4{ 1.0f };
@@ -536,7 +525,7 @@ private:
 	}
 
 	void updateCompUniformBuffer() {
-		auto ubo = reinterpret_cast<CompositionUniformBufferObject*>(compUboData);
+		auto ubo = reinterpret_cast<CompositionUniformBufferObject*>(compUniformBuffer.ptr);
 		ubo->viewPos = glm::vec4{
 			camera.position.x,
 			camera.position.y,
@@ -546,7 +535,7 @@ private:
 		debug("viewPos = ", ubo->viewPos);
 	}
 
-	void prepareBufferMemory() {
+	void prepareBufferMemory(Buffer& stagingBuffer) {
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
 
 		// These buffers are all created una-tantum.
@@ -554,11 +543,13 @@ private:
 
 		// vertex buffer
 		bufAllocator.addBuffer(vertexBuffer,
-				VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VERTEX_BUFFER_SIZE, 
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		// index buffer
 		bufAllocator.addBuffer(indexBuffer,
-				INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+				INDEX_BUFFER_SIZE, 
+				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		// mvp ubo
 		bufAllocator.addBuffer(mvpUniformBuffer,
@@ -571,17 +562,20 @@ private:
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+		// screen quad buffer
+		bufAllocator.addBuffer(app.screenQuadBuffer, getScreenQuadBufferProperties());
+
 		bufAllocator.create(app);
 
 		// Map device memory to host
-		VLKCHECK(vkMapMemory(app.device, vertexBuffer.memory, vertexBuffer.offset,
-					vertexBuffer.size, 0, &vertexData));
-		VLKCHECK(vkMapMemory(app.device, indexBuffer.memory, indexBuffer.offset,
-					indexBuffer.size, 0, &indexData));
-		VLKCHECK(vkMapMemory(app.device, mvpUniformBuffer.memory, mvpUniformBuffer.offset,
-					mvpUniformBuffer.size, 0, &mvpUboData));
-		VLKCHECK(vkMapMemory(app.device, compUniformBuffer.memory, compUniformBuffer.offset,
-					compUniformBuffer.size, 0, &compUboData));
+		mapBuffersMemory(app.device, {
+			&vertexBuffer,
+			&indexBuffer,
+			&mvpUniformBuffer,
+			&compUniformBuffer,
+		});
+
+		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
 	}
 
 
@@ -618,10 +612,12 @@ private:
 	void cleanup() {
 		cleanupSwapChain();
 
-		vkUnmapMemory(app.device, vertexBuffer.memory);
-		vkUnmapMemory(app.device, indexBuffer.memory);
-		vkUnmapMemory(app.device, mvpUniformBuffer.memory);
-		vkUnmapMemory(app.device, compUniformBuffer.memory);
+		unmapBuffersMemory(app.device, {
+			&vertexBuffer,
+			&indexBuffer,
+			&mvpUniformBuffer,
+			&compUniformBuffer
+		});
 
 		vkDestroySampler(app.device, texSampler, nullptr);
 		texDiffuseImage.destroy(app.device);

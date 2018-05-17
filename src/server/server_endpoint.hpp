@@ -7,7 +7,7 @@
 #include "vertex.hpp"
 #include "data.hpp"
 
-class Server;
+struct Server;
 struct ServerSharedData;
 
 /** This class implements the active server thread which sends geometry to client

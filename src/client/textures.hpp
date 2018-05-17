@@ -25,8 +25,10 @@ public:
 };
 
 
-/** Load a texture from `texturePath` into an Image and return it (with its view already filled) */
-Image createTextureImage(const Application& app, const char *texturePath, TextureFormat format);
+/** Load a texture from `texturePath` into an Image and return it (with its view already filled).
+ *  `stagingBuffer` must be a valid buffer to use as a staging buffer.
+ */
+Image createTextureImage(const Application& app, const char *texturePath, TextureFormat format, Buffer& stagingBuffer);
 
 /** Create a sampler appropriate for sampling a texture and return it. */
 VkSampler createTextureSampler(const Application& app);

@@ -8,7 +8,7 @@
 #include "vulk_errors.hpp"
 #include <vulkan/vulkan.h>
 
-Image createTextureImage(const Application& app, const char *texturePath, TextureFormat format) {
+Image createTextureImage(const Application& app, const char *texturePath, TextureFormat format, Buffer& stagingBuffer) {
 	int texWidth, texHeight, texChannels;
 	auto pixels = stbi_load(texturePath, &texWidth, &texHeight, &texChannels,
 			format == TextureFormat::RGBA
@@ -20,14 +20,10 @@ Image createTextureImage(const Application& app, const char *texturePath, Textur
 
 	VkDeviceSize imageSize = texWidth * texHeight * (format == TextureFormat::RGBA ? 4 : 1);
 
-	// Load the texture into a buffer
-	const auto stagingBuffer = createBuffer(app, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	void *data;
-	VLKCHECK(vkMapMemory(app.device, stagingBuffer.memory, 0, imageSize, 0, &data));
-	memcpy(data, pixels, static_cast<size_t>(imageSize));
-	vkUnmapMemory(app.device, stagingBuffer.memory);
+	// Load the texture into the staging buffer
+	memcpy(stagingBuffer.ptr, pixels, static_cast<size_t>(imageSize));
 
+	// Free the host memory
 	stbi_image_free(pixels);
 
 	const auto vkFormat = format == TextureFormat::RGBA ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8_UNORM;
@@ -45,9 +41,6 @@ Image createTextureImage(const Application& app, const char *texturePath, Textur
 	copyBufferToImage(app, stagingBuffer.handle, textureImage.handle, texWidth, texHeight);
 	transitionImageLayout(app, textureImage.handle, vkFormat,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	vkDestroyBuffer(app.device, stagingBuffer.handle, nullptr);
-	vkFreeMemory(app.device, stagingBuffer.memory, nullptr);
 
 	return textureImage;
 }
