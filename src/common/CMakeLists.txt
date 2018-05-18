@@ -35,6 +35,7 @@ target_link_libraries(${PROJECT_NAME} ${GLM_LIBRARIES})
 add_definitions(-DGLM_FORCE_CXX14)
 
 if(WIN32)
+	target_link_libraries(${PROJECT_NAME} Shlwapi)
 	target_link_libraries(${PROJECT_NAME} ws2_32)
 endif()
 #####################

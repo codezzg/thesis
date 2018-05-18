@@ -3,6 +3,7 @@
 #ifdef _WIN32
 	#define WINDOWS_LEAN_AND_MEAN 1
 	#include <windows.h>
+	#include <Shlwapi.h>
 #else
 	#include <csignal>
 	#include <unistd.h>
@@ -110,13 +111,12 @@ std::string xplatGetCwd() {
 
 std::string xplatDirname(const char *path) {
 	// Copy path into a modifiable buffer
-	char *buf;
-	const auto len = strlen(path);
-	buf = new char[len];
-	strncpy(buf, path, len);
 	std::string res;
+	const auto len = strlen(path);
+	char *buf = new char[len];
+	strncpy(buf, path, len);
 #ifdef _WIN32
-	PathCchRemoveFileSpec(buf, len);
+	PathRemoveFileSpec(buf);
 	res = std::string{ buf };
 #else
 	res = std::string{ dirname(buf) };
