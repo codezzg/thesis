@@ -73,7 +73,7 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 	// STUB
 	//wiggle(model, camera);
 
-	const auto& frustum = calcFrustum(camera.projMatrix());
+	const auto& frustum = calcFrustum(/*camera.projMatrix()*/ glm::mat4{ 1.f }); // TODO
 	const auto sphere = calcBoundingSphere(model);
 
 	//std::cerr << "bounding sphere = " << sphere.center << ", r = " << sphere.radius << "\n";

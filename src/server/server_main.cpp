@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 	auto cwd = std::string{ xplatGetCwd() };
 	std::cerr << "Starting server. cwd: " << cwd << std::endl;
 
-	auto model = server.resources.loadModel((cwd + "/models/mill.obj").c_str());
+	auto model = server.resources.loadModel((cwd + "/models/nanosuit.obj").c_str());
 	if (model.vertices == nullptr) {
 		std::cerr << "Failed to load model.\n";
 		return EXIT_FAILURE;

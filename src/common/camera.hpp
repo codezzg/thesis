@@ -4,25 +4,33 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 
-// Thank you, window$...
+// Thank you, windows...
 #undef near
-#undef far 
+#undef far
+
+class CameraController;
 
 struct Camera {
 	glm::vec3 position = { 0, 0, 0 };
-	glm::quat rotation = {};
+	glm::vec3 front;
+	glm::vec3 up;
+	glm::vec3 right;
 	glm::vec3 worldUp = { 0, 1, 0 };
-	float fov = 45;
-	float ratio = 16.f / 9.f;
-	float near = 0.1f;
-	float far = 300.f;
+	float yaw = -90;
+	float pitch = 0;
+	//float fov = 45;
+	//float ratio = 16.f / 9.f;
+	//float near = 0.1f;
+	//float far = 300.f;
+
+	explicit Camera() { updateVectors(); }
 
 	glm::mat4 viewMatrix() const;
-	glm::mat4 projMatrix() const;
+	//glm::mat4 projMatrix() const;
 	glm::vec4 forward() const;
-};
 
-Camera createCamera();
+	void updateVectors();
+};
 
 struct Frustum {
 	glm::vec4 left;

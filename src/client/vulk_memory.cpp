@@ -10,7 +10,7 @@ void MemoryMonitor::newAlloc(VkDeviceMemory memory, const VkMemoryAllocateInfo& 
 	++nAllocs;
 	totSize += info.allocationSize;
 	allocInfo[memory] = info;
-	logging::info("--> New alloc type: ", info.memoryTypeIndex, ", size: ", info.allocationSize, " B (",
+	logging::debug("--> New alloc type: ", info.memoryTypeIndex, ", size: ", info.allocationSize, " B (",
 		info.allocationSize / 1024 / 1024, " MiB)");
 	report();
 }
@@ -19,15 +19,15 @@ void MemoryMonitor::newFree(VkDeviceMemory memory) {
 	++nFrees;
 	const auto& info = allocInfo[memory];
 	totSize -= info.allocationSize;
-	logging::info("<-- new free type: ", info.memoryTypeIndex, ", size: ", info.allocationSize, " B (",
+	logging::debug("<-- new free type: ", info.memoryTypeIndex, ", size: ", info.allocationSize, " B (",
 		info.allocationSize / 1024 / 1024, " MiB)");
 	allocInfo.erase(memory);
 	report();
 }
 
 void MemoryMonitor::report() {
-	logging::log(LOGLV_INFO, true, "--------------------------");
-	logging::log(LOGLV_INFO, true, "# allocations so far: ", nAllocs, 
+	logging::log(LOGLV_DEBUG, true, "--------------------------");
+	logging::log(LOGLV_DEBUG, true, "# allocations so far: ", nAllocs,
 		"\n# frees so far: ", nFrees,
 		"\nTotal device mem used: ", totSize, " B (", totSize / 1024 / 1024, " MiB)");
 
@@ -36,8 +36,9 @@ void MemoryMonitor::report() {
 		sizePerType[pair.second.memoryTypeIndex] += pair.second.allocationSize;
 
 	for (const auto& pair : sizePerType)
-		logging::log(LOGLV_INFO, true, "Type ", pair.first, ": ", pair.second, " B (", pair.second / 1024 / 1024, " MiB)");
+		logging::log(LOGLV_DEBUG, true, "Type ", pair.first, ": ", pair.second,
+				" B (", pair.second / 1024 / 1024, " MiB)");
 
-	logging::log(LOGLV_INFO, true, "--------------------------");
+	logging::log(LOGLV_DEBUG, true, "--------------------------");
 }
 #endif

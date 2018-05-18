@@ -200,8 +200,8 @@ private:
 
 		// Load textures
 		TextureLoader texLoader{ stagingBuffer };
-		texLoader.addTexture(texDiffuseImage, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA);
-		texLoader.addTexture(texSpecularImage, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY);
+		texLoader.addTexture(texDiffuseImage, "textures/body_dif.png", TextureFormat::RGBA);
+		texLoader.addTexture(texSpecularImage, "textures/body_showroom_spec.png", TextureFormat::GREY);
 		texLoader.create(app);
 		//texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA, stagingBuffer);
 		//texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY, stagingBuffer);
@@ -512,16 +512,17 @@ private:
 
 		if (gUseCamera) {
 			ubo->model = glm::mat4{ 1.0f };
-			ubo->view = camera.viewMatrix();
 		} else {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(
 					currentTime - startTime).count();
 			ubo->model = glm::rotate(glm::mat4{ 1.0f },
 					time * glm::radians(89.f), glm::vec3{ 0.f, -1.f, 0.f });
-			ubo->view = glm::lookAt(glm::vec3{ 140, 140, 140 },
-					glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
+			//ubo->view = glm::lookAt(glm::vec3{ 14, 14, 14 },
+					//glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
 		}
+		ubo->view = camera.viewMatrix();
+		//ubo->proj = camera.projMatrix();
 		ubo->proj = glm::perspective(glm::radians(60.f),
 				app.swapChain.extent.width / float(app.swapChain.extent.height), 0.1f, 300.f);
 		// Flip y
@@ -547,12 +548,12 @@ private:
 
 		// vertex buffer
 		bufAllocator.addBuffer(vertexBuffer,
-				VERTEX_BUFFER_SIZE, 
+				VERTEX_BUFFER_SIZE,
 				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		// index buffer
 		bufAllocator.addBuffer(indexBuffer,
-				INDEX_BUFFER_SIZE, 
+				INDEX_BUFFER_SIZE,
 				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		// mvp ubo
@@ -584,8 +585,13 @@ private:
 
 	void prepareCamera() {
 		// Prepare camera
-		camera = createCamera();
-		cameraCtrl = std::make_unique<CameraController>(camera);
+		camera.position = glm::vec3{ -7, 13, 12 };
+		camera.yaw = -60;
+		camera.pitch = -13;
+		if (gUseCamera)
+			cameraCtrl = std::make_unique<FPSCameraController>(camera);
+		else
+			cameraCtrl = std::make_unique<CubeCameraController>(camera);
 		activeEP.setCamera(&camera);
 	}
 
@@ -650,13 +656,20 @@ private:
 	}
 
 	static void cursorPosCallback(GLFWwindow *window, double xpos, double ypos) {
-		static double prevX = cfg::WIDTH / 2.0,
-		              prevY = cfg::HEIGHT / 2.0;
-		auto appl = reinterpret_cast<VulkanClient*>(glfwGetWindowUserPointer(window));
-		appl->cameraCtrl->turn(xpos - prevX, prevY - ypos);
-		//prevX = xpos;
-		//prevY = ypos;
-		glfwSetCursorPos(window, prevX, prevY);
+		static constexpr double centerX = cfg::WIDTH / 2.0,
+		                        centerY = cfg::HEIGHT / 2.0;
+		static bool firstTime = true;
+
+		if (!firstTime) {
+			auto appl = reinterpret_cast<VulkanClient*>(glfwGetWindowUserPointer(window));
+			appl->cameraCtrl->turn(xpos - centerX, centerY - ypos);
+		}
+		firstTime = false;
+
+		//info("xpos = ", xpos, " xoff = ", xpos - center);
+		//centerX = xpos;
+		//centerY = ypos;
+		glfwSetCursorPos(window, centerX, centerY);
 	}
 
 	static void keyCallback(GLFWwindow *window, int key, int /*scancode*/, int action, int) {
@@ -673,6 +686,12 @@ private:
 			break;
 		case GLFW_KEY_T:
 			gLimitFrameTime = !gLimitFrameTime;
+			break;
+		case GLFW_KEY_KP_ADD:
+			appl->cameraCtrl->cameraSpeed += 10;
+			break;
+		case GLFW_KEY_KP_SUBTRACT:
+			appl->cameraCtrl->cameraSpeed -= 10;
 			break;
 		default:
 			break;

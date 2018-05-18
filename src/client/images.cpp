@@ -45,8 +45,6 @@ void ImageAllocator::create(const Application& app) {
 	// (memory type) => (memory size)
 	std::unordered_map<uint32_t, VkDeviceSize> requiredSizes;
 
-	uint32_t memTypeNeeded;
-
 	std::vector<uint32_t> memTypesNeeded;
 	memTypesNeeded.reserve(createInfos.size());
 
