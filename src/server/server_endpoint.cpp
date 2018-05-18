@@ -170,11 +170,17 @@ void ServerPassiveEndpoint::loopFunc() {
 	// Track the latest frame we received
 	int64_t latestFrame = -1;
 	auto& shared = server.sharedData;
+	int nPacketRecvErrs = 0;
 
 	while (!terminated) {
 		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
-		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
-			continue;
+		if (!receivePacket(socket, packetBuf.data(), packetBuf.size())) {
+			if (++nPacketRecvErrs > 10)
+				break;
+			else
+				continue;
+		}
+		nPacketRecvErrs = 0;
 
 		if (!validateUDPPacket(packetBuf.data(), latestFrame))
 			continue;
@@ -267,7 +273,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 			goto dropclient;
 
 		// Starts UDP loops and send ready to client
-		server.passiveEP.startPassive(readableAddr, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
+		server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
 		server.activeEP.startActive(readableAddr, cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		server.passiveEP.runLoop();
 		server.activeEP.runLoop();

@@ -42,6 +42,11 @@ private:
 	bool start(const char *remoteIp, uint16_t remotePort, bool passive, int socktype);
 
 protected:
+	/** address this endpoint was started on */
+	std::string ip;
+	/** port this endpoint was started on */
+	int port;
+
 	volatile bool terminated = false;
 	socket_t socket = xplatInvalidSocketID();
 

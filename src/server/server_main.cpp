@@ -22,7 +22,7 @@ static void parseArgs(int argc, char **argv, std::string& ip);
 
 int main(int argc, char **argv) {
 
-	std::string ip = "0.0.0.0";
+	std::string ip = "127.0.0.1";
 	parseArgs(argc, argv, ip);
 
 	std::cerr << "Debug level = " << static_cast<int>(gDebugLv) << "\n";

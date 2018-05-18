@@ -41,7 +41,7 @@ Endpoint::~Endpoint() {
 	close();
 }
 
-bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive, int socktype) {
+bool Endpoint::start(const char *ip, uint16_t port, bool passive, int socktype) {
 
 	addrinfo hints = {},
 		 *result;
@@ -50,7 +50,7 @@ bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive, in
 	if (passive)
 		hints.ai_flags = AI_PASSIVE;
 
-	auto res = getaddrinfo(remoteIp, std::to_string(remotePort).c_str(), &hints, &result);
+	auto res = getaddrinfo(ip, std::to_string(port).c_str(), &hints, &result);
 	if (res != 0) {
 		err("getaddrinfo: ", gai_strerror(res));
 		return false;
@@ -64,17 +64,21 @@ bool Endpoint::start(const char *remoteIp, uint16_t remotePort, bool passive, in
 		return false;
 	}
 
-	info("Endpoint: started ", (passive ? "passive" : "active"), " on ", remoteIp, ":", remotePort, " (type ", socktype, ")");
+	info("Endpoint: started ", (passive ? "passive" : "active"),
+			" on ", ip, ":", port, " (type ", socktype, ")");
+
+	this->ip = ip;
+	this->port = port;
 
 	return true;
 }
 
-bool Endpoint::startPassive(const char *remoteIp, uint16_t remotePort, int socktype) {
-	return start(remoteIp, remotePort, true, socktype);
+bool Endpoint::startPassive(const char *ip, uint16_t port, int socktype) {
+	return start(ip, port, true, socktype);
 }
 
-bool Endpoint::startActive(const char *remoteIp, uint16_t remotePort, int socktype) {
-	return start(remoteIp, remotePort, false, socktype);
+bool Endpoint::startActive(const char *ip, uint16_t port, int socktype) {
+	return start(ip, port, false, socktype);
 }
 
 void Endpoint::runLoop() {
