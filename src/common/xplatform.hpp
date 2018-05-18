@@ -1,9 +1,11 @@
 #pragma once
 
+#include <string>
+
 using signal_handler_t = void(*)();
 
-/** @return The absolute path to the executable's directory. */
-const char* xplatGetCwd();
+/** @return the absolute path to the executable's directory.  */
+std::string xplatGetCwd();
 
 /** Call this to enable the use of a custom exit handler.
  *  @see xplatSetExitHandler
@@ -14,3 +16,5 @@ bool xplatEnableExitHandler();
  *  program exits normally or is terminated by a signal.
  */
 void xplatSetExitHandler(signal_handler_t handler);
+
+std::string xplatDirname(const char *path);

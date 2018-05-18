@@ -6,7 +6,9 @@
 #else
 	#include <csignal>
 	#include <unistd.h>
+	#include <libgen.h>
 #endif
+#include <cassert>
 #include <cstring>
 #include <utility>
 #include <iostream>
@@ -64,17 +66,15 @@ bool xplatEnableExitHandler() {
 #endif
 }
 
-const char *_cwd = nullptr;
+std::string xplatGetCwd() {
+	constexpr auto len = 256;
+	char buf[len];
 
-const char* xplatGetCwd() {
-	if (_cwd != nullptr)
-		return _cwd;
-
-	char buf[256];
 #ifdef _WIN32
-	int bytes = GetModuleFileName(nullptr, buf, 256);
-	if (bytes == 0)
+	int bytes = GetModuleFileName(nullptr, buf, len);
+	if (bytes == 0) {
 		return "[UNKNOWN]";
+	}
 
 	const char DIRSEP = '\\';
 
@@ -82,36 +82,45 @@ const char* xplatGetCwd() {
 	ssize_t bytes = 0;
 	if (access("/proc/self/exe", F_OK) != -1) {
 		// Linux
-		bytes = readlink("/proc/self/exe", buf, 255);
+		bytes = readlink("/proc/self/exe", buf, len - 1);
 
 	} else if (access("/proc/curproc/file", F_OK) != -1) {
 		// BSD
-		bytes = readlink("/proc/curproc/file", buf, 255);
+		bytes = readlink("/proc/curproc/file", buf, len - 1);
 	}
 
-	if (bytes < 1)
+	if (bytes < 1) {
 		return "[UNKNOWN]";
+	}
 
 	buf[bytes] = '\0';
 
 	const char DIRSEP = '/';
 #endif
-
-	int len = strlen(buf);
-	if (len < 1)
-		return "[UNKNOWN]";
-
 	// strip executable name
-	for (int i = len - 1; i > -1; --i) {
+	for (int i = bytes - 1; i > -1; --i) {
 		if (buf[i] == DIRSEP) {
 			buf[i] = '\0';
 			break;
 		}
 	}
 
-	// Note: windows has no strndup
-	_cwd = reinterpret_cast<const char*>(malloc(len * sizeof(char)));
-	strncpy(const_cast<char*>(_cwd), buf, len);
+	return std::string{ buf };
+}
 
-	return _cwd;
+std::string xplatDirname(const char *path) {
+	// Copy path into a modifiable buffer
+	char *buf;
+	const auto len = strlen(path);
+	buf = new char[len];
+	strncpy(buf, path, len);
+	std::string res;
+#ifdef _WIN32
+	PathCchRemoveFileSpec(buf, len);
+	res = std::string{ buf };
+#else
+	res = std::string{ dirname(buf) };
+#endif
+	delete [] buf;
+	return res;
 }

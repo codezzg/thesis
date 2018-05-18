@@ -2,65 +2,69 @@
 #include <unordered_map>
 #include <chrono>
 #include <iostream>
+#include "xplatform.hpp"
+#include "logging.hpp"
 #ifdef USE_EXPERIMENTAL_TINYOBJ
 #	define TINYOBJ_LOADER_OPT_IMPLEMENTATION
 #	include "third_party/tinyobj_loader_opt.h"
 #	include <cstdlib>
+#	include <fstream>
+#	include <thread>
 #else
 #	define TINYOBJLOADER_IMPLEMENTATION
 #	include "third_party/tiny_obj_loader.h"
 #endif
 
+using namespace logging;
+
 #ifdef USE_EXPERIMENTAL_TINYOBJ
-static const char* mmap_file(std::size_t *len, const char *filename) {
-	*len = 0;
-	FILE* f = fopen(filename, "rb" );
-	if (!f) {
-		fprintf(stderr, "Failed to open file : %s\n", filename);
+static char* mmap_file(const char *filename, std::size_t& len) {
+	len = 0;
+	{
+		std::ifstream f { filename, std::ios::binary };
+		if (!f) {
+			err("Failed to open file: ", filename);
+			return nullptr;
+		}
+		f.seekg(0, std::ios::end);
+		len = f.tellg();
+	}
+
+	if (len < 16) {
+		err("Empty or invalid .obj: ", filename);
 		return nullptr;
 	}
-	fseek(f, 0, SEEK_END);
-	long fileSize = ftell(f);
-	fclose(f);
 
-	if (fileSize < 16) {
-		fprintf(stderr, "Empty or invalid .obj : %s\n", filename);
+	// Thank you ifstream for not allowing to retreive the file descriptor
+	auto fd = open(filename, O_RDONLY);
+	if (fd == -1) {
+		err("Error opening file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
 		return nullptr;
 	}
 
 	struct stat sb;
-	char *p;
-	int fd;
-
-	fd = open(filename, O_RDONLY);
-	if (fd == -1) {
-		perror("open");
+	if (fstat(fd, &sb) == -1) {
+		err("Error stat'ing file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
 		return nullptr;
 	}
 
-	if (fstat (fd, &sb) == -1) {
-		perror("fstat");
+	if (!S_ISREG(sb.st_mode)) {
+		err(filename, " is not a file.");
 		return nullptr;
 	}
 
-	if (!S_ISREG (sb.st_mode)) {
-		fprintf(stderr, "%s is not a file\n", "lineitem.tbl");
-		return nullptr;
-	}
-
-	p = (char*)mmap(0, fileSize, PROT_READ, MAP_SHARED, fd, 0);
+	auto p = reinterpret_cast<char*>(mmap(nullptr, len, PROT_READ, MAP_PRIVATE, fd, 0));
 
 	if (p == MAP_FAILED) {
-		perror("mmap");
+		err("Error mmap'ing file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
+		close(fd);
 		return nullptr;
 	}
 
-	if (close (fd) == -1) {
-		perror("close");
+	if (close(fd) == -1) {
+		err("Error closing file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
 		return nullptr;
 	}
-
-	(*len) = fileSize;
 
 	return p;
 }
@@ -84,34 +88,35 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 
 	const auto load_t_begin = std::chrono::high_resolution_clock::now();
 #ifdef USE_EXPERIMENTAL_TINYOBJ
-	std::size_t data_len = 0;
-	const char* data = mmap_file(&data_len, modelPath);
+	std::size_t dataLen = 0;
+	char *data = mmap_file(modelPath, dataLen);
 	if (data == nullptr) {
-		printf("failed to load file\n");
+		warn("failed to load file\n");
 		return model;
 	}
 	auto load_t_end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
-	std::cout << "filesize: " << data_len << std::endl;
+	const std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
+	info("filesize: ", dataLen, " B");
+	info("time to load into memory: ", load_ms.count(), " ms");
 
 	tinyobj_opt::LoadOption option;
-	auto num_threads = 4;
-	option.req_num_threads = num_threads;
+	option.req_num_threads = std::thread::hardware_concurrency();
 	option.verbose = true;
-	bool ret = to::parseObj(&attrib, &shapes, &materials, data, data_len, option);
-	std::cout << "load time: " << load_ms.count() << " [msecs]" << std::endl;
+	option.mtl_base_path = xplatDirname(modelPath);
+	bool ret = to::parseObj(&attrib, &shapes, &materials, data, dataLen, option);
+	munmap(data, dataLen);
 	if (!ret) {
-		std::cerr << "failed to load model!\n";
+		warn("failed to load model!");
 		return model;
 	}
 #else
 	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath)) {
-		std::cerr << err;
+		logging::err(err);
 		return model;
 	}
 	auto load_t_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
-	std::cout << "load time: " << load_ms.count() << " [msecs]" << std::endl;
+	info("load time: ", load_ms.count(), " ms");
 #endif
 
 	std::unordered_map<Vertex, uint32_t> uniqueVertices;
@@ -157,6 +162,10 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 #endif
 	}
 
+	info("textures used: (", materials.size(), ")");
+	for (auto& m : materials)
+		info(m.diffuse_texname);
+
 	model.vertices = reinterpret_cast<Vertex*>(buffer);
 	model.indices = reinterpret_cast<Index*>(buffer + sizeof(Vertex) * model.nVertices);
 	model.nIndices = indices.size();
@@ -164,7 +173,7 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
 
-	std::cout << "size = " << model.nVertices << ", " << model.nIndices << "\n";
+	info("vertices, indices = ", model.nVertices, ", ", model.nIndices);
 
 	return model;
 }

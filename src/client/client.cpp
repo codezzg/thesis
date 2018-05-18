@@ -537,7 +537,7 @@ private:
 			camera.position.z,
 			showGBufTex,
 		};
-		debug("viewPos = ", ubo->viewPos);
+		verbose("viewPos = ", ubo->viewPos);
 	}
 
 	void prepareBufferMemory(Buffer& stagingBuffer) {

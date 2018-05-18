@@ -61,17 +61,16 @@ int main(int argc, char **argv) {
 	server.activeEP.initialize(serverMemory.get() + MEMSIZE * 2 / 3, MEMSIZE / 3);
 
 	/// Startup server: load models, assets, etc
-	auto cwd = std::string{ xplatGetCwd() };
-	std::cerr << "Starting server. cwd: " << cwd << std::endl;
+	std::string cwd = xplatGetCwd();
+	info("Starting server. cwd: ", cwd);
 
-	auto model = server.resources.loadModel((cwd + "/models/nanosuit.obj").c_str());
+	auto model = server.resources.loadModel((cwd + "/models/nanosuit/nanosuit.obj").c_str());
 	if (model.vertices == nullptr) {
-		std::cerr << "Failed to load model.\n";
+		err("Failed to load model.");
 		return EXIT_FAILURE;
 	}
-	std::cerr << "Loaded " << model.nVertices << " vertices + " << model.nIndices << " indices. "
-		<< "Tot size = " << (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024
-		<< " KiB\n";
+	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
+		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
 
 
 	/// Start TCP socket and wait for connections
