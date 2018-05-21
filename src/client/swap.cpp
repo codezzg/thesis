@@ -218,19 +218,20 @@ std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Applicatio
 	return framebuffers;
 }
 
-uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore) {
+bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore, uint32_t& index) {
 	uint32_t imageIndex;
 	const auto result = vkAcquireNextImageKHR(app.device, app.swapChain.handle,
 			std::numeric_limits<uint64_t>::max(),
 			imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		return -1;
+		return false;
 	} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 		throw std::runtime_error("failed to acquire swap chain image!");
 	}
 
-	return imageIndex;
+	index = imageIndex;
+	return true;
 }
 
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool) {

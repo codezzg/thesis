@@ -43,10 +43,11 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app, c
 /** @see createSwapChainFramebuffers */
 std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app, const SwapChain& swapChain);
 
-/** Returns the index of the next swapchain image, or -1 in case of failure.
+/** Fills `index` with the index of the next swapchain image.
  *  Will also signal the given semaphore.
+ *  @return true if all ok, false if the swapchain is out of date.
  */
-uint32_t acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore);
+bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore, uint32_t& index);
 
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool);
 

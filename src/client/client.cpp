@@ -25,7 +25,7 @@
 #include "validation.hpp"
 #include "vulk_utils.hpp"
 #include "config.hpp"
-#include "data.hpp"
+#include "frame_data.hpp"
 #include "window.hpp"
 #include "frame_utils.hpp"
 #include "phys_device.hpp"
@@ -47,6 +47,7 @@
 #include "logging.hpp"
 #include "pipelines.hpp"
 #include "multipass.hpp"
+#include "shared_resources.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -55,6 +56,7 @@
 using namespace logging;
 using namespace std::literals::string_literals;
 using std::size_t;
+using shared::TextureFormat;
 
 bool gUseCamera = false;
 bool gIsDebug = false;
@@ -200,8 +202,8 @@ private:
 
 		// Load textures
 		TextureLoader texLoader{ stagingBuffer };
-		texLoader.addTexture(texDiffuseImage, "textures/body_dif.png", TextureFormat::RGBA);
-		texLoader.addTexture(texSpecularImage, "textures/body_showroom_spec.png", TextureFormat::GREY);
+		texLoader.addTexture(texDiffuseImage, "models/nanosuit/body_dif.png", TextureFormat::RGBA);
+		texLoader.addTexture(texSpecularImage, "models/nanosuit/body_showroom_spec.png", TextureFormat::GREY);
 		texLoader.create(app);
 		//texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA, stagingBuffer);
 		//texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY, stagingBuffer);
@@ -403,8 +405,8 @@ private:
 	}
 
 	void drawFrameForward() {
-		const auto imageIndex = acquireNextSwapImage(app, imageAvailableSemaphore);
-		if (imageIndex < 0) {
+		uint32_t imageIndex;
+		if (!acquireNextSwapImage(app, imageAvailableSemaphore, imageIndex)) {
 			recreateSwapChain();
 			return;
 		}
@@ -452,8 +454,8 @@ private:
 	}
 
 	void drawFrame() {
-		const auto imageIndex = acquireNextSwapImage(app, imageAvailableSemaphore);
-		if (imageIndex < 0) {
+		uint32_t imageIndex;
+		if (!acquireNextSwapImage(app, imageAvailableSemaphore, imageIndex)) {
 			recreateSwapChain();
 			return;
 		}

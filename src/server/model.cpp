@@ -10,6 +10,7 @@
 #	include <cstdlib>
 #	include <fstream>
 #	include <thread>
+#	include "utils.hpp"
 #else
 #	define TINYOBJLOADER_IMPLEMENTATION
 #	include "third_party/tiny_obj_loader.h"
@@ -18,68 +19,16 @@
 using namespace logging;
 
 #ifdef USE_EXPERIMENTAL_TINYOBJ
-static char* mmap_file(const char *filename, std::size_t& len) {
-	len = 0;
-	{
-		std::ifstream f { filename, std::ios::binary };
-		if (!f) {
-			err("Failed to open file: ", filename);
-			return nullptr;
-		}
-		f.seekg(0, std::ios::end);
-		len = f.tellg();
-	}
-
-	if (len < 16) {
-		err("Empty or invalid .obj: ", filename);
-		return nullptr;
-	}
-
-	// Thank you ifstream for not allowing to retreive the file descriptor
-	auto fd = open(filename, O_RDONLY);
-	if (fd == -1) {
-		err("Error opening file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
-		return nullptr;
-	}
-
-	struct stat sb;
-	if (fstat(fd, &sb) == -1) {
-		err("Error stat'ing file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
-		return nullptr;
-	}
-
-	if (!S_ISREG(sb.st_mode)) {
-		err(filename, " is not a file.");
-		return nullptr;
-	}
-
-	auto p = reinterpret_cast<char*>(mmap(nullptr, len, PROT_READ, MAP_PRIVATE, fd, 0));
-
-	if (p == MAP_FAILED) {
-		err("Error mmap'ing file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
-		close(fd);
-		return nullptr;
-	}
-
-	if (close(fd) == -1) {
-		err("Error closing file: ", filename, ": ", std::strerror(errno), " (", errno, ")");
-		return nullptr;
-	}
-
-	return p;
-}
-#endif // USE_EXPERIMENTAL_TINYOBJ
-
-
-Model loadModel(const char *modelPath, uint8_t *buffer) {
-
-	Model model = {};
-
-#ifdef USE_EXPERIMENTAL_TINYOBJ
 	namespace to = tinyobj_opt;
 #else
 	namespace to = tinyobj;
 #endif
+
+static Material saveMaterial(const char *modelPath, const to::material_t& mat);
+
+Model loadModel(const char *modelPath, void *buffer) {
+
+	Model model = {};
 
 	to::attrib_t attrib;
 	std::vector<to::shape_t> shapes;
@@ -87,28 +36,32 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 	std::string err;
 
 	const auto load_t_begin = std::chrono::high_resolution_clock::now();
+
 #ifdef USE_EXPERIMENTAL_TINYOBJ
-	std::size_t dataLen = 0;
-	char *data = mmap_file(modelPath, dataLen);
-	if (data == nullptr) {
-		warn("failed to load file\n");
+	auto data = readFileIntoMemory(modelPath);
+
+	if (data.size() == 0) {
+		warn("failed to load model ", modelPath);
 		return model;
 	}
+
 	auto load_t_end = std::chrono::high_resolution_clock::now();
 	const std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
-	info("filesize: ", dataLen, " B");
 	info("time to load into memory: ", load_ms.count(), " ms");
 
 	tinyobj_opt::LoadOption option;
 	option.req_num_threads = std::thread::hardware_concurrency();
 	option.verbose = true;
 	option.mtl_base_path = xplatDirname(modelPath);
-	bool ret = to::parseObj(&attrib, &shapes, &materials, data, dataLen, option);
-	munmap(data, dataLen);
+	bool ret = to::parseObj(&attrib, &shapes, &materials, data.data(), data.size(), option);
 	if (!ret) {
 		warn("failed to load model!");
 		return model;
 	}
+
+	// Deallocate file from memory
+	std::vector<char>().swap(data);
+
 #else
 	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath)) {
 		logging::err(err);
@@ -162,13 +115,16 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 #endif
 	}
 
-	info("textures used: (", materials.size(), ")");
-	for (auto& m : materials)
-		info(m.diffuse_texname);
-
 	model.vertices = reinterpret_cast<Vertex*>(buffer);
-	model.indices = reinterpret_cast<Index*>(buffer + sizeof(Vertex) * model.nVertices);
+	model.indices = reinterpret_cast<Index*>(reinterpret_cast<uint8_t*>(buffer)
+					+ sizeof(Vertex) * model.nVertices);
 	model.nIndices = indices.size();
+
+	// Save material info
+	model.materials.reserve(materials.size());
+	info("materials used: (", materials.size(), ")");
+	for (const auto& m : materials)
+		model.materials.emplace_back(saveMaterial(modelPath, m));
 
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
@@ -176,4 +132,15 @@ Model loadModel(const char *modelPath, uint8_t *buffer) {
 	info("vertices, indices = ", model.nVertices, ", ", model.nIndices);
 
 	return model;
+}
+
+Material saveMaterial(const char *modelPath, const to::material_t& mat) {
+	const std::string basePath = xplatDirname(modelPath) + "/";
+
+	Material material;
+	material.name = mat.name;
+	material.diffuseTex = basePath + mat.diffuse_texname;
+	material.specularTex = basePath + mat.specular_texname;
+
+	return material;
 }

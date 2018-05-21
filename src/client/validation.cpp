@@ -31,7 +31,7 @@ bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugReportFlagsEXT /*flags*/,
 		VkDebugReportObjectTypeEXT /*objType*/,
-		uint64_t obj,
+		uint64_t /*obj*/,
 		std::size_t /*location*/,
 		int32_t /*code*/,
 		const char* layerPrefix,

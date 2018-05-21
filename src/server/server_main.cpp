@@ -45,25 +45,17 @@ int main(int argc, char **argv) {
 			warn("Error cleaning up sockets: ", xplatGetErrorString());
 	});
 
-	Server server;
+	Server server { MEMSIZE };
 	gServer = &server;
 
 	server.activeEP.targetFrameTime = 16ms;
 	server.relEP.serverIp = ip;
 
-	/// Allocate server memory buffer
-	auto serverMemory = std::unique_ptr<uint8_t>{ new uint8_t[MEMSIZE] };
-
-	/// Initialize server subsystems
-	// First 2/3 of server memory are for resources
-	server.resources.initialize(serverMemory.get(), MEMSIZE * 2 / 3);
-	// Last 1/3 of it is for the active EP's tmp buffer
-	server.activeEP.initialize(serverMemory.get() + MEMSIZE * 2 / 3, MEMSIZE / 3);
-
 	/// Startup server: load models, assets, etc
 	std::string cwd = xplatGetCwd();
 	info("Starting server. cwd: ", cwd);
 
+	// Load the models first: they'll remain at the bottom of our stack allocator
 	auto model = server.resources.loadModel((cwd + "/models/nanosuit/nanosuit.obj").c_str());
 	if (model.vertices == nullptr) {
 		err("Failed to load model.");
@@ -71,6 +63,16 @@ int main(int argc, char **argv) {
 	}
 	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
 		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
+
+	/*
+	for (const auto& m : model.materials) {
+		if (m.diffuseTex.length() > 0)
+			server.resources.loadTexture(m.diffuseTex.c_str(),
+					shared::TextureFormat::RGBA);
+		if (m.specularTex.length() > 0)
+			server.resources.loadTexture(m.specularTex.c_str(),
+					shared::TextureFormat::GREY);
+	}*/
 
 
 	/// Start TCP socket and wait for connections

@@ -9,6 +9,8 @@
 #include "vulk_errors.hpp"
 #include <vulkan/vulkan.h>
 
+using shared::TextureFormat;
+
 void TextureLoader::addTexture(Image& image, const char *texturePath, TextureFormat format) {
 	int texWidth, texHeight, texChannels;
 	auto pixels = stbi_load(texturePath, &texWidth, &texHeight, &texChannels,

@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <glm/glm.hpp>
 #include "vertex.hpp"
-#include "data.hpp"
+#include "frame_data.hpp"
 #include "camera.hpp"
 #include "model.hpp"
 

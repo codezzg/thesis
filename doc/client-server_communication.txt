@@ -32,3 +32,13 @@ The client/server network logic / protocol is the following:
 
 
 IMPORTANT: currently only 1 client at a time is allowed.
+
+### Data exchange ###
+To send one-time TCP data, the server first sends a START_DATA_EXCHANGE message, to which the
+client responds with a DATA_EXCHANGE_ACK. Before ack'ing, the client may prepare local buffers
+to store the incoming data.
+
+The server then sends packets with the header DATA_TYPE_*, size and other data-specific
+information.
+
+The client processes the packets,

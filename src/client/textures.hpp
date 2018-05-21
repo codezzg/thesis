@@ -4,13 +4,9 @@
 #include <vector>
 #include "images.hpp"
 #include "buffers.hpp"
+#include  "shared_resources.hpp"
 
 struct Application;
-
-enum class TextureFormat {
-	RGBA,
-	GREY
-};
 
 // TODO
 class TextureLoader final {
@@ -29,7 +25,7 @@ class TextureLoader final {
 public:
 	explicit TextureLoader(Buffer& stagingBuffer) : stagingBuffer{ stagingBuffer } {}
 
-	void addTexture(Image& image, const char *texturePath, TextureFormat format);
+	void addTexture(Image& image, const char *texturePath, shared::TextureFormat format);
 
 	void create(const Application& app);
 };
@@ -38,7 +34,8 @@ public:
 /** Load a texture from `texturePath` into an Image and return it (with its view already filled).
  *  `stagingBuffer` must be a valid buffer to use as a staging buffer.
  */
-Image createTextureImage(const Application& app, const char *texturePath, TextureFormat format, Buffer& stagingBuffer);
+Image createTextureImage(const Application& app, const char *texturePath,
+		shared::TextureFormat format, Buffer& stagingBuffer);
 
 /** Create a sampler appropriate for sampling a texture and return it. */
 VkSampler createTextureSampler(const Application& app);

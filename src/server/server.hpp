@@ -23,6 +23,8 @@ struct ServerSharedData final {
  *  It also functions as a convenient common entrypoint for starting and terminating threads.
  */
 struct Server final {
+	std::unique_ptr<uint8_t> memory;
+
 	ServerActiveEndpoint activeEP;
 	ServerPassiveEndpoint passiveEP;
 	ServerSharedData sharedData;
@@ -30,7 +32,8 @@ struct Server final {
 
 	ServerResources resources;
 
-	explicit Server();
+	explicit Server(std::size_t memsize);
+	~Server();
 
 	void closeNetwork();
 };

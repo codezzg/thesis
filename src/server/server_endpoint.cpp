@@ -10,7 +10,7 @@
 #include "FPSCounter.hpp"
 #include "model.hpp"
 #include "tcp_messages.hpp"
-#include "data.hpp"
+#include "frame_data.hpp"
 #include "config.hpp"
 #include "frame_utils.hpp"
 #include "camera.hpp"
@@ -215,18 +215,18 @@ void ServerReliableEndpoint::loopFunc() {
 		sockaddr_in clientAddr;
 		socklen_t clientLen = sizeof(clientAddr);
 
-		auto clientSock = ::accept(socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
-		if (clientSock == -1) {
+		auto clientSocket = ::accept(socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
+		if (clientSocket == -1) {
 			err("Error: couldn't accept connection.");
 			continue;
 		}
 
 		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
-		//std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSock, clientAddr);
+		//std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSocket, clientAddr);
 		//listener.detach();
 
 		// Single client
-		listenTo(clientSock, clientAddr);
+		listenTo(clientSocket, clientAddr);
 	}
 }
 
@@ -266,7 +266,16 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 			goto dropclient;
 
 		// Send one-time data
-		// TODO
+		info("Sending one time data...");
+		buffer[0] = msg2byte(MsgType::START_DATA_EXCHANGE);
+		if (!sendPacket(clientSocket, buffer.data(), buffer.size()))
+			goto dropclient;
+
+		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::DATA_EXCHANGE_ACK))
+			goto dropclient;
+
+		if (!sendOneTimeData(clientSocket))
+			goto dropclient;
 
 		// Wait for ready signal from client
 		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::READY))
@@ -323,4 +332,82 @@ dropclient:
 
 void ServerReliableEndpoint::onClose() {
 	loopCv.notify_all();
+}
+
+bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
+
+	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
+
+	info("# models loaded = ", server.resources.models.size());
+	for (const auto& modpair : server.resources.models) {
+		const auto& model = modpair.second;
+		info("model.materials = ", model.materials.size());
+		for (const auto& mat : model.materials) {
+			if (mat.diffuseTex.length() > 0 && !sendTexture(clientSocket, mat.diffuseTex)) {
+				err("sendOneTimeData: failed");
+				return false;
+			}
+
+			if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
+				warn("Not received DATA_EXCHANGE_ACK!");
+				return false;
+			}
+
+			if (mat.specularTex.length() > 0 && !sendTexture(clientSocket, mat.specularTex)) {
+				err("sendOneTimeData: failed");
+				return false;
+			}
+
+			if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
+				warn("Not received DATA_EXCHANGE_ACK!");
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::string& texName) {
+
+	info("Sending texture ", texName);
+
+	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
+
+	// Prepare header
+	struct {
+		MsgType type;
+		uint64_t size;
+		shared::TextureHeader head;
+	} header;
+	const auto texNameSid = sid(texName);
+	const auto& texture = server.resources.textures[texNameSid];
+	header.type = MsgType::DATA_TYPE_TEXTURE;
+	header.size = texture.size;
+	header.head.name = texNameSid;
+	header.head.format = texture.format;
+
+	//memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
+
+	// Fill remaining space with payload
+	//auto len = std::min(texture.size, packet.size() - sizeof(header));
+	//memcpy(packet.data() + sizeof(header), texture.data, len);
+
+	//if (!sendPacket(clientSocket, packet.data(), len + sizeof(header)))
+		//return;
+
+	// Send header
+	if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&header), sizeof(header)))
+		return false;
+
+	auto bytesSent = 0;
+	// Send payload
+	while (bytesSent < texture.size) {
+		auto len = std::min(texture.size - bytesSent, cfg::PACKET_SIZE_BYTES);
+		if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(texture.data) + bytesSent, len))
+			return false;
+		bytesSent += len;
+	}
+
+	return true;
 }

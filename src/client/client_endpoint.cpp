@@ -4,13 +4,14 @@
 #include <iostream>
 #include <array>
 #include <cstring>
-#include "data.hpp"
+#include "frame_data.hpp"
 #include "config.hpp"
 #include "vertex.hpp"
 #include "camera.hpp"
 #include "serialization.hpp"
 #include "frame_utils.hpp"
 #include "tcp_messages.hpp"
+#include "shared_resources.hpp"
 #include "logging.hpp"
 
 using namespace logging;
@@ -197,6 +198,12 @@ void ClientReliableEndpoint::loopFunc() {
 		cv.wait(ulk);
 	}
 
+	// TODO: receive one-time data
+	if (!receiveOneTimeData()) {
+		err("Error receiving one time data.");
+		return;
+	}
+
 	if (!sendReadyAndWait(socket)) {
 		err("[ ERROR ] Sending or awaiting ready failed.");
 		return;
@@ -224,6 +231,15 @@ void ClientReliableEndpoint::loopFunc() {
 		case MsgType::DISCONNECT:
 			connected = false;
 			break;
+		case MsgType::START_DATA_EXCHANGE:
+			buffer[0] = msg2byte(MsgType::DATA_EXCHANGE_ACK);
+			if (!sendPacket(socket, buffer.data(), buffer.size())
+				&& receiveOneTimeData())
+			{
+				connected = false;
+				break;
+			}
+			break;
 		default:
 			break;
 		}
@@ -238,4 +254,101 @@ void ClientReliableEndpoint::loopFunc() {
 
 void ClientReliableEndpoint::onClose() {
 	cv.notify_all();
+}
+
+static bool receiveTexture(socket_t socket,
+		std::array<uint8_t, cfg::PACKET_SIZE_BYTES>& buffer,
+		/* out */ shared::Texture& texture)
+{
+	uint64_t expectedSize = 0;
+	uint64_t processedSize = 0;
+
+	// Parse header
+	// [0]  msgType     (1 B)
+	// [1]  size        (8 B)
+	// [9]  head.name   (4 B)
+	// [13] head.format (1 B)
+	expectedSize = *reinterpret_cast<uint64_t*>(buffer.data() + 1);
+
+	if (expectedSize > cfg::MAX_TEXTURE_SIZE) {
+		err("Texture server sent is too big!");
+		return false;
+	}
+
+	// TODO name ?
+	auto format = static_cast<shared::TextureFormat>(buffer[13]);
+	assert(format == shared::TextureFormat::RGBA || format == shared::TextureFormat::GREY);
+
+	auto texdata = new uint8_t[expectedSize];
+
+	constexpr auto HEADER_SIZE = 14;
+
+	auto len = std::min(buffer.size() - HEADER_SIZE, expectedSize);
+	memcpy(texdata, buffer.data() + HEADER_SIZE, len);
+	processedSize += len;
+
+	// Receive texture data
+	while (processedSize < expectedSize) {
+		MsgType ignored;
+		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), ignored))
+			return false;
+
+		const auto remainingSize = expectedSize - processedSize;
+		assert(remainingSize > 0);
+
+		len = std::min(remainingSize, buffer.size());
+		memcpy(texdata + processedSize, buffer.data(), len);
+		processedSize += len;
+	}
+
+	if (processedSize != expectedSize) {
+		warn("Processed more bytes than expected!");
+	}
+
+	texture.size = expectedSize;
+	texture.data = texdata;
+	texture.format = format;
+
+	return true;
+}
+
+bool ClientReliableEndpoint::receiveOneTimeData() {
+	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
+
+	if (!expectTCPMsg(socket, buffer.data(), buffer.size(), MsgType::START_DATA_EXCHANGE)) {
+		err("Expecting START_DATA_EXCHANGE but didn't receive it.");
+		return false;
+	}
+
+	// Receive data
+	while (true) {
+		MsgType incomingDataType = MsgType::UNKNOWN;
+
+		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), incomingDataType)) {
+			err("Error receiving data packet.");
+			return false;
+		}
+
+		switch (incomingDataType) {
+		case MsgType::DATA_TYPE_TEXTURE: {
+
+			shared::Texture texture;
+			if (!receiveTexture(socket, buffer, texture)) {
+				err("Failed to receive texture.");
+				return false;
+			}
+			// All green, send ACK
+			buffer[0] = msg2byte(MsgType::DATA_EXCHANGE_ACK);
+			if (!sendPacket(socket, buffer.data(), 1)) {
+				err("Failed to send ACK");
+				return false;
+			}
+			// TODO: save the texture somewhere
+			delete [] reinterpret_cast<uint8_t*>(texture.data);
+		} break;
+		default:
+			err("Invalid data: ", incomingDataType);
+			return false;
+		}
+	}
 }

@@ -5,7 +5,7 @@
 #include <chrono>
 #include "endpoint.hpp"
 #include "vertex.hpp"
-#include "data.hpp"
+#include "frame_data.hpp"
 
 struct Server;
 struct ServerSharedData;
@@ -79,6 +79,9 @@ class ServerReliableEndpoint : public Endpoint {
 	 */
 	void listenTo(socket_t clientSocket, sockaddr_in clientAddr);
 	void onClose() override;
+
+	bool sendOneTimeData(socket_t clientSocket);
+	bool sendTexture(socket_t clientSocket, const std::string& name);
 
 public:
 	std::string serverIp;

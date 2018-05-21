@@ -70,6 +70,7 @@ class ClientReliableEndpoint : public Endpoint {
 
 	void loopFunc() override;
 	void onClose() override;
+	bool receiveOneTimeData();
 
 public:
 	/** Call this after starting this socket to block the caller thread until the next step
