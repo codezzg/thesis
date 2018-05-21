@@ -5,7 +5,7 @@
 using namespace logging;
 
 std::vector<char> readFileIntoMemory(const char *path) {
-	std::ifstream file(path, std::ios::binary | std::ios::ate);
+	std::ifstream file{ path, std::ios::binary | std::ios::ate };
 	auto dataLen  = file.tellg();
 	file.seekg(0, std::ios::beg);
 
@@ -21,7 +21,7 @@ std::vector<char> readFileIntoMemory(const char *path) {
 }
 
 std::size_t readFileIntoMemory(const char *path, void *buffer, std::size_t bufsize) {
-	std::ifstream file(path, std::ios::binary | std::ios::ate);
+	std::ifstream file{ path, std::ios::binary | std::ios::ate };
 	auto dataLen  = file.tellg();
 
 	if (!file.good()) {
