@@ -231,15 +231,6 @@ void ClientReliableEndpoint::loopFunc() {
 		case MsgType::DISCONNECT:
 			connected = false;
 			break;
-		case MsgType::START_DATA_EXCHANGE:
-			buffer[0] = msg2byte(MsgType::DATA_EXCHANGE_ACK);
-			if (!sendPacket(socket, buffer.data(), buffer.size())
-				&& receiveOneTimeData())
-			{
-				connected = false;
-				break;
-			}
-			break;
 		default:
 			break;
 		}
@@ -258,7 +249,8 @@ void ClientReliableEndpoint::onClose() {
 
 static bool receiveTexture(socket_t socket,
 		std::array<uint8_t, cfg::PACKET_SIZE_BYTES>& buffer,
-		/* out */ shared::Texture& texture)
+		/* out */ shared::Texture& texture,
+		/* out */ StringId& texName)
 {
 	uint64_t expectedSize = 0;
 	uint64_t processedSize = 0;
@@ -271,11 +263,12 @@ static bool receiveTexture(socket_t socket,
 	expectedSize = *reinterpret_cast<uint64_t*>(buffer.data() + 1);
 
 	if (expectedSize > cfg::MAX_TEXTURE_SIZE) {
-		err("Texture server sent is too big!");
+		err("Texture server sent is too big! (", expectedSize / 1024 / 1024., " MiB)");
 		return false;
 	}
 
-	// TODO name ?
+	texName = *reinterpret_cast<StringId*>(buffer.data() + 9);
+
 	auto format = static_cast<shared::TextureFormat>(buffer[13]);
 	assert(format == shared::TextureFormat::RGBA || format == shared::TextureFormat::GREY);
 
@@ -320,6 +313,11 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 		return false;
 	}
 
+	buffer[0] = msg2byte(MsgType::DATA_EXCHANGE_ACK);
+	if (!sendPacket(socket, buffer.data(), 1)) {
+		return false;
+	}
+
 	// Receive data
 	while (true) {
 		MsgType incomingDataType = MsgType::UNKNOWN;
@@ -333,10 +331,13 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 		case MsgType::DATA_TYPE_TEXTURE: {
 
 			shared::Texture texture;
-			if (!receiveTexture(socket, buffer, texture)) {
+			StringId texName;
+
+			if (!receiveTexture(socket, buffer, texture, texName)) {
 				err("Failed to receive texture.");
 				return false;
 			}
+			info("Received texture ", texName, ": ", texture.size, " B");
 			// All green, send ACK
 			buffer[0] = msg2byte(MsgType::DATA_EXCHANGE_ACK);
 			if (!sendPacket(socket, buffer.data(), 1)) {
@@ -347,7 +348,7 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 			delete [] reinterpret_cast<uint8_t*>(texture.data);
 		} break;
 		default:
-			err("Invalid data: ", incomingDataType);
+			err("Invalid data type: ", incomingDataType, " (", int(incomingDataType), ")");
 			return false;
 		}
 	}

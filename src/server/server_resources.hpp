@@ -5,6 +5,7 @@
 #include "model.hpp"
 #include "utils.hpp"
 #include "hashing.hpp"
+#include "logging.hpp"
 #include "shared_resources.hpp"
 #include "stack_allocator.hpp"
 
@@ -64,6 +65,8 @@ public:
 
 		allocator.deallocLatest();
 		allocator.alloc(texture.size);
+
+		logging::info("Loaded texture ", file, " (", texture.size, " B)");
 
 		return texture;
 	}

@@ -375,11 +375,13 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
 
 	// Prepare header
+#pragma pack(push, 1)
 	struct {
 		MsgType type;
 		uint64_t size;
 		shared::TextureHeader head;
 	} header;
+#pragma pack(pop)
 	const auto texNameSid = sid(texName);
 	const auto& texture = server.resources.textures[texNameSid];
 	header.type = MsgType::DATA_TYPE_TEXTURE;
@@ -397,6 +399,9 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 		//return;
 
 	// Send header
+	info("header: { type = ", header.type, ", size = ", header.size, ", name = ",
+			sidToString(header.head.name),
+			", format = ", int(header.head.format), " }");
 	if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&header), sizeof(header)))
 		return false;
 

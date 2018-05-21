@@ -24,13 +24,19 @@ std::size_t readFileIntoMemory(const char *path, void *buffer, std::size_t bufsi
 	std::ifstream file(path, std::ios::binary | std::ios::ate);
 	auto dataLen  = file.tellg();
 
+	if (!file.good()) {
+		err("File ", path, " is not good.");
+		return -1;
+	}
+
 	if (dataLen < 0) {
 		err("Failed to tellg(): ", path);
 		return -1;
 	}
 
 	if (dataLen > static_cast<signed>(bufsize)) {
-		err("readFileIntoMemory: buffer is too small! (", bufsize, " while needing ", dataLen, " bytes.)");
+		err("readFileIntoMemory(", path, "): buffer is too small! (",
+				bufsize, " while needing ", dataLen, " bytes.)");
 		return -1;
 	}
 

@@ -160,7 +160,13 @@ bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
 		warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	}
-	verbose("Sent data ", data);
+	verbose("Sent data ");
+	if (gDebugLv >= LOGLV_VERBOSE)
+		for (unsigned i = 0; i < std::min(len, 50ul); ++i) {
+			char str[5];
+			snprintf(str, 5, "0x%.2X", data[i]);
+			log(LOGLV_VERBOSE, i == len - 1, str, " ");
+		}
 	return true;
 }
 

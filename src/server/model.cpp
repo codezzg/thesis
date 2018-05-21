@@ -139,8 +139,10 @@ Material saveMaterial(const char *modelPath, const to::material_t& mat) {
 
 	Material material;
 	material.name = mat.name;
-	material.diffuseTex = basePath + mat.diffuse_texname;
-	material.specularTex = basePath + mat.specular_texname;
+	if (mat.diffuse_texname.length() > 0)
+		material.diffuseTex = basePath + mat.diffuse_texname;
+	if (mat.specular_texname.length() > 0)
+		material.specularTex = basePath + mat.specular_texname;
 
 	return material;
 }

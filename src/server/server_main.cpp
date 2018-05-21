@@ -14,7 +14,7 @@
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr auto MEMSIZE = 1 << 24;
+static constexpr auto MEMSIZE = 1 << 25;
 
 Server *gServer;
 
@@ -64,7 +64,6 @@ int main(int argc, char **argv) {
 	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
 		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
 
-	/*
 	for (const auto& m : model.materials) {
 		if (m.diffuseTex.length() > 0)
 			server.resources.loadTexture(m.diffuseTex.c_str(),
@@ -72,7 +71,7 @@ int main(int argc, char **argv) {
 		if (m.specularTex.length() > 0)
 			server.resources.loadTexture(m.specularTex.c_str(),
 					shared::TextureFormat::GREY);
-	}*/
+	}
 
 
 	/// Start TCP socket and wait for connections
