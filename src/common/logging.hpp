@@ -15,7 +15,24 @@ extern LogLevel gDebugLv;
 
 namespace logging {
 
+#ifdef COLORED_LOGS
+#	ifdef _WIN32
+// TODO
+constexpr auto C_RED = "";
+constexpr auto C_YELLOW = "";
+constexpr auto C_NONE = "";
+#	else
+constexpr auto C_RED = "\033[1;31m";
+constexpr auto C_YELLOW = "\033[0;33m";
+constexpr auto C_NONE = "\033[0m";
+#	endif
+#endif
+
+
 inline void log(LogLevel debugLv, bool breakLine) {
+#ifdef COLORED_LOGS
+	std::cerr << C_NONE;
+#endif
 	if (gDebugLv >= debugLv && breakLine)
 		std::cerr << "\n";
 }
@@ -29,12 +46,20 @@ inline void log(LogLevel debugLv, bool breakLine, Arg&& arg, Args&&... args) {
 
 template <typename... Args>
 inline void err(Args&&... args) {
-	log(LOGLV_ERR, true, "[E] ", std::forward<Args>(args)...);
+	log(LOGLV_ERR, true,
+#ifdef COLORED_LOGS
+		C_RED,
+#endif
+		"[E] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warn(Args&&... args) {
-	log(LOGLV_WARN, true, "[W] ", std::forward<Args>(args)...);
+	log(LOGLV_WARN, true,
+#ifdef COLORED_LOGS
+		C_YELLOW,
+#endif
+		"[W] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>

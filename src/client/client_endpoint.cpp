@@ -346,7 +346,8 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 
 		default:
 			err("Invalid data type: ", incomingDataType, " (", unsigned(incomingDataType), ")");
-			return false;
+			// Retry: maybe it was garbage from the previous sending
+			//return false;
 		}
 	}
 }

@@ -343,32 +343,36 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 		const auto& model = modpair.second;
 		info("model.materials = ", model.materials.size());
 		for (const auto& mat : model.materials) {
-			if (mat.diffuseTex.length() > 0 && !sendTexture(clientSocket, mat.diffuseTex)) {
-				err("sendOneTimeData: failed");
-				return false;
-			}
+			info("sending new material");
 
-			if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
-				warn("Not received DATA_EXCHANGE_ACK!");
-				return false;
+			info("* diffuse:");
+			if (mat.diffuseTex.length() > 0) {
+				if (!sendTexture(clientSocket, mat.diffuseTex)) {
+					err("sendOneTimeData: failed");
+					return false;
+				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
+					warn("Not received DATA_EXCHANGE_ACK!");
+					return false;
+				}
 			}
-
 
 			// XXX
 			return true;
 
-			if (mat.specularTex.length() > 0 && !sendTexture(clientSocket, mat.specularTex)) {
-				err("sendOneTimeData: failed");
-				return false;
-			}
-
-			if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
-				warn("Not received DATA_EXCHANGE_ACK!");
-				return false;
+			info("* specular:");
+			if (mat.specularTex.length() > 0) {
+				if (!sendTexture(clientSocket, mat.specularTex)) {
+					err("sendOneTimeData: failed");
+					return false;
+				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
+					warn("Not received DATA_EXCHANGE_ACK!");
+					return false;
+				}
 			}
 		}
 	}
 
+	info("Done sending data");
 	return true;
 }
 
