@@ -64,13 +64,18 @@ int main(int argc, char **argv) {
 	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
 		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
 
+	// TODO: for now just load the first texture
 	for (const auto& m : model.materials) {
-		if (m.diffuseTex.length() > 0)
+		if (m.diffuseTex.length() > 0) {
 			server.resources.loadTexture(m.diffuseTex.c_str(),
 					shared::TextureFormat::RGBA);
-		if (m.specularTex.length() > 0)
+			break;
+		}
+		if (m.specularTex.length() > 0) {
 			server.resources.loadTexture(m.specularTex.c_str(),
 					shared::TextureFormat::GREY);
+			break;
+		}
 	}
 
 

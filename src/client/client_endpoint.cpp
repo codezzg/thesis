@@ -136,33 +136,23 @@ static bool performHandshake(socket_t socket) {
 	std::array<uint8_t, 1> buf = {};
 
 	// send HELO message
-	buf[0] = msg2byte(MsgType::HELO);
-	if (!sendPacket(socket, buf.data(), buf.size()))
+	if (!sendTCPMsg(socket, MsgType::HELO))
 		return false;
 
-	if (!receivePacket(socket, buf.data(), buf.size()))
-		return false;
-
-	// TODO: receive one-time server data
-	return byte2msg(buf[0]) == MsgType::HELO_ACK;
+	return expectTCPMsg(socket, buf.data(), 1, MsgType::HELO_ACK);
 }
 
 static bool sendReadyAndWait(socket_t socket) {
-	std::array<uint8_t, 1> buf = {};
-	buf[0] = msg2byte(MsgType::READY);
-	if (!sendPacket(socket, buf.data(), buf.size()))
+	if (!sendTCPMsg(socket, MsgType::READY))
 		return false;
 
-	if (!receivePacket(socket, buf.data(), buf.size()))
-		return false;
-
-	return byte2msg(buf[0]) == MsgType::READY;
+	uint8_t buf;
+	return expectTCPMsg(socket, &buf, 1, MsgType::READY);
 }
 
 static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_variable& cv) {
 
 	std::unique_lock<std::mutex> ulk{ mtx };
-	const auto msg = msg2byte(MsgType::KEEPALIVE);
 
 	while (true) {
 		// Using a condition variable instead of sleep_for since we want to be able to interrupt it.
@@ -171,7 +161,7 @@ static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_varia
 			info("keepalive task: interrupted");
 			break;
 		}
-		if (!sendPacket(socket, &msg, 1))
+		if (!sendTCPMsg(socket, MsgType::KEEPALIVE))
 			warn("Failed to send keepalive.");
 	}
 }
@@ -199,6 +189,7 @@ void ClientReliableEndpoint::loopFunc() {
 	}
 
 	// TODO: receive one-time data
+	info("Waiting for one-time data...");
 	if (!receiveOneTimeData()) {
 		err("Error receiving one time data.");
 		return;
@@ -282,14 +273,14 @@ static bool receiveTexture(socket_t socket,
 
 	// Receive texture data
 	while (processedSize < expectedSize) {
-		MsgType ignored;
-		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), ignored))
-			return false;
-
 		const auto remainingSize = expectedSize - processedSize;
 		assert(remainingSize > 0);
 
 		len = std::min(remainingSize, buffer.size());
+
+		if (!receivePacket(socket, buffer.data(), len))
+			return false;
+
 		memcpy(texdata + processedSize, buffer.data(), len);
 		processedSize += len;
 	}
@@ -308,13 +299,12 @@ static bool receiveTexture(socket_t socket,
 bool ClientReliableEndpoint::receiveOneTimeData() {
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
 
-	if (!expectTCPMsg(socket, buffer.data(), buffer.size(), MsgType::START_DATA_EXCHANGE)) {
+	if (!expectTCPMsg(socket, buffer.data(), 1, MsgType::START_DATA_EXCHANGE)) {
 		err("Expecting START_DATA_EXCHANGE but didn't receive it.");
 		return false;
 	}
 
-	buffer[0] = msg2byte(MsgType::DATA_EXCHANGE_ACK);
-	if (!sendPacket(socket, buffer.data(), 1)) {
+	if (!sendTCPMsg(socket, MsgType::DATA_EXCHANGE_ACK)) {
 		return false;
 	}
 
@@ -328,6 +318,13 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 		}
 
 		switch (incomingDataType) {
+
+		case MsgType::DISCONNECT:
+			return false;
+
+		case MsgType::END_DATA_EXCHANGE:
+			return true;
+
 		case MsgType::DATA_TYPE_TEXTURE: {
 
 			shared::Texture texture;
@@ -339,16 +336,16 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 			}
 			info("Received texture ", texName, ": ", texture.size, " B");
 			// All green, send ACK
-			buffer[0] = msg2byte(MsgType::DATA_EXCHANGE_ACK);
-			if (!sendPacket(socket, buffer.data(), 1)) {
+			if (!sendTCPMsg(socket, MsgType::DATA_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
 			}
 			// TODO: save the texture somewhere
 			delete [] reinterpret_cast<uint8_t*>(texture.data);
 		} break;
+
 		default:
-			err("Invalid data type: ", incomingDataType, " (", int(incomingDataType), ")");
+			err("Invalid data type: ", incomingDataType, " (", unsigned(incomingDataType), ")");
 			return false;
 		}
 	}

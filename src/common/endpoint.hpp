@@ -30,6 +30,9 @@ bool receiveTCPMsg(socket_t socket, uint8_t *buffer, std::size_t len, MsgType& t
 
 /** Like `receiveTCPMsg`, but returns true if and only if a message of type `type` was received. */
 bool expectTCPMsg(socket_t socket, uint8_t *buffer, std::size_t len, MsgType type);
+
+/** Sends a header-only TCP message of type `type` */
+bool sendTCPMsg(socket_t socket, MsgType type);
 //
 
 /** Base abstract class for a network endpoint running in a separate thread.

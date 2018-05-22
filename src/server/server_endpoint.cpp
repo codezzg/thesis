@@ -205,12 +205,13 @@ void ServerPassiveEndpoint::loopFunc() {
 /////////////////////////////////////////
 
 void ServerReliableEndpoint::loopFunc() {
-	// FIXME
+	// FIXME?
 	constexpr auto MAX_CLIENTS = 1;
 
+	info("Listening...");
+	::listen(socket, MAX_CLIENTS);
+
 	while (!terminated) {
-		info("Listening...");
-		::listen(socket, MAX_CLIENTS);
 
 		sockaddr_in clientAddr;
 		socklen_t clientLen = sizeof(clientAddr);
@@ -261,20 +262,21 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::HELO))
 			goto dropclient;
 
-		buffer[0] = msg2byte(MsgType::HELO_ACK);
-		if (!sendPacket(clientSocket, buffer.data(), buffer.size()))
+		if (!sendTCPMsg(clientSocket, MsgType::HELO_ACK))
 			goto dropclient;
 
 		// Send one-time data
 		info("Sending one time data...");
-		buffer[0] = msg2byte(MsgType::START_DATA_EXCHANGE);
-		if (!sendPacket(clientSocket, buffer.data(), buffer.size()))
+		if (!sendTCPMsg(clientSocket, MsgType::START_DATA_EXCHANGE))
 			goto dropclient;
 
 		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::DATA_EXCHANGE_ACK))
 			goto dropclient;
 
 		if (!sendOneTimeData(clientSocket))
+			goto dropclient;
+
+		if (!sendTCPMsg(clientSocket, MsgType::END_DATA_EXCHANGE))
 			goto dropclient;
 
 		// Wait for ready signal from client
@@ -287,8 +289,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		server.passiveEP.runLoop();
 		server.activeEP.runLoop();
 
-		buffer[0] = msg2byte(MsgType::READY);
-		if (!sendPacket(clientSocket, buffer.data(), buffer.size()))
+		if (!sendTCPMsg(clientSocket, MsgType::READY))
 			goto dropclient;
 	}
 
@@ -321,8 +322,7 @@ dropclient:
 	info("TCP: Dropping client ", readableAddr);
 	{
 		// Send disconnect message
-		std::array<uint8_t, 1> buffer = { msg2byte(MsgType::DISCONNECT) };
-		sendPacket(clientSocket, buffer.data(), buffer.size());
+		sendTCPMsg(clientSocket, MsgType::DISCONNECT);
 	}
 	server.sharedData.loopCv.notify_all();
 	server.passiveEP.close();
@@ -353,6 +353,10 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 				return false;
 			}
 
+
+			// XXX
+			return true;
+
 			if (mat.specularTex.length() > 0 && !sendTexture(clientSocket, mat.specularTex)) {
 				err("sendOneTimeData: failed");
 				return false;
@@ -369,8 +373,6 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 }
 
 bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::string& texName) {
-
-	info("Sending texture ", texName);
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
 
@@ -389,6 +391,8 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 	header.head.name = texNameSid;
 	header.head.format = texture.format;
 
+	info("Sending texture ", texName, " (", texNameSid, ")");
+
 	//memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
 
 	// Fill remaining space with payload
@@ -400,12 +404,11 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 
 	// Send header
 	info("header: { type = ", header.type, ", size = ", header.size, ", name = ",
-			sidToString(header.head.name),
-			", format = ", int(header.head.format), " }");
+			header.head.name, ", format = ", int(header.head.format), " }");
 	if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&header), sizeof(header)))
 		return false;
 
-	auto bytesSent = 0;
+	std::size_t bytesSent = 0;
 	// Send payload
 	while (bytesSent < texture.size) {
 		auto len = std::min(texture.size - bytesSent, cfg::PACKET_SIZE_BYTES);

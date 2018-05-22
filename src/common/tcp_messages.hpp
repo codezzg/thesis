@@ -18,6 +18,7 @@ enum class MsgType : uint8_t {
 	DATA_TYPE_TEXTURE   = 0x08,
 	/** The packet is part of a data payload previously started */
 	//DATA_CONT           = 0x09,
+	END_DATA_EXCHANGE   = 0x0A,
 	UNKNOWN,
 };
 
@@ -32,6 +33,7 @@ inline std::ostream& operator<<(std::ostream& s, MsgType msg) {
 	case M::START_DATA_EXCHANGE: s << "START_DATA_EXCHANGE"; break;
 	case M::DATA_EXCHANGE_ACK:   s << "DATA_EXCHANGE_ACK"; break;
 	case M::DATA_TYPE_TEXTURE:   s << "DATA_TYPE_TEXTURE"; break;
+	case M::END_DATA_EXCHANGE:   s << "END_DATA_EXCHANGE"; break;
 	default:                     s << "UNKNOWN"; break;
 	}
 	return s;

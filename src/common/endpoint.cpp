@@ -118,11 +118,14 @@ bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 		err("Error receiving message: [" , count, "] ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	} else if (count == sizeof(buffer)) {
-		warn("Warning: datagram was truncated as it's too large.");
+		warn("Warning: message was truncated as it's too large.");
+		return false;
+	} else if (count == 0) {
+		warn("Received EOF");
 		return false;
 	}
 
-	verbose("Received ", count, " bytes"); //<< buffer, std::endl;
+	verbose("Received ", count, " bytes");
 
 	return true;
 }
@@ -177,22 +180,15 @@ bool receiveTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgTyp
 
 	msgType = MsgType::UNKNOWN;
 
-	const auto count = recv(socket, reinterpret_cast<char*>(buffer), bufsize, 0);
-	if (count < 0) {
-		err("Error receiving message: [", count, "] ", xplatGetErrorString(), " G(", xplatGetError(), ")");
+	if (!receivePacket(socket, buffer, bufsize))
 		return false;
-	} else if (count == sizeof(buffer)) {
-		warn("Warning: datagram was truncated as it's too large.");
-		return false;
-	} else if (count == 0) {
-		warn("Received EOF.");
-		return false;
-	}
 
 	// TODO: validate message header
 
 	// Check type of message (TODO) -- currently the message type is determined by its first byte.
 	msgType = byte2msg(buffer[0]);
+
+	info("<<< Received message type: ", msgType);
 
 	return true;
 }
@@ -200,4 +196,15 @@ bool receiveTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgTyp
 bool expectTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType expectedType) {
 	MsgType type;
 	return receiveTCPMsg(socket, buffer, bufsize, type) && type == expectedType;
+}
+
+bool sendTCPMsg(socket_t socket, MsgType type) {
+	const uint8_t b = msg2byte(type);
+	const bool r = sendPacket(socket, &b, 1);
+	if (r)
+		info(">>> Sent message type: ", type);
+	else
+		err("Failed to send message: ", type);
+
+	return r;
 }
