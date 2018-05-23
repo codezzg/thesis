@@ -11,6 +11,29 @@
 
 using shared::TextureFormat;
 
+void TextureLoader::addTexture(Image& image, const shared::Texture& texture) {
+	int texWidth, texHeight, texChannels;
+	auto pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(texture.data),
+			texture.size, &texWidth, &texHeight, &texChannels,
+			texture.format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
+
+	if (!pixels)
+		throw std::runtime_error("failed to load texture image!");
+
+	// Save pixel data in the staging buffer
+	const auto imageSize = texWidth * texHeight * (texture.format == TextureFormat::RGBA ? 4 : 1);
+	memcpy(reinterpret_cast<uint8_t*>(stagingBuffer.ptr) + stagingBufferOffset, pixels, imageSize);
+	stagingBufferOffset += imageSize;
+	stbi_image_free(pixels);
+
+	ImageInfo info;
+	info.format = texture.format == TextureFormat::RGBA ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8_UNORM;
+	info.width = texWidth;
+	info.height = texHeight;
+	imageInfos.emplace_back(info);
+	images.emplace_back(&image);
+}
+
 void TextureLoader::addTexture(Image& image, const char *texturePath, TextureFormat format) {
 	int texWidth, texHeight, texChannels;
 	auto pixels = stbi_load(texturePath, &texWidth, &texHeight, &texChannels,

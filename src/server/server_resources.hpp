@@ -74,7 +74,7 @@ public:
 		allocator.deallocLatest();
 		allocator.alloc(texture.size);
 
-		logging::info("Loaded texture ", file, " (", texture.size, " B)");
+		logging::info("Loaded texture ", file, " (", texture.size / 1024., " KiB)");
 
 		return texture;
 	}

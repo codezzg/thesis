@@ -49,7 +49,7 @@ std::size_t readFileIntoMemory(const char *path, void *buffer, std::size_t bufsi
 		return -1;
 	}
 
-	info("loaded file ", path, ": ", dataLen, " bytes (", dataLen / 1024 / 1024., " MiB) into memory");
+	debug("loaded file ", path, ": ", dataLen, " bytes (", dataLen / 1024 / 1024., " MiB) into memory");
 
 	return dataLen;
 }

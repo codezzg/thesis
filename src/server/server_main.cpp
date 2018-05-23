@@ -72,6 +72,9 @@ int main(int argc, char **argv) {
 		for (const auto& tex : texturesToLoad) {
 			res.loadTexture(tex.c_str());
 		}
+		info("Loaded ", texturesToLoad.size(), " textures into memory.");
+		// Free the memory
+		std::unordered_set<std::string>().swap(texturesToLoad);
 
 		// Assign the proper formats to the textures
 		for (const auto& m : model.materials) {
@@ -81,7 +84,7 @@ int main(int argc, char **argv) {
 				assert(it != res.textures.end());
 
 				auto& tex = it->second;
-				assert(tex.format == shared::TextureFormat::UNKNOWN, "Overriding a valid texture format??");
+				assert(tex.format == shared::TextureFormat::UNKNOWN && "Overriding a valid texture format??");
 
 				tex.format = shared::TextureFormat::RGBA;
 			}
@@ -91,7 +94,7 @@ int main(int argc, char **argv) {
 				assert(it != res.textures.end());
 
 				auto& tex = it->second;
-				assert(tex.format == shared::TextureFormat::UNKNOWN, "Overriding a valid texture format??");
+				assert(tex.format == shared::TextureFormat::UNKNOWN && "Overriding a valid texture format??");
 
 				tex.format = shared::TextureFormat::GREY;
 			}

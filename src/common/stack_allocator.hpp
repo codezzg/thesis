@@ -36,7 +36,7 @@ public:
 		auto ptr = mem + used;
 		used += size;
 		allocations.emplace_back(size);
-		logging::info("Allocating. # allocs so far: ", allocations.size(),
+		logging::debug("Allocating. # allocs so far: ", allocations.size(),
 				" (used: ", used, " / ", capacity, " [", float(used) / capacity * 100, "%])");
 
 		return ptr;
@@ -60,13 +60,13 @@ public:
 
 		used -= allocations.back();
 		allocations.pop_back();
-		logging::info("Deallocating. # allocs so far: ", allocations.size(),
+		logging::debug("Deallocating. # allocs so far: ", allocations.size(),
 				" (used: ", used, " / ", capacity, " [", float(used) / capacity * 100, "%])");
 	}
 
 	void deallocAll() {
 		used = 0;
-		logging::info("Deallocating all the ", allocations.size(), " allocs.");
+		logging::debug("Deallocating all the ", allocations.size(), " allocs.");
 		allocations.clear();
 	}
 };

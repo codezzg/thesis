@@ -75,12 +75,13 @@ public:
 		}
 		glfwSetKeyCallback(app.window, keyCallback);
 
+		connectToServer(ip);
+
 		if (!gIsDebug)
 			initVulkan(); // deferred rendering
 		else
 			initVulkanForward(); // forward rendering
 
-		connectToServer(ip);
 		mainLoop(ip);
 		cleanup();
 	}
@@ -117,7 +118,7 @@ private:
 
 	bool showGBufTex = false;
 
-	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = 1 << 24;
+	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = 1 << 24; // 16 MiB
 	static constexpr VkDeviceSize INDEX_BUFFER_SIZE = 1 << 24;
 
 
@@ -130,15 +131,12 @@ private:
 
 		app.gBuffer.createAttachments(app);
 
-		app.commandPool = createCommandPool(app);
 		app.swapChain.depthImage = createDepthImage(app);
 		//app.swapChain.depthOnlyView = createImageView(app, app.swapChain.depthImage.handle,
 				//formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);
 		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
-
-		loadAssets();
 
 		// Initialize resource maps
 		app.res.init(app.device, app.descriptorPool);
@@ -167,13 +165,11 @@ private:
 		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
 		app.renderPass = createForwardRenderPass(app);
 
-		app.commandPool = createCommandPool(app);
+		//app.commandPool = createCommandPool(app);
 		app.swapChain.depthImage = createDepthImage(app);
 		app.swapChain.framebuffers = createSwapChainFramebuffers(app, app.swapChain);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
-
-		loadAssets();
 
 		// Initialize resource maps
 		app.res.init(app.device, app.descriptorPool);
@@ -195,18 +191,22 @@ private:
 		prepareCamera();
 	}
 
-	void loadAssets() {
-		constexpr VkDeviceSize STAGING_BUFFER_SIZE = 1 << 27;
+	void loadAssets(const ClientResources& resources) {
+		constexpr VkDeviceSize STAGING_BUFFER_SIZE = 1 << 27; // 128 MiB
 
 		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
 
-		// Load textures
+		// Load textures (TODO: use correct materials)
+		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
+
+		assert(sid("C:\\Users\\jack\\git\\giacomo.parolini\\build\\server\\Debug\\models\\nanosuit\\body_dif.png") == 4038753930);
+
 		TextureLoader texLoader{ stagingBuffer };
-		texLoader.addTexture(texDiffuseImage, xplatPath("models/nanosuit/body_dif.png").c_str(), TextureFormat::RGBA);
-		texLoader.addTexture(texSpecularImage, xplatPath("models/nanosuit/body_showroom_spec.png").c_str(), TextureFormat::GREY);
+		texLoader.addTexture(texDiffuseImage, tex[4038753930]);
+		texLoader.addTexture(texSpecularImage, tex[sid("C:\\Users\\jack\\git\\giacomo.parolini\\build\\server\\Debug\\models\\nanosuit\\body_showroom_spec.png")]);
+		//texLoader.addTexture(texDiffuseImage, xplatPath("models/nanosuit/body_dif.png").c_str(), TextureFormat::RGBA);
+		//texLoader.addTexture(texSpecularImage, xplatPath("models/nanosuit/body_showroom_spec.png").c_str(), TextureFormat::GREY);
 		texLoader.create(app);
-		//texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA, stagingBuffer);
-		//texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY, stagingBuffer);
 		texSampler = createTextureSampler(app);
 
 		prepareBufferMemory(stagingBuffer);
@@ -227,11 +227,31 @@ private:
 	void connectToServer(const char *serverIp) {
 		relEP.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
 		relEP.runLoop();
+		// Wait for handshake to complete
 		if (!relEP.await(std::chrono::seconds{ 10 })) {
 			throw std::runtime_error("Failed connecting to server!");
 		}
+		
+		{
+			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = 1 << 25;
+			ClientResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
+			relEP.resources = &resources;
 
-		// Tell TCP thread to send READY msg
+			// Tell TCP thread to receive the data
+			relEP.proceed();
+			if (!relEP.await(std::chrono::seconds{ 10 })) {
+				throw std::runtime_error("Failed to receive the data!");
+			}
+
+			info("resources.textures.size = ", resources.textures.size());
+			// Process the received data
+			loadAssets(resources);
+
+			relEP.resources = nullptr;
+			// Drop the memory used for staging the resources as it's not needed anymore.
+		}
+
+		// Tell TCP thread to send READY and wait for server response
 		relEP.proceed();
 		if (!relEP.await(std::chrono::seconds{ 10 })) {
 			throw std::runtime_error("Connected to server, but server didn't send READY!");

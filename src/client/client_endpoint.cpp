@@ -168,18 +168,30 @@ static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_varia
 }
 
 /* The logic here goes as follows:
- * - the client starts this thread via runLoop()
- * - the client waits for the handshake via await()
- * - this thread then waits to be notified by the client to proceed and send a ready msg;
+ * - the main thread starts this thread via runLoop()
+ * - the main thread waits for the handshake via await()
+ * - this thread then waits to be notified by the main thread to proceed and receive the data;
+ * - once the data is received, we notify the main thread and wait;
+ * - the client awaits us and we send a READY msg;
  * - the client waits again for us to receive server's ready msg;
  * - as soon as we receive it this thread both notifies the client and starts the keepalive loop.
  */
 void ClientReliableEndpoint::loopFunc() {
 
+	// -> HELO / <- HELO-ACK
 	if (!performHandshake(socket)) {
 		err("Handshake failed");
 		return;
 	}
+
+	{
+		uint8_t buffer;
+		if (!expectTCPMsg(socket, &buffer, 1, MsgType::START_DATA_EXCHANGE)) {
+			err("Expecting START_DATA_EXCHANGE but didn't receive it.");
+			return;
+		}
+	}
+
 	cv.notify_one();
 
 	std::mutex mtx;
@@ -189,11 +201,21 @@ void ClientReliableEndpoint::loopFunc() {
 		cv.wait(ulk);
 	}
 
-	// TODO: receive one-time data
+	// Ready to receive one-time data
+	if (!sendTCPMsg(socket, MsgType::DATA_EXCHANGE_ACK))
+		return;
+
 	info("Waiting for one-time data...");
 	if (!receiveOneTimeData()) {
 		err("Error receiving one time data.");
 		return;
+	}
+	cv.notify_one();
+
+	{
+		std::unique_lock<std::mutex> ulk{ mtx };
+		// Wait for the main thread to process the received assets
+		cv.wait(ulk);
 	}
 
 	if (!sendReadyAndWait(socket)) {
@@ -300,14 +322,7 @@ static bool receiveTexture(socket_t socket,
 bool ClientReliableEndpoint::receiveOneTimeData() {
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
 
-	if (!expectTCPMsg(socket, buffer.data(), 1, MsgType::START_DATA_EXCHANGE)) {
-		err("Expecting START_DATA_EXCHANGE but didn't receive it.");
-		return false;
-	}
-
-	if (!sendTCPMsg(socket, MsgType::DATA_EXCHANGE_ACK)) {
-		return false;
-	}
+	assert(resources != nullptr);
 
 	// Receive data
 	while (true) {
@@ -345,8 +360,15 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 				err("Failed to send ACK");
 				return false;
 			}
-			// TODO: save the texture somewhere
+
+			// Save the texture in client resources
+			if (resources->textures.count(texName) > 0) {
+				warn("Received the same texture two times: ", texName);
+			} else {
+				resources->storeTexture(texName, texture);
+			}
 			delete [] reinterpret_cast<uint8_t*>(texture.data);
+
 		} break;
 
 		default:

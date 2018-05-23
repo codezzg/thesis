@@ -1,6 +1,9 @@
 #pragma once
 
-#include <memory>
+#include <vector>
+#include <array>
+#include <mutex>
+#include <condition_variable>
 #include "server_endpoint.hpp"
 #include "server_resources.hpp"
 
@@ -23,7 +26,7 @@ struct ServerSharedData final {
  *  It also functions as a convenient common entrypoint for starting and terminating threads.
  */
 struct Server final {
-	std::unique_ptr<uint8_t> memory;
+	std::vector<uint8_t> memory;
 
 	ServerActiveEndpoint activeEP;
 	ServerPassiveEndpoint passiveEP;

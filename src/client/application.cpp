@@ -4,6 +4,7 @@
 #include "window.hpp"
 #include "vulk_errors.hpp"
 #include "logging.hpp"
+#include "commands.hpp"
 #include <set>
 #include <array>
 
@@ -123,6 +124,8 @@ void Application::init() {
 	physicalDevice = pickPhysicalDevice(instance, surface);
 	findBestFormats(physicalDevice);
 	createLogicalDevice(*this);
+
+	commandPool = createCommandPool(*this);
 }
 
 void Application::cleanup() {
