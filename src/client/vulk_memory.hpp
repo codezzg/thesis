@@ -3,7 +3,6 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <unordered_map>
-#include "logging.hpp"
 
 #ifndef NDEBUG
 class MemoryMonitor final {

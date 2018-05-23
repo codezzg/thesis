@@ -44,7 +44,7 @@ Endpoint::~Endpoint() {
 bool Endpoint::start(const char *ip, uint16_t port, bool passive, int socktype) {
 
 	addrinfo hints = {},
-		 *result;
+	         *result;
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = socktype;
 	if (passive)
@@ -104,8 +104,11 @@ void Endpoint::close() {
 		return;
 	onClose();
 	terminated = true;
-	if (xplatIsValidSocket(socket))
-		xplatSockClose(socket);
+	if (xplatIsValidSocket(socket)) {
+		const auto res = xplatSockClose(socket);
+		if (res != 0)
+			warn("Error closing socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
+	}
 	if (loopThread && loopThread->joinable())
 		loopThread->join();
 	loopThread.reset(nullptr);
