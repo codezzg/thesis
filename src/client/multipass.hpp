@@ -5,6 +5,7 @@
 
 struct Application;
 struct Buffer;
+struct CombinedUniformBuffers;
 struct Image;
 
 void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& commandBuffers,
@@ -13,5 +14,5 @@ void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommand
 VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app);
 
 VkDescriptorSet createMultipassDescriptorSet(const Application& app,
-		const Buffer& mvpUbo, const Buffer& compUbo,
+		const CombinedUniformBuffers& uniformBuffers,
 		const Image& texDiffuse, const Image& texSpecular, VkSampler texSampler);

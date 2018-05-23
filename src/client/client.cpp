@@ -104,8 +104,8 @@ private:
 
 	Buffer vertexBuffer;
 	Buffer indexBuffer;
-	Buffer mvpUniformBuffer;
-	Buffer compUniformBuffer;
+	// Single buffer to contain all uniform buffer objects needed
+	CombinedUniformBuffers uniformBuffers;
 
 	Image texDiffuseImage;
 	Image texSpecularImage;
@@ -149,8 +149,8 @@ private:
 					app.res.descriptorSetLayouts->get("multi")));
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app);
-		app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, mvpUniformBuffer,
-				compUniformBuffer, texDiffuseImage, texSpecularImage, texSampler));
+		app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, 
+				uniformBuffers, texDiffuseImage, texSpecularImage, texSampler));
 
 		recordAllCommandBuffers();
 
@@ -181,8 +181,8 @@ private:
 		app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
 					app.res.descriptorSetLayouts->get("swap")));
 		app.swapChain.pipeline = createSwapChainDebugPipeline(app);
-		app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app, mvpUniformBuffer,
-				texDiffuseImage, texSampler));
+		app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app, 
+				uniformBuffers, texDiffuseImage, texSampler));
 
 		recordAllCommandBuffers();
 
@@ -232,6 +232,7 @@ private:
 			throw std::runtime_error("Failed connecting to server!");
 		}
 		
+		// Retreive one-time data from server
 		{
 			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = 1 << 25;
 			ClientResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
@@ -240,7 +241,7 @@ private:
 			// Tell TCP thread to receive the data
 			relEP.proceed();
 			if (!relEP.await(std::chrono::seconds{ 10 })) {
-				throw std::runtime_error("Failed to receive the data!");
+				throw std::runtime_error("Failed to receive the one-time data!");
 			}
 
 			info("resources.textures.size = ", resources.textures.size());
@@ -403,8 +404,7 @@ private:
 			VLKCHECK(vkFreeDescriptorSets(app.device, app.descriptorPool, 1,
 					&app.res.descriptorSets->get("multi")));
 			app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app,
-					mvpUniformBuffer, compUniformBuffer,
-					texDiffuseImage, texSpecularImage, texSampler));
+					uniformBuffers, texDiffuseImage, texSpecularImage, texSampler));
 
 			app.gBuffer.pipeline = createGBufferPipeline(app);
 			app.swapChain.pipeline = createSwapChainPipeline(app);
@@ -530,7 +530,7 @@ private:
 	void updateMVPUniformBuffer() {
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
-		auto ubo = reinterpret_cast<MVPUniformBufferObject*>(mvpUniformBuffer.ptr);
+		auto ubo = uniformBuffers.getMVP();
 
 		if (gUseCamera) {
 			ubo->model = glm::mat4{ 1.0f };
@@ -552,7 +552,7 @@ private:
 	}
 
 	void updateCompUniformBuffer() {
-		auto ubo = reinterpret_cast<CompositionUniformBufferObject*>(compUniformBuffer.ptr);
+		auto ubo = uniformBuffers.getComp();
 		ubo->viewPos = glm::vec4{
 			camera.position.x,
 			camera.position.y,
@@ -564,6 +564,25 @@ private:
 
 	void prepareBufferMemory(Buffer& stagingBuffer) {
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
+
+		// Find out the proper offsets for uniform buffers
+		VkDeviceSize uboSize = 0;
+		const auto uboAlign = findMinUboAlign(app.physicalDevice);
+		if (sizeof(MVPUniformBufferObject) <= uboAlign) {
+			uniformBuffers.offsets.mvp = 0;
+			uboSize += sizeof(MVPUniformBufferObject);
+			const auto padding = uboAlign - uboSize;
+			uboSize += padding;
+			uniformBuffers.offsets.comp = uboSize;
+			uboSize += sizeof(CompositionUniformBufferObject);
+		} else {
+			uniformBuffers.offsets.comp = 0;
+			uboSize += sizeof(CompositionUniformBufferObject);
+			const auto padding = uboAlign - uboSize;
+			uboSize += padding;
+			uniformBuffers.offsets.mvp = uboSize;
+			uboSize += sizeof(MVPUniformBufferObject);
+		}
 
 		// These buffers are all created una-tantum.
 		BufferAllocator bufAllocator;
@@ -578,14 +597,9 @@ private:
 				INDEX_BUFFER_SIZE,
 				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		// mvp ubo
-		bufAllocator.addBuffer(mvpUniformBuffer,
-				sizeof(MVPUniformBufferObject),
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		// comp ubo
-		bufAllocator.addBuffer(compUniformBuffer,
-				sizeof(CompositionUniformBufferObject),
+		// uniform buffers
+		bufAllocator.addBuffer(uniformBuffers, 
+				uboSize,
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -598,8 +612,7 @@ private:
 		mapBuffersMemory(app.device, {
 			&vertexBuffer,
 			&indexBuffer,
-			&mvpUniformBuffer,
-			&compUniformBuffer,
+			&uniformBuffers,
 		});
 
 		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
@@ -646,16 +659,14 @@ private:
 		unmapBuffersMemory(app.device, {
 			vertexBuffer,
 			indexBuffer,
-			mvpUniformBuffer,
-			compUniformBuffer,
+			uniformBuffers,
 		});
 
 		vkDestroySampler(app.device, texSampler, nullptr);
 		destroyAllImages(app.device, { texDiffuseImage, texSpecularImage });
 
 		destroyAllBuffers(app.device, {
-			mvpUniformBuffer,
-			compUniformBuffer,
+			uniformBuffers,
 			indexBuffer,
 			vertexBuffer,
 			app.screenQuadBuffer

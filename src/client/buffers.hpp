@@ -16,7 +16,7 @@
 
 struct Application;
 
-struct Buffer final {
+struct Buffer {
 	VkBuffer handle;
 	VkDeviceMemory memory;
 	VkDeviceSize size;
@@ -34,6 +34,24 @@ struct MVPUniformBufferObject final {
 
 struct CompositionUniformBufferObject final {
 	glm::vec4 viewPos; // w used as 'showGbufTex'
+};
+
+/** A struct containing both an MVPUniformBuffer and a CompositionUniformBuffer
+ *  inside a single Vulkan Buffer.
+ */
+struct CombinedUniformBuffers : public Buffer {
+	struct {
+		VkDeviceSize mvp;
+		VkDeviceSize comp;
+	} offsets;
+
+	MVPUniformBufferObject* getMVP() const {
+		return reinterpret_cast<MVPUniformBufferObject*>(reinterpret_cast<uint8_t*>(ptr) + offsets.mvp);
+	}
+
+	CompositionUniformBufferObject* getComp() const {
+		return reinterpret_cast<CompositionUniformBufferObject*>(reinterpret_cast<uint8_t*>(ptr) + offsets.comp);
+	}
 };
 
 /** Use this class to allocate a bunch of buffers at once.

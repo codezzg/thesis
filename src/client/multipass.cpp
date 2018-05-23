@@ -132,7 +132,7 @@ VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app)
 }
 
 VkDescriptorSet createMultipassDescriptorSet(const Application& app,
-		const Buffer& mvpUbo, const Buffer& compUbo,
+		const CombinedUniformBuffers& uniformBuffers,
 		const Image& texDiffuse, const Image& texSpecular, VkSampler texSampler)
 {
 	const std::array<VkDescriptorSetLayout, 1> layouts = { app.res.descriptorSetLayouts->get("multi") };
@@ -173,14 +173,14 @@ VkDescriptorSet createMultipassDescriptorSet(const Application& app,
 	gAlbedoSpecInfo.sampler = texSampler;
 
 	VkDescriptorBufferInfo mvpUboInfo = {};
-	mvpUboInfo.buffer = mvpUbo.handle;
-	mvpUboInfo.offset = 0;
-	mvpUboInfo.range = mvpUbo.size;
+	mvpUboInfo.buffer = uniformBuffers.handle;
+	mvpUboInfo.offset = uniformBuffers.offsets.mvp;
+	mvpUboInfo.range = sizeof(MVPUniformBufferObject);
 
 	VkDescriptorBufferInfo compUboInfo = {};
-	compUboInfo.buffer = compUbo.handle;
-	compUboInfo.offset = 0;
-	compUboInfo.range = compUbo.size;
+	compUboInfo.buffer = uniformBuffers.handle;
+	compUboInfo.offset = uniformBuffers.offsets.comp;
+	compUboInfo.range = sizeof(CompositionUniformBufferObject);
 
 	std::array<VkWriteDescriptorSet, 7> descriptorWrites = {};
 

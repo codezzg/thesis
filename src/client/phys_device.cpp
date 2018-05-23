@@ -133,3 +133,8 @@ uint32_t findMemoryType(VkPhysicalDevice physDevice, uint32_t typeFilter, VkMemo
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
+VkDeviceSize findMinUboAlign(VkPhysicalDevice physDevice) {
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physDevice, &props);
+	return props.limits.minUniformBufferOffsetAlignment;
+}
