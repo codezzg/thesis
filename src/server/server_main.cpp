@@ -14,7 +14,7 @@
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr auto MEMSIZE = 1 << 25;
+static constexpr std::size_t MEMSIZE = 1 << 25;
 
 Server *gServer;
 
@@ -56,7 +56,8 @@ int main(int argc, char **argv) {
 	info("Starting server. cwd: ", cwd);
 
 	// Load the models first: they'll remain at the bottom of our stack allocator
-	auto model = server.resources.loadModel((cwd + "/models/nanosuit/nanosuit.obj").c_str());
+	std::unordered_set<std::string> texturesToLoad;
+	auto model = server.resources.loadModel((cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str(), texturesToLoad);
 	if (model.vertices == nullptr) {
 		err("Failed to load model.");
 		return EXIT_FAILURE;
@@ -64,14 +65,36 @@ int main(int argc, char **argv) {
 	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
 		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
 
-	for (const auto& m : model.materials) {
-		if (m.diffuseTex.length() > 0) {
-			server.resources.loadTexture(m.diffuseTex.c_str(),
-					shared::TextureFormat::RGBA);
+	{
+		auto& res = server.resources;
+
+		// Load all needed textures into memory, mapping them by their SID.
+		for (const auto& tex : texturesToLoad) {
+			res.loadTexture(tex.c_str());
 		}
-		if (m.specularTex.length() > 0) {
-			server.resources.loadTexture(m.specularTex.c_str(),
-					shared::TextureFormat::GREY);
+
+		// Assign the proper formats to the textures
+		for (const auto& m : model.materials) {
+
+			if (m.diffuseTex != SID_NONE) {
+				auto it = res.textures.find(m.diffuseTex);
+				assert(it != res.textures.end());
+
+				auto& tex = it->second;
+				assert(tex.format == shared::TextureFormat::UNKNOWN, "Overriding a valid texture format??");
+
+				tex.format = shared::TextureFormat::RGBA;
+			}
+
+			if (m.specularTex != SID_NONE) {
+				auto it = res.textures.find(m.specularTex);
+				assert(it != res.textures.end());
+
+				auto& tex = it->second;
+				assert(tex.format == shared::TextureFormat::UNKNOWN, "Overriding a valid texture format??");
+
+				tex.format = shared::TextureFormat::GREY;
+			}
 		}
 	}
 

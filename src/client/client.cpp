@@ -202,8 +202,8 @@ private:
 
 		// Load textures
 		TextureLoader texLoader{ stagingBuffer };
-		texLoader.addTexture(texDiffuseImage, "models/nanosuit/body_dif.png", TextureFormat::RGBA);
-		texLoader.addTexture(texSpecularImage, "models/nanosuit/body_showroom_spec.png", TextureFormat::GREY);
+		texLoader.addTexture(texDiffuseImage, xplatPath("models/nanosuit/body_dif.png").c_str(), TextureFormat::RGBA);
+		texLoader.addTexture(texSpecularImage, xplatPath("models/nanosuit/body_showroom_spec.png").c_str(), TextureFormat::GREY);
 		texLoader.create(app);
 		//texDiffuseImage = createTextureImage(app, cfg::TEX_DIFFUSE_PATH, TextureFormat::RGBA, stagingBuffer);
 		//texSpecularImage = createTextureImage(app, cfg::TEX_SPECULAR_PATH, TextureFormat::GREY, stagingBuffer);

@@ -24,9 +24,9 @@ using namespace logging;
 	namespace to = tinyobj;
 #endif
 
-static Material saveMaterial(const char *modelPath, const to::material_t& mat);
+static Material saveMaterial(const char *modelPath, const to::material_t& mat, std::unordered_set<std::string>& outTextures);
 
-Model loadModel(const char *modelPath, void *buffer) {
+Model loadModel(const char *modelPath, void *buffer, std::unordered_set<std::string>& outTextures) {
 
 	Model model = {};
 
@@ -52,6 +52,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 	tinyobj_opt::LoadOption option;
 	option.req_num_threads = std::thread::hardware_concurrency();
 	option.verbose = true;
+	debug("dirname = ", xplatDirname(modelPath), " ( from ", modelPath, ")");
 	option.mtl_base_path = xplatDirname(modelPath);
 	bool ret = to::parseObj(&attrib, &shapes, &materials, data.data(), data.size(), option);
 	if (!ret) {
@@ -63,6 +64,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 	std::vector<char>().swap(data);
 
 #else
+	warn("Using STABLE tinyobj_loader");
 	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath)) {
 		logging::err(err);
 		return model;
@@ -124,7 +126,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 	model.materials.reserve(materials.size());
 	info("materials used: (", materials.size(), ")");
 	for (const auto& m : materials)
-		model.materials.emplace_back(saveMaterial(modelPath, m));
+		model.materials.emplace_back(saveMaterial(modelPath, m, outTextures));
 
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
@@ -134,15 +136,24 @@ Model loadModel(const char *modelPath, void *buffer) {
 	return model;
 }
 
-Material saveMaterial(const char *modelPath, const to::material_t& mat) {
-	const std::string basePath = xplatDirname(modelPath) + "/";
+Material saveMaterial(const char *modelPath, const to::material_t& mat, std::unordered_set<std::string>& outTextures) {
+	const std::string basePath = xplatDirname(modelPath) + DIRSEP;
+
+	debug("material base path: ", basePath);
 
 	Material material;
-	material.name = mat.name;
-	if (mat.diffuse_texname.length() > 0)
-		material.diffuseTex = basePath + mat.diffuse_texname;
-	if (mat.specular_texname.length() > 0)
-		material.specularTex = basePath + mat.specular_texname;
+	material.name = sid(mat.name);
+	if (mat.diffuse_texname.length() > 0) {
+		const auto tex = basePath + mat.diffuse_texname;
+		outTextures.emplace(tex);
+		material.diffuseTex = sid(tex);
+	}
+
+	if (mat.specular_texname.length() > 0) {
+		const auto tex = basePath + mat.specular_texname;
+		outTextures.emplace(tex);
+		material.specularTex = sid(tex);
+	}
 
 	return material;
 }

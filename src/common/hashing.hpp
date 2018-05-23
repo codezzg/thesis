@@ -2,9 +2,14 @@
 
 #include <cstdint>
 #include <string>
+#include <cassert>
 #ifndef NDEBUG
 	#include <unordered_map>
 #endif
+
+using StringId = uint32_t;
+
+constexpr StringId SID_NONE = 0;
 
 namespace hashing {
 
@@ -20,12 +25,11 @@ constexpr uint32_t fnv1_hash(const char* buffer) {
 		result *= fnv_prime32;
 		result ^= static_cast<uint32_t>(buffer[i++]);
 	}
+	assert(result != SID_NONE);
 	return result;
 }
 
-}
-
-using StringId = uint32_t;
+} // end namespace hashing
 
 #ifndef NDEBUG
 

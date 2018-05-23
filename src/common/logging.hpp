@@ -16,16 +16,9 @@ extern LogLevel gDebugLv;
 namespace logging {
 
 #ifdef COLORED_LOGS
-#	ifdef _WIN32
-// TODO
-constexpr auto C_RED = "";
-constexpr auto C_YELLOW = "";
-constexpr auto C_NONE = "";
-#	else
 constexpr auto C_RED = "\033[1;31m";
 constexpr auto C_YELLOW = "\033[0;33m";
 constexpr auto C_NONE = "\033[0m";
-#	endif
 #endif
 
 

@@ -276,6 +276,8 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		if (!sendOneTimeData(clientSocket))
 			goto dropclient;
 
+		//std::exit(0);
+
 		if (!sendTCPMsg(clientSocket, MsgType::END_DATA_EXCHANGE))
 			goto dropclient;
 
@@ -346,7 +348,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 			info("sending new material");
 
 			info("* diffuse:");
-			if (mat.diffuseTex.length() > 0) {
+			if (mat.diffuseTex != SID_NONE) {
 				if (!sendTexture(clientSocket, mat.diffuseTex)) {
 					err("sendOneTimeData: failed");
 					return false;
@@ -357,10 +359,10 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 			}
 
 			// XXX
-			return true;
+			//return true;
 
 			info("* specular:");
-			if (mat.specularTex.length() > 0) {
+			if (mat.specularTex != SID_NONE) {
 				if (!sendTexture(clientSocket, mat.specularTex)) {
 					err("sendOneTimeData: failed");
 					return false;
@@ -376,7 +378,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 	return true;
 }
 
-bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::string& texName) {
+bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, StringId texName) {
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
 
@@ -388,32 +390,28 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 		shared::TextureHeader head;
 	} header;
 #pragma pack(pop)
-	const auto texNameSid = sid(texName);
-	const auto& texture = server.resources.textures[texNameSid];
+	const auto& texture = server.resources.textures[texName];
 	header.type = MsgType::DATA_TYPE_TEXTURE;
 	header.size = texture.size;
-	header.head.name = texNameSid;
+	header.head.name = texName;
 	header.head.format = texture.format;
 
-	info("Sending texture ", texName, " (", texNameSid, ")");
+	info("Sending texture ", sidToString(texName), " (", texName, ")");
 
-	//memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
-
-	// Fill remaining space with payload
-	//auto len = std::min(texture.size, packet.size() - sizeof(header));
-	//memcpy(packet.data() + sizeof(header), texture.data, len);
-
-	//if (!sendPacket(clientSocket, packet.data(), len + sizeof(header)))
-		//return;
-
-	// Send header
+	// Put header into packet
 	info("header: { type = ", header.type, ", size = ", header.size, ", name = ",
 			header.head.name, ", format = ", int(header.head.format), " }");
-	if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&header), sizeof(header)))
+	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
+
+	// Fill remaining space with payload
+	auto len = std::min(texture.size, packet.size() - sizeof(header));
+	memcpy(packet.data() + sizeof(header), texture.data, len);
+
+	if (!sendPacket(clientSocket, packet.data(), len + sizeof(header)))
 		return false;
 
-	std::size_t bytesSent = 0;
-	// Send payload
+	std::size_t bytesSent = len;
+	// Send more packets with remaining payload if needed
 	while (bytesSent < texture.size) {
 		auto len = std::min(texture.size - bytesSent, cfg::PACKET_SIZE_BYTES);
 		if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(texture.data) + bytesSent, len))

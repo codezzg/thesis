@@ -43,7 +43,7 @@ add_definitions(-DGLM_FORCE_CXX14)
 
 target_link_libraries(${PROJECT_NAME} common)
 
-if(WIN32 OR NO_EX_TINYOBJ)
+if(NO_EX_TINYOBJ)
 	message(STATUS "Using STABLE tinyobj")
 else()
 	message(STATUS "Using EXPERIMENTAL tinyobj")

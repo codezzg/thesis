@@ -1,5 +1,7 @@
 #include "utils.hpp"
+#include <algorithm>
 #include <fstream>
+#include <cstring>
 #include "logging.hpp"
 
 using namespace logging;
@@ -50,4 +52,13 @@ std::size_t readFileIntoMemory(const char *path, void *buffer, std::size_t bufsi
 	info("loaded file ", path, ": ", dataLen, " bytes (", dataLen / 1024 / 1024., " MiB) into memory");
 
 	return dataLen;
+}
+
+void dumpBytes(const void *buffer, std::size_t count, std::size_t maxCount, LogLevel lv) {
+	for (unsigned i = 0; i < std::min(count, maxCount); ++i) {
+		char str[5];
+		snprintf(str, 5, "0x%.2X", *(reinterpret_cast<const uint8_t*>(buffer) + i));
+		log(lv, false, str, " ");
+	}
+	log(lv, true, "");
 }

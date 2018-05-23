@@ -8,6 +8,7 @@
 #include <string>
 #include <functional>
 #include "frame_data.hpp"
+#include "utils.hpp"
 #include "logging.hpp"
 
 using namespace logging;
@@ -129,6 +130,9 @@ bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 	}
 
 	verbose("Received ", count, " bytes");
+	if (gDebugLv >= LOGLV_VERBOSE)
+		dumpBytes(buffer, count);
+
 
 	return true;
 }
@@ -166,13 +170,10 @@ bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
 		warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	}
-	verbose("Sent data ");
+	verbose("Sent ", len, " bytes");
 	if (gDebugLv >= LOGLV_VERBOSE)
-		for (unsigned i = 0; i < std::min(len, 50ul); ++i) {
-			char str[5];
-			snprintf(str, 5, "0x%.2X", data[i]);
-			log(LOGLV_VERBOSE, i == len - 1, str, " ");
-		}
+		dumpBytes(data, len);
+
 	return true;
 }
 

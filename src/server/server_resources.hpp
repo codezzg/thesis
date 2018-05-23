@@ -38,12 +38,16 @@ public:
 		this->memsize = memsize;
 	}
 
-	Model loadModel(const char *file) {
+	/** Loads a model from `file` into our memory.
+	 *  `texturesToLoad` is filled with paths to the textures used by the model.
+	 *  @return The loaded Model information.
+	 */
+	Model loadModel(const char *file, std::unordered_set<std::string>& texturesToLoad) {
 		// Reserve the whole remaining memory for loading the resource, then shrink to fit.
 		auto buffer = allocator.allocAll();
 
 		auto& model = models[sid(file)];
-		model = ::loadModel(file, buffer);
+		model = ::loadModel(file, buffer, texturesToLoad);
 
 		allocator.deallocLatest();
 		allocator.alloc(model.size());
@@ -51,7 +55,11 @@ public:
 		return model;
 	}
 
-	shared::Texture loadTexture(const char *file, shared::TextureFormat format) {
+	/** Loads a texture from `file` into our memory.
+	 *  Does NOT set the texture format (in fact, it sets it to UNKNOWN)
+	 *  @return The loaded Texture information (data, size)
+	 */
+	shared::Texture loadTexture(const char *file) {
 		std::size_t bufsize;
 		auto buffer = allocator.allocAll(&bufsize);
 		auto size = readFileIntoMemory(file, buffer, bufsize);
@@ -61,7 +69,7 @@ public:
 		auto& texture = textures[sid(file)];
 		texture.size = size;
 		texture.data = buffer;
-		texture.format = format;
+		texture.format = shared::TextureFormat::UNKNOWN;
 
 		allocator.deallocLatest();
 		allocator.alloc(texture.size);

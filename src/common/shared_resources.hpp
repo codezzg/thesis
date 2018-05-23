@@ -10,7 +10,8 @@ namespace shared {
 
 enum class TextureFormat : uint8_t {
 	RGBA,
-	GREY
+	GREY,
+	UNKNOWN
 };
 
 struct Texture {

@@ -9,6 +9,7 @@
 	#include <unistd.h>
 	#include <libgen.h>
 #endif
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <utility>
@@ -77,8 +78,6 @@ std::string xplatGetCwd() {
 		return "[UNKNOWN]";
 	}
 
-	const char DIRSEP = '\\';
-
 #else
 	ssize_t bytes = 0;
 	if (access("/proc/self/exe", F_OK) != -1) {
@@ -96,7 +95,6 @@ std::string xplatGetCwd() {
 
 	buf[bytes] = '\0';
 
-	const char DIRSEP = '/';
 #endif
 	// strip executable name
 	for (int i = bytes - 1; i > -1; --i) {
@@ -123,4 +121,13 @@ std::string xplatDirname(const char *path) {
 #endif
 	delete [] buf;
 	return res;
+}
+
+std::string xplatPath(std::string&& path) {
+#ifdef _WIN32
+	std::replace(path.begin(), path.end(), '/', '\\');
+#else
+	std::replace(path.begin(), path.end(), '\\', '/');
+#endif
+	return path;
 }

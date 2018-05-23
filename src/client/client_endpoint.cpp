@@ -13,6 +13,7 @@
 #include "tcp_messages.hpp"
 #include "shared_resources.hpp"
 #include "logging.hpp"
+#include "utils.hpp"
 
 using namespace logging;
 using namespace std::literals::chrono_literals;
@@ -261,7 +262,7 @@ static bool receiveTexture(socket_t socket,
 	texName = *reinterpret_cast<StringId*>(buffer.data() + 9);
 
 	auto format = static_cast<shared::TextureFormat>(buffer[13]);
-	assert(format == shared::TextureFormat::RGBA || format == shared::TextureFormat::GREY);
+	assert(static_cast<uint8_t>(format) < static_cast<uint8_t>(shared::TextureFormat::UNKNOWN));
 
 	auto texdata = new uint8_t[expectedSize];
 
@@ -335,6 +336,10 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 				return false;
 			}
 			info("Received texture ", texName, ": ", texture.size, " B");
+			if (gDebugLv >= LOGLV_VERBOSE) {
+				dumpBytes(texture.data, texture.size);
+			}
+
 			// All green, send ACK
 			if (!sendTCPMsg(socket, MsgType::DATA_EXCHANGE_ACK)) {
 				err("Failed to send ACK");

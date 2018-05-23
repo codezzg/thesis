@@ -2,6 +2,12 @@
 
 #include <string>
 
+#ifdef _WIN32
+constexpr char DIRSEP = '\\';
+#else
+constexpr char DIRSEP = '/';
+#endif
+
 using signal_handler_t = void(*)();
 
 /** @return the absolute path to the executable's directory.  */
@@ -18,3 +24,5 @@ bool xplatEnableExitHandler();
 void xplatSetExitHandler(signal_handler_t handler);
 
 std::string xplatDirname(const char *path);
+
+std::string xplatPath(std::string&& str);

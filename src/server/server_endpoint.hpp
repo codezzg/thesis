@@ -5,6 +5,7 @@
 #include <chrono>
 #include "endpoint.hpp"
 #include "vertex.hpp"
+#include "hashing.hpp"
 #include "frame_data.hpp"
 
 struct Server;
@@ -80,8 +81,16 @@ class ServerReliableEndpoint : public Endpoint {
 	void listenTo(socket_t clientSocket, sockaddr_in clientAddr);
 	void onClose() override;
 
+	/** Sends all the one-time data the client needs. */
 	bool sendOneTimeData(socket_t clientSocket);
-	bool sendTexture(socket_t clientSocket, const std::string& name);
+
+	/** Sends a single texture via `clientSocket`. 
+	 *  The first packet sent contains a header with the metadata and the beginning of the
+	 *  actual texture data. 
+	 *  Then, if the complete data doesn't fit one packet, more packets are sent until all
+	 *  bytes are sent. These extra packets have no header.
+	 */
+	bool sendTexture(socket_t clientSocket, StringId texName);
 
 public:
 	std::string serverIp;
