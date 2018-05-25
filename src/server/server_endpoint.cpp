@@ -362,6 +362,10 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 	std::array<uint8_t, 1> packet = {};
 	std::unordered_set<std::string> texturesSent;
 
+	const auto shouldSendTexture = [&texturesSent] (const std::string& texName) {
+		return texName.length() > 0 && texturesSent.count(texName) == 0;
+	};
+
 	info("# models loaded = ", server.resources.models.size());
 	for (const auto& modpair : server.resources.models) {
 
@@ -371,35 +375,52 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 		for (const auto& mat : model.materials) {
 
 			info("sending new material ", mat.name);
-			if (!sendMaterial(clientSocket, mat)) {
+
+			bool ok = sendMaterial(clientSocket, mat);
+			if (!ok) {
 				err("Failed sending material");
 				return false;
-			} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK)) {
+			}
+
+			ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+			if (!ok) {
 				warn("Not received RSRC_EXCHANGE_ACK!");
 				return false;
 			}
 
-			if (mat.diffuseTex.length() > 0 && texturesSent.count(mat.diffuseTex) == 0) {
+			if (shouldSendTexture(mat.diffuseTex)) {
 				info("* sending diffuse texture");
-				if (!sendTexture(clientSocket, mat.diffuseTex, shared::TextureFormat::RGBA)) {
+
+				ok = sendTexture(clientSocket, mat.diffuseTex, shared::TextureFormat::RGBA);
+				if (!ok) {
 					err("sendOneTimeData: failed");
 					return false;
-				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK)) {
+				}
+
+				ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+				if (!ok) {
 					warn("Not received RSRC_EXCHANGE_ACK!");
 					return false;
 				}
+
 				texturesSent.emplace(mat.diffuseTex);
 			}
 
-			if (mat.specularTex.length() > 0 && texturesSent.count(mat.specularTex) == 0) {
+			if (shouldSendTexture(mat.specularTex)) {
 				info("* sending specular texture");
-				if (!sendTexture(clientSocket, mat.specularTex, shared::TextureFormat::GREY)) {
+
+				ok = sendTexture(clientSocket, mat.specularTex, shared::TextureFormat::GREY);
+				if (!ok) {
 					err("sendOneTimeData: failed");
 					return false;
-				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK)) {
+				}
+
+				ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+				if (!ok) {
 					warn("Not received RSRC_EXCHANGE_ACK!");
 					return false;
 				}
+
 				texturesSent.emplace(mat.specularTex);
 			}
 		}
