@@ -9,8 +9,8 @@
 struct Material {
 	StringId name = SID_NONE;
 
-	StringId diffuseTex = SID_NONE;
-	StringId specularTex = SID_NONE;
+	std::string diffuseTex;
+	std::string specularTex;
 };
 
 struct Model {
@@ -38,10 +38,7 @@ struct LoadedTextureInfo {
  *  `buffer` must be a region of correctly initialized memory.
  *  Upon success, `buffer` gets filled with [vertices|indices], and indices start at
  *  offset `sizeof(Vertex) * nVertices`.
- *  Moreover, `textureNames` gets filled with the paths to the textures that need to be loaded.
- *  These textures will correspond to some StringId in Model::materials::*Tex;
  *  @return a valid model, or one with nullptr `vertices` and `indices` if there were errors.
  */
-Model loadModel(const char *modelPath, 
-		/* inout */ void *buffer, 
-		/* out */ std::unordered_set<std::string>& textureNames);
+Model loadModel(const char *modelPath,
+		/* inout */ void *buffer);

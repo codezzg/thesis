@@ -19,6 +19,7 @@
 #include "clock.hpp"
 #include "server_appstage.hpp"
 #include "server.hpp"
+#include "defer.hpp"
 
 using namespace logging;
 using namespace std::chrono_literals;
@@ -348,8 +349,8 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 			info("sending new material");
 
 			info("* diffuse:");
-			if (mat.diffuseTex != SID_NONE) {
-				if (!sendTexture(clientSocket, mat.diffuseTex)) {
+			if (mat.diffuseTex.length() > 0) {
+				if (!sendTexture(clientSocket, mat.diffuseTex, shared::TextureFormat::RGBA)) {
 					err("sendOneTimeData: failed");
 					return false;
 				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
@@ -358,12 +359,9 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 				}
 			}
 
-			// XXX
-			//return true;
-
 			info("* specular:");
-			if (mat.specularTex != SID_NONE) {
-				if (!sendTexture(clientSocket, mat.specularTex)) {
+			if (mat.specularTex.length() > 0) {
+				if (!sendTexture(clientSocket, mat.specularTex, shared::TextureFormat::GREY)) {
 					err("sendOneTimeData: failed");
 					return false;
 				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
@@ -375,12 +373,22 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 	}
 
 	info("Done sending data");
+
 	return true;
 }
 
-bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, StringId texName) {
+bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::string& texName,
+		shared::TextureFormat format)
+{
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
+
+	// Load the texture, and unload it as we finished using it
+	server.resources.loadTexture(texName.c_str());
+	DEFER([this] () {
+		server.resources.textures.clear();
+		server.resources.allocator.deallocLatest();
+	});
 
 	// Prepare header
 #pragma pack(push, 1)
@@ -390,13 +398,14 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, StringId texName
 		shared::TextureHeader head;
 	} header;
 #pragma pack(pop)
-	const auto& texture = server.resources.textures[texName];
+	const auto texNameSid = sid(texName);
+	const auto& texture = server.resources.textures[texNameSid];
 	header.type = MsgType::DATA_TYPE_TEXTURE;
 	header.size = texture.size;
-	header.head.name = texName;
-	header.head.format = texture.format;
+	header.head.name = texNameSid;
+	header.head.format = format;
 
-	info("Sending texture ", sidToString(texName), " (", texName, ")");
+	info("Sending texture ", texName, " (", texNameSid, ")");
 
 	// Put header into packet
 	info("header: { type = ", header.type, ", size = ", header.size, ", name = ",

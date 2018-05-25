@@ -9,16 +9,24 @@
 #include "shared_resources.hpp"
 #include "stack_allocator.hpp"
 
+/** This class manages the portion of server memory which stores resources, such as
+ *  models and textures. Resources can have different lifespans: models are long-lived
+ *  while textures and other one-time data are temporary (they only need to stay in memory
+ *  until the server sends them to the client).
+ *  This class uses a stack allocator to store permanent resources at its bottom and
+ *  stashing temporary ones on its top, where they can easily be allocated and
+ *  deallocated in a LIFO style.
+ */
 class ServerResources final {
 
-	/** This memory is owned externally */
-	uint8_t *memory = nullptr;
-	std::size_t memsize = 0;
-
-	/** Allocator containing the resources data */
-	StackAllocator allocator;
+	/** Server memory, owned externally */
+	uint8_t *const memory = nullptr;
+	const std::size_t memsize = 0;
 
 public:
+	/** Allocator containing the resources data. */
+	StackAllocator allocator;
+
 	/** Map { resource name => resource info }
 	 *  The resource info contains pointers pointing to the actual data which
 	 *  is inside `allocator`.
@@ -32,22 +40,26 @@ public:
 	 *  The buffer is freed externally, not by this class.
 	 */
 	explicit ServerResources(uint8_t *memory, std::size_t memsize)
-		: allocator{ memory, memsize }
-	{
-		this->memory = memory;
-		this->memsize = memsize;
-	}
+		: memory{ memory }
+		, memsize{ memsize }
+		, allocator{ memory, memsize }
+	{}
 
-	/** Loads a model from `file` into our memory.
-	 *  `texturesToLoad` is filled with paths to the textures used by the model.
+	/** Loads a model from `file` into `memory` and stores its info in `models`.
 	 *  @return The loaded Model information.
 	 */
-	Model loadModel(const char *file, std::unordered_set<std::string>& texturesToLoad) {
+	Model loadModel(const char *file) {
+		const auto fileSid = sid(file);
+		if (models.count(fileSid) > 0) {
+			logging::warn("Tried to load model ", file, " which is already loaded!");
+			return models[fileSid];
+		}
+
 		// Reserve the whole remaining memory for loading the resource, then shrink to fit.
 		auto buffer = allocator.allocAll();
 
-		auto& model = models[sid(file)];
-		model = ::loadModel(file, buffer, texturesToLoad);
+		auto& model = models[fileSid];
+		model = ::loadModel(file, buffer);
 
 		allocator.deallocLatest();
 		allocator.alloc(model.size());
@@ -55,18 +67,24 @@ public:
 		return model;
 	}
 
-	/** Loads a texture from `file` into our memory.
+	/** Loads a texture from `file` into `memory` and store its info in `textures`.
 	 *  Does NOT set the texture format (in fact, it sets it to UNKNOWN)
-	 *  @return The loaded Texture information (data, size)
+	 *  @return The loaded Texture information
 	 */
 	shared::Texture loadTexture(const char *file) {
+		const auto fileSid = sid(file);
+		if (textures.count(fileSid) > 0) {
+			logging::warn("Tried to load texture ", file, " which is already loaded!");
+			return textures[fileSid];
+		}
+
 		std::size_t bufsize;
 		auto buffer = allocator.allocAll(&bufsize);
 		auto size = readFileIntoMemory(file, buffer, bufsize);
 
 		assert(size > 0 && "Failed to load texture!");
 
-		auto& texture = textures[sid(file)];
+		auto& texture = textures[fileSid];
 		texture.size = size;
 		texture.data = buffer;
 		texture.format = shared::TextureFormat::UNKNOWN;

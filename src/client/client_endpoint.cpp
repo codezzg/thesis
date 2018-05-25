@@ -366,6 +366,7 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 				warn("Received the same texture two times: ", texName);
 			} else {
 				resources->storeTexture(texName, texture);
+				debug("Stored resource ", texName);
 			}
 			delete [] reinterpret_cast<uint8_t*>(texture.data);
 

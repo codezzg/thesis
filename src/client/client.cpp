@@ -149,7 +149,7 @@ private:
 					app.res.descriptorSetLayouts->get("multi")));
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app);
-		app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, 
+		app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app,
 				uniformBuffers, texDiffuseImage, texSpecularImage, texSampler));
 
 		recordAllCommandBuffers();
@@ -181,7 +181,7 @@ private:
 		app.res.pipelineLayouts->add("swap", createPipelineLayout(app,
 					app.res.descriptorSetLayouts->get("swap")));
 		app.swapChain.pipeline = createSwapChainDebugPipeline(app);
-		app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app, 
+		app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app,
 				uniformBuffers, texDiffuseImage, texSampler));
 
 		recordAllCommandBuffers();
@@ -199,13 +199,9 @@ private:
 		// Load textures (TODO: use correct materials)
 		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
 
-		assert(sid("C:\\Users\\jack\\git\\giacomo.parolini\\build\\server\\Debug\\models\\nanosuit\\body_dif.png") == 4038753930);
-
 		TextureLoader texLoader{ stagingBuffer };
-		texLoader.addTexture(texDiffuseImage, tex[4038753930]);
-		texLoader.addTexture(texSpecularImage, tex[sid("C:\\Users\\jack\\git\\giacomo.parolini\\build\\server\\Debug\\models\\nanosuit\\body_showroom_spec.png")]);
-		//texLoader.addTexture(texDiffuseImage, xplatPath("models/nanosuit/body_dif.png").c_str(), TextureFormat::RGBA);
-		//texLoader.addTexture(texSpecularImage, xplatPath("models/nanosuit/body_showroom_spec.png").c_str(), TextureFormat::GREY);
+		texLoader.addTexture(texDiffuseImage, (++tex.begin())->second);
+		texLoader.addTexture(texSpecularImage, tex.begin()->second);
 		texLoader.create(app);
 		texSampler = createTextureSampler(app);
 
@@ -231,7 +227,7 @@ private:
 		if (!relEP.await(std::chrono::seconds{ 10 })) {
 			throw std::runtime_error("Failed connecting to server!");
 		}
-		
+
 		// Retreive one-time data from server
 		{
 			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = 1 << 25;
@@ -598,7 +594,7 @@ private:
 				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		// uniform buffers
-		bufAllocator.addBuffer(uniformBuffers, 
+		bufAllocator.addBuffer(uniformBuffers,
 				uboSize,
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);

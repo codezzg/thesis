@@ -24,9 +24,9 @@ using namespace logging;
 	namespace to = tinyobj;
 #endif
 
-static Material saveMaterial(const char *modelPath, const to::material_t& mat, std::unordered_set<std::string>& outTextures);
+static Material saveMaterial(const char *modelPath, const to::material_t& mat);
 
-Model loadModel(const char *modelPath, void *buffer, std::unordered_set<std::string>& outTextures) {
+Model loadModel(const char *modelPath, void *buffer) {
 
 	Model model = {};
 
@@ -126,7 +126,7 @@ Model loadModel(const char *modelPath, void *buffer, std::unordered_set<std::str
 	model.materials.reserve(materials.size());
 	info("materials used: (", materials.size(), ")");
 	for (const auto& m : materials)
-		model.materials.emplace_back(saveMaterial(modelPath, m, outTextures));
+		model.materials.emplace_back(saveMaterial(modelPath, m));
 
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
@@ -136,7 +136,7 @@ Model loadModel(const char *modelPath, void *buffer, std::unordered_set<std::str
 	return model;
 }
 
-Material saveMaterial(const char *modelPath, const to::material_t& mat, std::unordered_set<std::string>& outTextures) {
+Material saveMaterial(const char *modelPath, const to::material_t& mat) {
 	const std::string basePath = xplatDirname(modelPath) + DIRSEP;
 
 	debug("material base path: ", basePath);
@@ -145,14 +145,12 @@ Material saveMaterial(const char *modelPath, const to::material_t& mat, std::uno
 	material.name = sid(mat.name);
 	if (mat.diffuse_texname.length() > 0) {
 		const auto tex = basePath + mat.diffuse_texname;
-		outTextures.emplace(tex);
-		material.diffuseTex = sid(tex);
+		material.diffuseTex = tex;
 	}
 
 	if (mat.specular_texname.length() > 0) {
 		const auto tex = basePath + mat.specular_texname;
-		outTextures.emplace(tex);
-		material.specularTex = sid(tex);
+		material.specularTex = tex;
 	}
 
 	return material;

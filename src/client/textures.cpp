@@ -6,13 +6,19 @@
 #include "formats.hpp"
 #include "buffers.hpp"
 #include "logging.hpp"
+#include "utils.hpp"
 #include "vulk_errors.hpp"
 #include <vulkan/vulkan.h>
 
+using namespace logging;
 using shared::TextureFormat;
 
 void TextureLoader::addTexture(Image& image, const shared::Texture& texture) {
 	int texWidth, texHeight, texChannels;
+
+	info("texture.data = ", texture.data);
+	dumpBytes(texture.data, texture.size, 50, LOGLV_INFO);
+
 	auto pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(texture.data),
 			texture.size, &texWidth, &texHeight, &texChannels,
 			texture.format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);

@@ -14,11 +14,12 @@
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr std::size_t MEMSIZE = 1 << 25;
+static constexpr std::size_t MEMSIZE = 1 << 25; // 32 MiB
 
 Server *gServer;
 
 static void parseArgs(int argc, char **argv, std::string& ip);
+static bool loadAssets(Server& server);
 
 int main(int argc, char **argv) {
 
@@ -52,55 +53,10 @@ int main(int argc, char **argv) {
 	server.relEP.serverIp = ip;
 
 	/// Startup server: load models, assets, etc
-	std::string cwd = xplatGetCwd();
-	info("Starting server. cwd: ", cwd);
-
-	// Load the models first: they'll remain at the bottom of our stack allocator
-	std::unordered_set<std::string> texturesToLoad;
-	auto model = server.resources.loadModel((cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str(), texturesToLoad);
-	if (model.vertices == nullptr) {
-		err("Failed to load model.");
+	if (!loadAssets(server)) {
+		err("Failed loading assets!");
 		return EXIT_FAILURE;
 	}
-	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
-		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
-
-	{
-		auto& res = server.resources;
-
-		// Load all needed textures into memory, mapping them by their SID.
-		for (const auto& tex : texturesToLoad) {
-			res.loadTexture(tex.c_str());
-		}
-		info("Loaded ", texturesToLoad.size(), " textures into memory.");
-		// Free the memory
-		std::unordered_set<std::string>().swap(texturesToLoad);
-
-		// Assign the proper formats to the textures
-		for (const auto& m : model.materials) {
-
-			if (m.diffuseTex != SID_NONE) {
-				auto it = res.textures.find(m.diffuseTex);
-				assert(it != res.textures.end());
-
-				auto& tex = it->second;
-				assert(tex.format == shared::TextureFormat::UNKNOWN && "Overriding a valid texture format??");
-
-				tex.format = shared::TextureFormat::RGBA;
-			}
-
-			if (m.specularTex != SID_NONE) {
-				auto it = res.textures.find(m.specularTex);
-				assert(it != res.textures.end());
-
-				auto& tex = it->second;
-				assert(tex.format == shared::TextureFormat::UNKNOWN && "Overriding a valid texture format??");
-
-				tex.format = shared::TextureFormat::GREY;
-			}
-		}
-	}
-
 
 	/// Start TCP socket and wait for connections
 	server.relEP.startPassive(ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
@@ -141,4 +97,21 @@ void parseArgs(int argc, char **argv, std::string& ip) {
 		}
 		--i;
 	}
+}
+
+bool loadAssets(Server& server) {
+	const auto cwd = xplatGetCwd();
+	info("Starting server. cwd: ", cwd);
+
+	// Load the models first: they'll remain at the bottom of our stack allocator
+	auto model = server.resources.loadModel(
+			(cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
+	if (model.vertices == nullptr) {
+		err("Failed to load model.");
+		return EXIT_FAILURE;
+	}
+	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
+		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
+
+	return true;
 }
