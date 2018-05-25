@@ -42,6 +42,7 @@
 #include "images.hpp"
 #include "renderpass.hpp"
 #include "gbuffer.hpp"
+#include "units.hpp"
 #include "textures.hpp"
 #include "xplatform.hpp"
 #include "logging.hpp"
@@ -118,8 +119,8 @@ private:
 
 	bool showGBufTex = false;
 
-	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = 1 << 24; // 16 MiB
-	static constexpr VkDeviceSize INDEX_BUFFER_SIZE = 1 << 24;
+	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = megabytes(16);
+	static constexpr VkDeviceSize INDEX_BUFFER_SIZE = megabytes(16);
 
 
 	void initVulkan() {
@@ -192,7 +193,7 @@ private:
 	}
 
 	void loadAssets(const ClientResources& resources) {
-		constexpr VkDeviceSize STAGING_BUFFER_SIZE = 1 << 27; // 128 MiB
+		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
 
 		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
 

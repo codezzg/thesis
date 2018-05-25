@@ -10,11 +10,12 @@
 #include "server.hpp"
 #include "xplatform.hpp"
 #include "logging.hpp"
+#include "units.hpp"
 
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr std::size_t MEMSIZE = 1 << 25; // 32 MiB
+static constexpr std::size_t MEMSIZE = megabytes(32);
 
 Server *gServer;
 
