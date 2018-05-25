@@ -13,12 +13,13 @@ enum class MsgType : uint8_t {
 	KEEPALIVE           = 0x04,
 	/** Announce own disconnection */
 	DISCONNECT          = 0x05,
-	START_DATA_EXCHANGE = 0x06,
-	DATA_EXCHANGE_ACK   = 0x07,
-	DATA_TYPE_TEXTURE   = 0x08,
-	/** The packet is part of a data payload previously started */
-	//DATA_CONT           = 0x09,
-	END_DATA_EXCHANGE   = 0x0A,
+	START_RSRC_EXCHANGE = 0x06,
+	RSRC_EXCHANGE_ACK   = 0x07,
+	RSRC_TYPE_TEXTURE   = 0x08,
+	/** The packet is part of a resource payload previously started */
+	//RSRC_CONT           = 0x09,
+	RSRC_TYPE_MATERIAL  = 0x0A,
+	END_RSRC_EXCHANGE   = 0x0B,
 	UNKNOWN,
 };
 
@@ -30,10 +31,11 @@ inline std::ostream& operator<<(std::ostream& s, MsgType msg) {
 	case M::READY:               s << "READY"; break;
 	case M::KEEPALIVE:           s << "KEEPALIVE"; break;
 	case M::DISCONNECT:          s << "DISCONNECT"; break;
-	case M::START_DATA_EXCHANGE: s << "START_DATA_EXCHANGE"; break;
-	case M::DATA_EXCHANGE_ACK:   s << "DATA_EXCHANGE_ACK"; break;
-	case M::DATA_TYPE_TEXTURE:   s << "DATA_TYPE_TEXTURE"; break;
-	case M::END_DATA_EXCHANGE:   s << "END_DATA_EXCHANGE"; break;
+	case M::START_RSRC_EXCHANGE: s << "START_RSRC_EXCHANGE"; break;
+	case M::RSRC_EXCHANGE_ACK:   s << "RSRC_EXCHANGE_ACK"; break;
+	case M::RSRC_TYPE_TEXTURE:   s << "RSRC_TYPE_TEXTURE"; break;
+	case M::RSRC_TYPE_MATERIAL:  s << "RSRC_TYPE_MATERIAL"; break;
+	case M::END_RSRC_EXCHANGE:   s << "END_RSRC_EXCHANGE"; break;
 	default:                     s << "UNKNOWN"; break;
 	}
 	return s;

@@ -23,6 +23,7 @@
 
 using namespace logging;
 using namespace std::chrono_literals;
+using shared::ResourceHeader;
 
 /** Writes all possible vertices and indices, starting from `offset`-th byte,
  *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
@@ -268,10 +269,10 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 
 		// Send one-time data
 		info("Sending one time data...");
-		if (!sendTCPMsg(clientSocket, MsgType::START_DATA_EXCHANGE))
+		if (!sendTCPMsg(clientSocket, MsgType::START_RSRC_EXCHANGE))
 			goto dropclient;
 
-		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::DATA_EXCHANGE_ACK))
+		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::RSRC_EXCHANGE_ACK))
 			goto dropclient;
 
 		if (!sendOneTimeData(clientSocket))
@@ -279,7 +280,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 
 		//std::exit(0);
 
-		if (!sendTCPMsg(clientSocket, MsgType::END_DATA_EXCHANGE))
+		if (!sendTCPMsg(clientSocket, MsgType::END_RSRC_EXCHANGE))
 			goto dropclient;
 
 		// Wait for ready signal from client
@@ -337,37 +338,69 @@ void ServerReliableEndpoint::onClose() {
 	loopCv.notify_all();
 }
 
+static bool sendMaterial(socket_t clientSocket, const Material& material) {
+
+	ResourceHeader<shared::Material> packet;
+	packet.type = MsgType::RSRC_TYPE_MATERIAL;
+	packet.size = sizeof(packet); // we have no additional payload
+	packet.head.name = material.name;
+	packet.head.diffuseTex = material.diffuseTex.length() > 0 ? sid(material.diffuseTex) : SID_NONE;
+	packet.head.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
+
+	info("material: { name = ", packet.head.name, " (", sidToString(packet.head.name), "), diffuse = ",
+		packet.head.diffuseTex, ", specular = ", packet.head.specularTex, " }");
+
+	return sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&packet), sizeof(packet));
+}
+
 bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 
-	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
+	/* Send all materials (which are basically maps (mat id) => { (diffuse): tex id, (specular): tex id, ... })
+	 * and all textures data.
+	 */
+
+	std::array<uint8_t, 1> packet = {};
+	std::unordered_set<std::string> texturesSent;
 
 	info("# models loaded = ", server.resources.models.size());
 	for (const auto& modpair : server.resources.models) {
+
 		const auto& model = modpair.second;
+
 		info("model.materials = ", model.materials.size());
 		for (const auto& mat : model.materials) {
-			info("sending new material");
 
-			info("* diffuse:");
-			if (mat.diffuseTex.length() > 0) {
+			info("sending new material ", mat.name);
+			if (!sendMaterial(clientSocket, mat)) {
+				err("Failed sending material");
+				return false;
+			} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK)) {
+				warn("Not received RSRC_EXCHANGE_ACK!");
+				return false;
+			}
+
+			if (mat.diffuseTex.length() > 0 && texturesSent.count(mat.diffuseTex) == 0) {
+				info("* sending diffuse texture");
 				if (!sendTexture(clientSocket, mat.diffuseTex, shared::TextureFormat::RGBA)) {
 					err("sendOneTimeData: failed");
 					return false;
-				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
-					warn("Not received DATA_EXCHANGE_ACK!");
+				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK)) {
+					warn("Not received RSRC_EXCHANGE_ACK!");
 					return false;
 				}
+				texturesSent.emplace(mat.diffuseTex);
 			}
 
-			info("* specular:");
-			if (mat.specularTex.length() > 0) {
+			if (mat.specularTex.length() > 0 && texturesSent.count(mat.specularTex) == 0) {
+				info("* sending specular texture");
 				if (!sendTexture(clientSocket, mat.specularTex, shared::TextureFormat::GREY)) {
 					err("sendOneTimeData: failed");
 					return false;
-				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::DATA_EXCHANGE_ACK)) {
-					warn("Not received DATA_EXCHANGE_ACK!");
+				} else if (!expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK)) {
+					warn("Not received RSRC_EXCHANGE_ACK!");
 					return false;
 				}
+				texturesSent.emplace(mat.specularTex);
 			}
 		}
 	}
@@ -380,6 +413,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::string& texName,
 		shared::TextureFormat format)
 {
+	using shared::TextureHeader;
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
 
@@ -391,16 +425,10 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 	});
 
 	// Prepare header
-#pragma pack(push, 1)
-	struct {
-		MsgType type;
-		uint64_t size;
-		shared::TextureHeader head;
-	} header;
-#pragma pack(pop)
 	const auto texNameSid = sid(texName);
 	const auto& texture = server.resources.textures[texNameSid];
-	header.type = MsgType::DATA_TYPE_TEXTURE;
+	ResourceHeader<TextureHeader> header;
+	header.type = MsgType::RSRC_TYPE_TEXTURE;
 	header.size = texture.size;
 	header.head.name = texNameSid;
 	header.head.format = format;

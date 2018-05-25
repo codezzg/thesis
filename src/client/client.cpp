@@ -192,7 +192,7 @@ private:
 		prepareCamera();
 	}
 
-	void loadAssets(const ClientResources& resources) {
+	void loadAssets(const ClientTmpResources& resources) {
 		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
 
 		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
@@ -232,7 +232,7 @@ private:
 		// Retreive one-time data from server
 		{
 			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = 1 << 25;
-			ClientResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
+			ClientTmpResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
 			relEP.resources = &resources;
 
 			// Tell TCP thread to receive the data

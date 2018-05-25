@@ -186,8 +186,8 @@ void ClientReliableEndpoint::loopFunc() {
 
 	{
 		uint8_t buffer;
-		if (!expectTCPMsg(socket, &buffer, 1, MsgType::START_DATA_EXCHANGE)) {
-			err("Expecting START_DATA_EXCHANGE but didn't receive it.");
+		if (!expectTCPMsg(socket, &buffer, 1, MsgType::START_RSRC_EXCHANGE)) {
+			err("Expecting START_RSRC_EXCHANGE but didn't receive it.");
 			return;
 		}
 	}
@@ -202,7 +202,7 @@ void ClientReliableEndpoint::loopFunc() {
 	}
 
 	// Ready to receive one-time data
-	if (!sendTCPMsg(socket, MsgType::DATA_EXCHANGE_ACK))
+	if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK))
 		return;
 
 	info("Waiting for one-time data...");
@@ -319,6 +319,36 @@ static bool receiveTexture(socket_t socket,
 	return true;
 }
 
+static bool receiveMaterial(uint8_t *buffer, std::size_t bufsize,
+		/* out */ shared::Material& material)
+{
+	assert(bufsize >= 21);
+	static_assert(sizeof(StringId) == 4, "StringId size should be 4!");
+
+	// [0]  MsgType (1 B)
+	// [1]  size    (8 B)
+	// [9]  material.name     (4 B)
+	// [13] material.diffuse  (4 B)
+	// [17] material.specular (4 B)
+	{
+		constexpr auto expectedSize = sizeof(shared::ResourceHeader<shared::Material>);
+		const auto size = *reinterpret_cast<uint64_t*>(buffer + 1);
+		if (size != expectedSize) {
+			err("Invalid size for material: ", size, " instead of ", expectedSize);
+			return false;
+		}
+	}
+
+	material.name = *reinterpret_cast<StringId*>(buffer + 9);
+	material.diffuseTex = *reinterpret_cast<StringId*>(buffer + 13);
+	material.specularTex = *reinterpret_cast<StringId*>(buffer + 17);
+
+	debug("received material: { name = ", material.name,
+			", diff = ", material.diffuseTex, ", spec = ", material.specularTex, " }");
+
+	return true;
+}
+
 bool ClientReliableEndpoint::receiveOneTimeData() {
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
 
@@ -338,10 +368,10 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 		case MsgType::DISCONNECT:
 			return false;
 
-		case MsgType::END_DATA_EXCHANGE:
+		case MsgType::END_RSRC_EXCHANGE:
 			return true;
 
-		case MsgType::DATA_TYPE_TEXTURE: {
+		case MsgType::RSRC_TYPE_TEXTURE: {
 
 			shared::Texture texture;
 			StringId texName;
@@ -355,20 +385,46 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 				dumpBytes(texture.data, texture.size);
 			}
 
-			// All green, send ACK
-			if (!sendTCPMsg(socket, MsgType::DATA_EXCHANGE_ACK)) {
-				err("Failed to send ACK");
-				return false;
-			}
-
 			// Save the texture in client resources
 			if (resources->textures.count(texName) > 0) {
 				warn("Received the same texture two times: ", texName);
 			} else {
 				resources->storeTexture(texName, texture);
-				debug("Stored resource ", texName);
+				info("Stored texture ", texName);
 			}
 			delete [] reinterpret_cast<uint8_t*>(texture.data);
+
+			// All green, send ACK
+			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
+				err("Failed to send ACK");
+				return false;
+			}
+
+		} break;
+
+		case MsgType::RSRC_TYPE_MATERIAL: {
+
+			debug("Material raw data: ");
+			dumpBytes(buffer.data(), buffer.size(), 50, LOGLV_DEBUG);
+
+			shared::Material material;
+			if (!receiveMaterial(buffer.data(), buffer.size(), material)) {
+				err("Failed to receive material");
+				return false;
+			}
+
+			if (resources->materials.count(material.name) > 0) {
+				warn("Received the same material two times: ", material.name);
+			} else {
+				resources->storeMaterial(material);
+				info("Stored material ", material.name);
+			}
+
+			// All green, send ACK
+			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
+				err("Failed to send ACK");
+				return false;
+			}
 
 		} break;
 

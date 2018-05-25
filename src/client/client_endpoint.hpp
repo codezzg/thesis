@@ -78,7 +78,7 @@ public:
 	/** This gets passed to us by the main thread, and remains valid
 	 *  only during the one-time data exchange.
 	 */
-	ClientResources *resources = nullptr;
+	ClientTmpResources *resources = nullptr;
 
 	/** Call this after starting this socket to block the caller thread until the next step
 	 *  in the protocol is performed or the timeout expires.
