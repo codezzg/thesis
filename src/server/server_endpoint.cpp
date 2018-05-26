@@ -95,23 +95,29 @@ void ServerActiveEndpoint::loopFunc() {
 
 	info("Active Endpoint targetFrameTime = ", targetFrameTime.count(), " ms");
 
+	uint64_t frameId = 0;
+
 	// Send frame datagrams to the client
 	while (!terminated) {
 		const LimitFrameTime lft{ targetFrameTime - delay };
+		verbose("Frametime = ", asSeconds(targetFrameTime - delay) * 1000, " ms");
+
+		++frameId;
 
 		// Wait for the new frame data from the client
 		debug("Waiting for client data...");
-		std::unique_lock<std::mutex> loopUlk{ loopMtx };
-		shared.loopCv.wait(loopUlk);
+		/*std::unique_lock<std::mutex> loopUlk{ loopMtx };
+		shared.loopCv.wait(loopUlk);*/
 		//shared.loopCv.wait_for(loopMtx, 0.033s);
 
 		debug("Received data from frame ", shared.clientFrame);
 
-		int64_t frameId = -1;
+		//int64_t frameId = -1;
 		std::array<uint8_t, FrameData().payload.size()> clientData;
 		{
 			std::lock_guard<std::mutex> lock{ shared.clientDataMtx };
-			frameId = shared.clientFrame;
+			debug("Server frame = ", frameId, ", client frame = ", shared.clientFrame);
+			//frameId = shared.clientFrame;
 			std::copy(shared.clientData.begin(), shared.clientData.end(), clientData.begin());
 		}
 
@@ -188,7 +194,7 @@ void ServerPassiveEndpoint::loopFunc() {
 			continue;
 
 		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
-		debug("Received packet ", packet->header.frameId);
+		verbose("Received packet ", packet->header.frameId);
 		if (packet->header.frameId <= latestFrame)
 			continue;
 
@@ -347,7 +353,8 @@ static bool sendMaterial(socket_t clientSocket, const Material& material) {
 	packet.head.diffuseTex = material.diffuseTex.length() > 0 ? sid(material.diffuseTex) : SID_NONE;
 	packet.head.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
 
-	info("material: { name = ", packet.head.name, " (", sidToString(packet.head.name), "), diffuse = ",
+	info("packet: { type = ", packet.type, ", size = ", packet.size, ", name = ",
+		packet.head.name, " (", sidToString(packet.head.name), "), diffuse = ",
 		packet.head.diffuseTex, ", specular = ", packet.head.specularTex, " }");
 
 	return sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&packet), sizeof(packet));

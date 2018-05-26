@@ -472,7 +472,7 @@ void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCo
 		renderPassInfo.renderArea.offset = {0, 0};
 		renderPassInfo.renderArea.extent = app.swapChain.extent;
 		std::array<VkClearValue, 2> clearValues = {};
-		clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
+		clearValues[0].color = {0.12f, 0.83f, 1.0f, 1.f};
 		clearValues[1].depthStencil = {1.f, 0};
 		renderPassInfo.clearValueCount = clearValues.size();
 		renderPassInfo.pClearValues = clearValues.data();

@@ -16,6 +16,7 @@ using namespace logging;
 using namespace std::literals::chrono_literals;
 
 static constexpr std::size_t MEMSIZE = megabytes(32);
+static constexpr auto CLIENT_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
 Server *gServer;
 
@@ -50,7 +51,7 @@ int main(int argc, char **argv) {
 	Server server { MEMSIZE };
 	gServer = &server;
 
-	server.activeEP.targetFrameTime = 16ms;
+	server.activeEP.targetFrameTime = CLIENT_UPDATE_TIME;
 	server.relEP.serverIp = ip;
 
 	/// Startup server: load models, assets, etc
@@ -106,7 +107,8 @@ bool loadAssets(Server& server) {
 
 	// Load the models first: they'll remain at the bottom of our stack allocator
 	auto model = server.resources.loadModel(
-			(cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
+			//(cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
+			(cwd + xplatPath("/models/mill.obj")).c_str());
 	if (model.vertices == nullptr) {
 		err("Failed to load model.");
 		return EXIT_FAILURE;

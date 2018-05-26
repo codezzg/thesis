@@ -8,7 +8,7 @@ void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommand
 		uint32_t nIndices, const Buffer& vBuffer, const Buffer& iBuffer)
 {
 	std::array<VkClearValue, 5> clearValues = {};
-	clearValues[0].color = { 0.f, 0.0f, 0.f, 1.f };
+	clearValues[0].color = { 0.f, 0.2f, 0.6f, 1.f };
 	clearValues[1].depthStencil = { 1, 0 };
 
 	VkRenderPassBeginInfo renderPassInfo = {};

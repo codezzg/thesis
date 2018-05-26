@@ -71,7 +71,8 @@ void ClientPassiveEndpoint::loopFunc() {
 
 		nBytesReceived += payloadLen;
 		//std::cerr << "payload len = " << payloadLen << "\n";
-		bufferFilled = nBytesReceived >= nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
+		verbose("Bytes received: ", nBytesReceived, " / ", nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
+		bufferFilled = nBytesReceived >= (nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
 
 		if (bufferFilled && !bufferCopied) {
 			// May need to wait to finish retreiving the previously acquired buffer.

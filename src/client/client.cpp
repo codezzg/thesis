@@ -59,6 +59,9 @@ using namespace std::literals::string_literals;
 using std::size_t;
 using shared::TextureFormat;
 
+constexpr auto RENDER_FRAME_TIME = std::chrono::milliseconds{ 16 };
+constexpr auto SERVER_UPDATE_TIME = std::chrono::milliseconds{ 33 };
+
 bool gUseCamera = false;
 bool gIsDebug = false;
 bool gLimitFrameTime = true;
@@ -201,8 +204,16 @@ private:
 		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
 
 		TextureLoader texLoader{ stagingBuffer };
-		texLoader.addTexture(texDiffuseImage, (++tex.begin())->second);
-		texLoader.addTexture(texSpecularImage, tex.begin()->second);
+		if (tex.size() == 0) {
+			// received no textures from the server: use default ones
+			warn("Received no textures: using default ones.");
+			texLoader.addTexture(texDiffuseImage, "textures/chalet.jpg", shared::TextureFormat::RGBA);
+			texLoader.addTexture(texSpecularImage, "textures/chalet.jpg", shared::TextureFormat::GREY);
+		}
+		else {
+			texLoader.addTexture(texDiffuseImage, (tex.begin())->second);
+			texLoader.addTexture(texSpecularImage, (++tex.begin())->second);
+		}
 		texLoader.create(app);
 		texSampler = createTextureSampler(app);
 
@@ -217,7 +228,7 @@ private:
 		passiveEP.runLoop();
 
 		activeEP.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
-		activeEP.targetFrameTime = std::chrono::milliseconds{ 16 };
+		activeEP.targetFrameTime = SERVER_UPDATE_TIME;
 		activeEP.runLoop();
 	}
 
@@ -271,7 +282,7 @@ private:
 		auto beginTime = std::chrono::high_resolution_clock::now();
 
 		while (!glfwWindowShouldClose(app.window)) {
-			LimitFrameTime lft { std::chrono::milliseconds{ 16 } };
+			LimitFrameTime lft { RENDER_FRAME_TIME };
 			lft.enabled = gLimitFrameTime;
 
 			// Check if we disconnected
@@ -308,6 +319,7 @@ private:
 			pvs = nVertices;
 			pis = nIndices;
 			VLKCHECK(vkDeviceWaitIdle(app.device));
+			info("Re-recording command buffers");
 			vkFreeCommandBuffers(app.device, app.commandPool,
 				static_cast<uint32_t>(swapCommandBuffers.size()),
 				swapCommandBuffers.data());
@@ -327,13 +339,17 @@ private:
 	}
 
 	void receiveData() {
-		verbose("receive data. curFrame = ", curFrame, ", passive.get = ", passiveEP.getFrameId());
+		debug("receive data. curFrame = ", curFrame, ", passive.frame = ", passiveEP.getFrameId());
 
-		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame)
+		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame) {
+			debug("Rejecting old frame data");
 			return;
+		}
 
-		if (!passiveEP.dataAvailable())
+		if (!passiveEP.dataAvailable()) {
+			debug("data unavailable");
 			return;
+		}
 
 		// Update frame Id
 		curFrame = passiveEP.getFrameId();
@@ -473,6 +489,7 @@ private:
 	void drawFrame() {
 		uint32_t imageIndex;
 		if (!acquireNextSwapImage(app, imageAvailableSemaphore, imageIndex)) {
+			info("Recreating swap chain");
 			recreateSwapChain();
 			return;
 		}
@@ -516,9 +533,10 @@ private:
 
 		const auto result = vkQueuePresentKHR(app.queues.present, &presentInfo);
 
-		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+			info("Swap chain out of date or suboptimal: recreating");
 			recreateSwapChain();
-		else if (result != VK_SUCCESS)
+		} else if (result != VK_SUCCESS)
 			throw std::runtime_error("failed to present swap chain image!");
 
 		VLKCHECK(vkQueueWaitIdle(app.queues.graphics));

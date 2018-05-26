@@ -26,6 +26,8 @@ void TextureLoader::addTexture(Image& image, const shared::Texture& texture) {
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
 
+	debug("Loaded texture with width = ", texWidth, ", height = ", texHeight, " chans = ", texChannels);
+
 	// Save pixel data in the staging buffer
 	const auto imageSize = texWidth * texHeight * (texture.format == TextureFormat::RGBA ? 4 : 1);
 	memcpy(reinterpret_cast<uint8_t*>(stagingBuffer.ptr) + stagingBufferOffset, pixels, imageSize);
