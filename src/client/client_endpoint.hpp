@@ -71,6 +71,7 @@ class ClientReliableEndpoint : public Endpoint {
 
 	void loopFunc() override;
 	void onClose() override;
+
 	bool receiveOneTimeData();
 
 public:

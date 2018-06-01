@@ -43,11 +43,4 @@ add_definitions(-DGLM_FORCE_CXX14)
 
 target_link_libraries(${PROJECT_NAME} common)
 
-if(NO_EX_TINYOBJ)
-	message(STATUS "Using STABLE tinyobj")
-else()
-	message(STATUS "Using EXPERIMENTAL tinyobj")
-	add_definitions(-DUSE_EXPERIMENTAL_TINYOBJ=1)
-endif()
-
 do_build()

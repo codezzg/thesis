@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.2.0 : Hardened implementation(#175)
 // version 1.1.1 : Support smoothing groups(#162)
 // version 1.1.0 : Support parsing vertex color(#144)
 // version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
@@ -57,6 +58,9 @@ namespace tinyobj {
 #if __has_warning("-Wzero-as-null-pointer-constant")
 #pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
 #endif
+
+#pragma clang diagnostic ignored "-Wpadded"
+
 #endif
 
 // https://en.wikipedia.org/wiki/Wavefront_.obj_file says ...
@@ -369,6 +373,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
 #include <cstdlib>
 #include <cstring>
 #include <utility>
+#include <limits>
 
 #include <fstream>
 #include <sstream>
@@ -866,22 +871,22 @@ static bool ParseTextureNameAndOption(std::string *texname,
   } else {
     texopt->imfchan = 'm';
   }
-  texopt->bump_multiplier = 1.0f;
+  texopt->bump_multiplier = static_cast<real_t>(1.0);
   texopt->clamp = false;
   texopt->blendu = true;
   texopt->blendv = true;
-  texopt->sharpness = 1.0f;
-  texopt->brightness = 0.0f;
-  texopt->contrast = 1.0f;
-  texopt->origin_offset[0] = 0.0f;
-  texopt->origin_offset[1] = 0.0f;
-  texopt->origin_offset[2] = 0.0f;
-  texopt->scale[0] = 1.0f;
-  texopt->scale[1] = 1.0f;
-  texopt->scale[2] = 1.0f;
-  texopt->turbulence[0] = 0.0f;
-  texopt->turbulence[1] = 0.0f;
-  texopt->turbulence[2] = 0.0f;
+  texopt->sharpness = static_cast<real_t>(1.0);
+  texopt->brightness = static_cast<real_t>(0.0);
+  texopt->contrast = static_cast<real_t>(1.0);
+  texopt->origin_offset[0] = static_cast<real_t>(0.0);
+  texopt->origin_offset[1] = static_cast<real_t>(0.0);
+  texopt->origin_offset[2] = static_cast<real_t>(0.0);
+  texopt->scale[0] = static_cast<real_t>(1.0);
+  texopt->scale[1] = static_cast<real_t>(1.0);
+  texopt->scale[2] = static_cast<real_t>(1.0);
+  texopt->turbulence[0] = static_cast<real_t>(0.0);
+  texopt->turbulence[1] = static_cast<real_t>(0.0);
+  texopt->turbulence[2] = static_cast<real_t>(0.0);
   texopt->type = TEXTURE_TYPE_NONE;
 
   const char *token = linebuf;  // Assume line ends with NULL
@@ -967,24 +972,24 @@ static void InitMaterial(material_t *material) {
   material->reflection_texname = "";
   material->alpha_texname = "";
   for (int i = 0; i < 3; i++) {
-    material->ambient[i] = 0.f;
-    material->diffuse[i] = 0.f;
-    material->specular[i] = 0.f;
-    material->transmittance[i] = 0.f;
-    material->emission[i] = 0.f;
+    material->ambient[i] = static_cast<real_t>(0.0);
+    material->diffuse[i] = static_cast<real_t>(0.0);
+    material->specular[i] = static_cast<real_t>(0.0);
+    material->transmittance[i] = static_cast<real_t>(0.0);
+    material->emission[i] = static_cast<real_t>(0.0);
   }
   material->illum = 0;
-  material->dissolve = 1.f;
-  material->shininess = 1.f;
-  material->ior = 1.f;
+  material->dissolve = static_cast<real_t>(1.0);
+  material->shininess = static_cast<real_t>(1.0);
+  material->ior = static_cast<real_t>(1.0);
 
-  material->roughness = 0.f;
-  material->metallic = 0.f;
-  material->sheen = 0.f;
-  material->clearcoat_thickness = 0.f;
-  material->clearcoat_roughness = 0.f;
-  material->anisotropy_rotation = 0.f;
-  material->anisotropy = 0.f;
+  material->roughness = static_cast<real_t>(0.0);
+  material->metallic = static_cast<real_t>(0.0);
+  material->sheen = static_cast<real_t>(0.0);
+  material->clearcoat_thickness = static_cast<real_t>(0.0);
+  material->clearcoat_roughness = static_cast<real_t>(0.0);
+  material->anisotropy_rotation = static_cast<real_t>(0.0);
+  material->anisotropy = static_cast<real_t>(0.0);
   material->roughness_texname = "";
   material->metallic_texname = "";
   material->sheen_texname = "";
@@ -995,8 +1000,9 @@ static void InitMaterial(material_t *material) {
 }
 
 // code from https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
-static int pnpoly(int nvert, float *vertx, float *verty, float testx,
-                  float testy) {
+template<typename T>
+static int pnpoly(int nvert, T *vertx, T *verty, T testx,
+                  T testy) {
   int i, j, c = 0;
   for (i = 0, j = nvert - 1; i < nvert; j = i++) {
     if (((verty[i] > testy) != (verty[j] > testy)) &&
@@ -1023,7 +1029,9 @@ static bool exportFaceGroupToShape(shape_t *shape,
   for (size_t i = 0; i < faceGroup.size(); i++) {
     const face_t &face = faceGroup[i];
 
-    if (face.vertex_indices.size() < 3) {
+    size_t npolys = face.vertex_indices.size();
+
+    if (npolys < 3) {
       // Face must have 3+ vertices.
       continue;
     }
@@ -1031,8 +1039,6 @@ static bool exportFaceGroupToShape(shape_t *shape,
     vertex_index_t i0 = face.vertex_indices[0];
     vertex_index_t i1(-1);
     vertex_index_t i2 = face.vertex_indices[1];
-
-    size_t npolys = face.vertex_indices.size();
 
     if (triangulate) {
       // find the two axes to work in
@@ -1044,6 +1050,14 @@ static bool exportFaceGroupToShape(shape_t *shape,
         size_t vi0 = size_t(i0.v_idx);
         size_t vi1 = size_t(i1.v_idx);
         size_t vi2 = size_t(i2.v_idx);
+
+        if (((3 * vi0 + 2) >= v.size()) ||
+            ((3 * vi1 + 2) >= v.size()) ||
+            ((3 * vi2 + 2) >= v.size())) {
+          // Invalid triangle.
+          // FIXME(syoyo): Is it ok to simply skip this invalid triangle?
+          continue;
+        }
         real_t v0x = v[vi0 * 3 + 0];
         real_t v0y = v[vi0 * 3 + 1];
         real_t v0z = v[vi0 * 3 + 2];
@@ -1059,10 +1073,10 @@ static bool exportFaceGroupToShape(shape_t *shape,
         real_t e1x = v2x - v1x;
         real_t e1y = v2y - v1y;
         real_t e1z = v2z - v1z;
-        float cx = std::fabs(e0y * e1z - e0z * e1y);
-        float cy = std::fabs(e0z * e1x - e0x * e1z);
-        float cz = std::fabs(e0x * e1y - e0y * e1x);
-        const float epsilon = 0.0001f;
+        real_t cx = std::fabs(e0y * e1z - e0z * e1y);
+        real_t cy = std::fabs(e0z * e1x - e0x * e1z);
+        real_t cz = std::fabs(e0x * e1y - e0y * e1x);
+        const real_t epsilon = std::numeric_limits<real_t>::epsilon();
         if (cx > epsilon || cy > epsilon || cz > epsilon) {
           // found a corner
           if (cx > cy && cx > cz) {
@@ -1080,11 +1094,18 @@ static bool exportFaceGroupToShape(shape_t *shape,
         i1 = face.vertex_indices[(k + 1) % npolys];
         size_t vi0 = size_t(i0.v_idx);
         size_t vi1 = size_t(i1.v_idx);
+        if (((vi0 * 3 + axes[0]) >= v.size()) ||
+            ((vi0 * 3 + axes[1]) >= v.size()) ||
+            ((vi1 * 3 + axes[0]) >= v.size()) ||
+            ((vi1 * 3 + axes[1]) >= v.size())) {
+          // Invalid index.
+          continue;
+        }
         real_t v0x = v[vi0 * 3 + axes[0]];
         real_t v0y = v[vi0 * 3 + axes[1]];
         real_t v1x = v[vi1 * 3 + axes[0]];
         real_t v1y = v[vi1 * 3 + axes[1]];
-        area += (v0x * v1y - v0y * v1x) * 0.5f;
+        area += (v0x * v1y - v0y * v1x) * static_cast<real_t>(0.5);
       }
 
       int maxRounds =
@@ -1104,8 +1125,15 @@ static bool exportFaceGroupToShape(shape_t *shape,
         for (size_t k = 0; k < 3; k++) {
           ind[k] = remainingFace.vertex_indices[(guess_vert + k) % npolys];
           size_t vi = size_t(ind[k].v_idx);
-          vx[k] = v[vi * 3 + axes[0]];
-          vy[k] = v[vi * 3 + axes[1]];
+          if (((vi * 3 + axes[0]) >= v.size()) ||
+              ((vi * 3 + axes[1]) >= v.size())) {
+            // ???
+            vx[k] = static_cast<real_t>(0.0);
+            vy[k] = static_cast<real_t>(0.0);
+          } else {
+            vx[k] = v[vi * 3 + axes[0]];
+            vy[k] = v[vi * 3 + axes[1]];
+          }
         }
         real_t e0x = vx[1] - vx[0];
         real_t e0y = vy[1] - vy[0];
@@ -1113,7 +1141,7 @@ static bool exportFaceGroupToShape(shape_t *shape,
         real_t e1y = vy[2] - vy[1];
         real_t cross = e0x * e1y - e0y * e1x;
         // if an internal angle
-        if (cross * area < 0.0f) {
+        if (cross * area < static_cast<real_t>(0.0)) {
           guess_vert += 1;
           continue;
         }
@@ -1121,9 +1149,22 @@ static bool exportFaceGroupToShape(shape_t *shape,
         // check all other verts in case they are inside this triangle
         bool overlap = false;
         for (size_t otherVert = 3; otherVert < npolys; ++otherVert) {
+          size_t idx = (guess_vert + otherVert) % npolys;
+
+          if (idx >= remainingFace.vertex_indices.size()) {
+            // ???
+            continue;
+          }
+
           size_t ovi = size_t(
-              remainingFace.vertex_indices[(guess_vert + otherVert) % npolys]
+              remainingFace.vertex_indices[idx]
                   .v_idx);
+
+          if (((ovi * 3 + axes[0]) >= v.size()) ||
+              ((ovi * 3 + axes[1]) >= v.size())) {
+            // ???
+            continue;
+          }
           real_t tx = v[ovi * 3 + axes[0]];
           real_t ty = v[ovi * 3 + axes[1]];
           if (pnpoly(3, vx, vy, tx, ty)) {
@@ -1401,7 +1442,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
         // We invert value of Tr(assume Tr is in range [0, 1])
         // NOTE: Interpretation of Tr is application(exporter) dependent. For
         // some application(e.g. 3ds max obj exporter), Tr = d(Issue 43)
-        material.dissolve = 1.0f - parseReal(&token);
+        material.dissolve = static_cast<real_t>(1.0) - parseReal(&token);
       }
       has_tr = true;
       continue;
@@ -1698,6 +1739,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::string baseDir;
   if (mtl_basedir) {
     baseDir = mtl_basedir;
+#ifndef _WIN32
+    const char dirsep = '/';
+#else
+    const char dirsep = '\\';
+#endif
+    if (baseDir[baseDir.length() - 1] != dirsep)
+      baseDir += dirsep;
   }
   MaterialFileReader matFileReader(baseDir);
 
@@ -1956,6 +2004,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
 
     if (token[0] == 't' && IS_SPACE(token[1])) {
+      const int max_tag_nums = 8192; // FIXME(syoyo): Parameterize.
       tag_t tag;
 
       token += 2;
@@ -1963,6 +2012,27 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       tag.name = parseString(&token);
 
       tag_sizes ts = parseTagTriple(&token);
+
+      if (ts.num_ints < 0) {
+        ts.num_ints = 0;
+      }
+      if (ts.num_ints > max_tag_nums) {
+        ts.num_ints = max_tag_nums;
+      }
+
+      if (ts.num_reals < 0) {
+        ts.num_reals = 0;
+      }
+      if (ts.num_reals > max_tag_nums) {
+        ts.num_reals = max_tag_nums;
+      }
+
+      if (ts.num_strings < 0) {
+        ts.num_strings = 0;
+      }
+      if (ts.num_strings > max_tag_nums) {
+        ts.num_strings = max_tag_nums;
+      }
 
       tag.intValues.resize(static_cast<size_t>(ts.num_ints));
 

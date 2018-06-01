@@ -107,8 +107,8 @@ bool loadAssets(Server& server) {
 
 	// Load the models first: they'll remain at the bottom of our stack allocator
 	auto model = server.resources.loadModel(
-			//(cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
-			(cwd + xplatPath("/models/mill.obj")).c_str());
+			(cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
+			//(cwd + xplatPath("/models/mill.obj")).c_str());
 	if (model.vertices == nullptr) {
 		err("Failed to load model.");
 		return EXIT_FAILURE;

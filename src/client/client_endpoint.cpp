@@ -14,16 +14,17 @@
 #include "shared_resources.hpp"
 #include "logging.hpp"
 #include "utils.hpp"
+#include "units.hpp"
 
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr auto BUFSIZE = 1<<24;
+static constexpr auto BUFSIZE = megabytes(16);
 
 void ClientPassiveEndpoint::loopFunc() {
 
 	// This will be filled like this:
-	// [(64b)nVertices|(64b)nIndices|vertices|indices]
+	// [vertices|indices]
 	buffer = new uint8_t[BUFSIZE];
 	auto backBuffer = new uint8_t[BUFSIZE];
 
@@ -53,8 +54,6 @@ void ClientPassiveEndpoint::loopFunc() {
 			// Update n vertices and indices
 			nVertices = packet->header.phead.nVertices;
 			nIndices = packet->header.phead.nIndices;
-			*(reinterpret_cast<uint64_t*>(backBuffer)) = nVertices;
-			*(reinterpret_cast<uint64_t*>(backBuffer) + 1) = nIndices;
 		}
 
 		uint8_t *payload = packet->payload.data();
@@ -63,15 +62,15 @@ void ClientPassiveEndpoint::loopFunc() {
 		//dumpPacket("client.dump", *packet);
 
 		// Compute the offset to insert data at
-		const size_t offset = 2 * sizeof(uint64_t) + packet->header.packetId * packet->payload.size();
-		//std::cerr << "received packet " << frameId << ":" << packet->header.packetId << "; offset = " << offset << "\n";
+		const size_t offset = packet->header.packetId * packet->payload.size();
 
 		// Insert data into the buffer
 		memcpy(backBuffer + offset, payload, payloadLen);
 
 		nBytesReceived += payloadLen;
 		//std::cerr << "payload len = " << payloadLen << "\n";
-		verbose("Bytes received: ", nBytesReceived, " / ", nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
+		verbose("Bytes received: ", nBytesReceived, " / ",
+				nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
 		bufferFilled = nBytesReceived >= (nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
 
 		if (bufferFilled && !bufferCopied) {
@@ -88,10 +87,13 @@ void ClientPassiveEndpoint::loopFunc() {
 }
 
 void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex *outVBuf, Index *outIBuf) {
-	std::lock_guard<std::mutex> lock{ bufMtx };
-	memcpy(reinterpret_cast<void*>(&phead), buffer, sizeof(PayloadHeader));
-	memcpy(outVBuf, buffer + sizeof(PayloadHeader), nVertices * sizeof(Vertex));
-	memcpy(outIBuf, buffer + sizeof(PayloadHeader) + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
+	phead.nVertices = nVertices;
+	phead.nIndices = nIndices;
+	{
+		std::lock_guard<std::mutex> lock{ bufMtx };
+		memcpy(outVBuf, buffer, nVertices * sizeof(Vertex));
+		memcpy(outIBuf, buffer + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
+	}
 }
 
 
@@ -262,50 +264,57 @@ void ClientReliableEndpoint::onClose() {
 	cv.notify_all();
 }
 
-static bool receiveTexture(socket_t socket,
-		std::array<uint8_t, cfg::PACKET_SIZE_BYTES>& buffer,
-		/* out */ shared::Texture& texture,
-		/* out */ StringId& texName)
+/** Reads header data from `buffer` and starts reading a texture. If more packets
+ *  need to be read for the texture, receive them from `socket` until completion.
+ *  Texture received is stored into `resources`.
+ */
+static bool receiveTexture(socket_t socket, const uint8_t *buffer, std::size_t bufsize,
+		/* out */ ClientTmpResources& resources)
 {
-	uint64_t expectedSize = 0;
-	uint64_t processedSize = 0;
-
 	// Parse header
-	// [0]  msgType     (1 B)
-	// [1]  size        (8 B)
-	// [9]  head.name   (4 B)
-	// [13] head.format (1 B)
-	expectedSize = *reinterpret_cast<uint64_t*>(buffer.data() + 1);
+	// [0] msgType    (1 B)
+	// [1] tex.name   (4 B)
+	// [5] tex.format (1 B)
+	// [6] tex.size   (8 B)
+	const auto expectedSize = *reinterpret_cast<const uint64_t*>(buffer + 6);
 
 	if (expectedSize > cfg::MAX_TEXTURE_SIZE) {
 		err("Texture server sent is too big! (", expectedSize / 1024 / 1024., " MiB)");
 		return false;
 	}
 
-	texName = *reinterpret_cast<StringId*>(buffer.data() + 9);
+	const auto texName = *reinterpret_cast<const StringId*>(buffer + 1);
 
-	auto format = static_cast<shared::TextureFormat>(buffer[13]);
+	auto format = static_cast<shared::TextureFormat>(buffer[5]);
 	assert(static_cast<uint8_t>(format) < static_cast<uint8_t>(shared::TextureFormat::UNKNOWN));
 
-	auto texdata = new uint8_t[expectedSize];
+	// Retreive payload
+
+	/** Obtain the memory to store the texture data in */
+	void *texdata = resources.allocator.alloc(expectedSize);
+	if (!texdata)
+		return false;
 
 	constexpr auto HEADER_SIZE = 14;
 
-	auto len = std::min(buffer.size() - HEADER_SIZE, expectedSize);
-	memcpy(texdata, buffer.data() + HEADER_SIZE, len);
-	processedSize += len;
+	// Copy the first texture data embedded in the header packet into the texture memory area
+	auto len = std::min(bufsize - HEADER_SIZE, expectedSize);
+	memcpy(texdata, buffer + HEADER_SIZE, len);
 
-	// Receive texture data
+	// Receive remaining texture data as raw data packets (if needed)
+	auto processedSize = len;
 	while (processedSize < expectedSize) {
 		const auto remainingSize = expectedSize - processedSize;
 		assert(remainingSize > 0);
 
-		len = std::min(remainingSize, buffer.size());
+		len = std::min(remainingSize, bufsize);
 
-		if (!receivePacket(socket, buffer.data(), len))
+		// Receive the data directly into the texture memory area (avoids a memcpy from the buffer)
+		if (!receivePacket(socket, reinterpret_cast<uint8_t*>(texdata) + processedSize, len)) {
+			resources.allocator.deallocLatest();
 			return false;
+		}
 
-		memcpy(texdata + processedSize, buffer.data(), len);
 		processedSize += len;
 	}
 
@@ -313,39 +322,85 @@ static bool receiveTexture(socket_t socket,
 		warn("Processed more bytes than expected!");
 	}
 
+	shared::Texture texture;
 	texture.size = expectedSize;
 	texture.data = texdata;
 	texture.format = format;
 
+	if (resources.textures.count(texName) > 0) {
+		warn("Received the same texture two times: ", texName);
+	} else {
+		resources.textures[texName] = texture;
+	}
+
+	info("Received texture ", texName, ": ", texture.size, " B");
+	if (gDebugLv >= LOGLV_VERBOSE) {
+		dumpBytes(texture.data, texture.size);
+	}
+
 	return true;
 }
 
-static bool receiveMaterial(uint8_t *buffer, std::size_t bufsize,
-		/* out */ shared::Material& material)
+/** Read a material out of `buffer` and store it in `resources` */
+static bool receiveMaterial(const uint8_t *buffer, std::size_t bufsize,
+		/* out */ ClientTmpResources& resources)
 {
-	assert(bufsize >= 21);
+	assert(bufsize >= sizeof(shared::ResourcePacket<shared::Material>));
 	static_assert(sizeof(StringId) == 4, "StringId size should be 4!");
 
-	// [0]  MsgType (1 B)
-	// [1]  size    (8 B)
-	// [9]  material.name     (4 B)
-	// [13] material.diffuse  (4 B)
-	// [17] material.specular (4 B)
-	{
-		constexpr auto expectedSize = sizeof(shared::ResourceHeader<shared::Material>);
-		const auto size = *reinterpret_cast<uint64_t*>(buffer + 1);
-		if (size != expectedSize) {
-			err("Invalid size for material: ", size, " instead of ", expectedSize);
-			return false;
-		}
-	}
-
-	material.name = *reinterpret_cast<StringId*>(buffer + 9);
-	material.diffuseTex = *reinterpret_cast<StringId*>(buffer + 13);
-	material.specularTex = *reinterpret_cast<StringId*>(buffer + 17);
+	// [0] MsgType (1 B)
+	// [1] material.name     (4 B)
+	// [5] material.diffuse  (4 B)
+	// [9] material.specular (4 B)
+	const auto material = *reinterpret_cast<const shared::Material*>(buffer + 1);
 
 	debug("received material: { name = ", material.name,
 			", diff = ", material.diffuseTex, ", spec = ", material.specularTex, " }");
+
+	if (resources.materials.count(material.name) > 0) {
+		warn("Received the same material two times: ", material.name);
+	} else {
+		resources.materials[material.name] = material;
+		info("Stored material ", material.name);
+	}
+
+	return true;
+}
+
+static bool receiveModel(uint8_t *buffer, std::size_t bufsize,
+		/* out */ shared::Model& model)
+{
+	/*
+	constexpr auto sizeOfPrelude = sizeof(MsgType) + sizeof(uint64_t) + 2 * sizeof(uint8_t);
+	assert(bufsize >= sizeOfPrelude);
+
+	// [0] MsgType    (1 B)
+	// [1] nMaterials (1 B)
+	// [2] nMeshes    (1 B)
+	// [3] materialIds (nMaterials * 4 B)
+	// [?] meshes      (nMeshes * 10 B)
+	const auto nMaterials = buffer[1];
+	const auto nMeshes = buffer[2];
+
+	model.nMaterials = nMaterials;
+	model.nMeshes = nMeshes;
+	//model.payload = new uint8_t[nMaterials * sizeof(StringId) + nMeshes * sizeof(shared::Mesh)];
+
+	memcpy(reinterpret_cast<void*>(model.payload), buffer + 11,
+			nMaterials * sizeof(StringId) + nMeshes * sizeof(shared::Mesh));
+
+	debug("received model:");
+	if (gDebugLv >= LOGLV_DEBUG) {
+		auto mats = reinterpret_cast<const StringId*>(model.payload);
+		for (unsigned i = 0; i < model.nMaterials; ++i)
+			debug("material ", mats[i]);
+
+		auto meshes = reinterpret_cast<const shared::Mesh*>(model.payload + nMaterials * sizeof(StringId));
+		for (unsigned i = 0; i < model.nMeshes; ++i) {
+			const auto& mesh = meshes[i];
+			debug("mesh { off = ", mesh.offset, ", len = ", mesh.len, ", mat = ", mesh.materialId, " }");
+		}
+	}*/
 
 	return true;
 }
@@ -374,26 +429,10 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 
 		case MsgType::RSRC_TYPE_TEXTURE: {
 
-			shared::Texture texture;
-			StringId texName;
-
-			if (!receiveTexture(socket, buffer, texture, texName)) {
+			if (!receiveTexture(socket, buffer.data(), buffer.size(), *resources)) {
 				err("Failed to receive texture.");
 				return false;
 			}
-			info("Received texture ", texName, ": ", texture.size, " B");
-			if (gDebugLv >= LOGLV_VERBOSE) {
-				dumpBytes(texture.data, texture.size);
-			}
-
-			// Save the texture in client resources
-			if (resources->textures.count(texName) > 0) {
-				warn("Received the same texture two times: ", texName);
-			} else {
-				resources->storeTexture(texName, texture);
-				info("Stored texture ", texName);
-			}
-			delete [] reinterpret_cast<uint8_t*>(texture.data);
 
 			// All green, send ACK
 			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
@@ -405,20 +444,9 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 
 		case MsgType::RSRC_TYPE_MATERIAL: {
 
-			debug("Material raw data: ");
-			dumpBytes(buffer.data(), buffer.size(), 50, LOGLV_DEBUG);
-
-			shared::Material material;
-			if (!receiveMaterial(buffer.data(), buffer.size(), material)) {
+			if (!receiveMaterial(buffer.data(), buffer.size(), *resources)) {
 				err("Failed to receive material");
 				return false;
-			}
-
-			if (resources->materials.count(material.name) > 0) {
-				warn("Received the same material two times: ", material.name);
-			} else {
-				resources->storeMaterial(material);
-				info("Stored material ", material.name);
 			}
 
 			// All green, send ACK
@@ -427,6 +455,15 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 				return false;
 			}
 
+		} break;
+
+		case MsgType::RSRC_TYPE_MODEL: {
+
+			shared::Model model;
+			if (!receiveModel(buffer.data(), buffer.size(), model)) {
+				err("Failed to receive model");
+				return false;
+			}
 		} break;
 
 		default:

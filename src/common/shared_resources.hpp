@@ -28,22 +28,44 @@ struct Texture {
 
 // The following structures are all sent directly through the network
 #pragma pack(push, 1)
+/** ResType should be one of the structs below */
 template <typename ResType>
-struct ResourceHeader {
+struct ResourcePacket {
 	MsgType type;
-	uint64_t size;
-	ResType head;
+	ResType res;
 };
 
-struct TextureHeader {
+struct TextureInfo {
 	StringId name;
 	TextureFormat format;
+	uint64_t size;
+	/** Follows payload: texture data */
 };
 
 struct Material {
 	StringId name;
 	StringId diffuseTex;
 	StringId specularTex;
+};
+
+/** A Mesh represents a group of indices into the parent model.
+ *  These indices all use the same material.
+ */
+struct Mesh {
+	/** Offset into the parent model's indices */
+	uint32_t offset;
+	/** Amount of indices */
+	uint32_t len;
+
+	// TODO material per face?
+	/** Index into parent model's materials. */
+	int16_t materialId = -1;
+};
+
+struct Model {
+	uint8_t nMaterials;
+	uint8_t nMeshes;
+	/** Follows payload: [materialIds (StringId) | meshes (shared::Mesh)] */
 };
 #pragma pack(pop)
 

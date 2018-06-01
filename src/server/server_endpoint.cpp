@@ -23,7 +23,7 @@
 
 using namespace logging;
 using namespace std::chrono_literals;
-using shared::ResourceHeader;
+using shared::ResourcePacket;
 
 /** Writes all possible vertices and indices, starting from `offset`-th byte,
  *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
@@ -346,18 +346,58 @@ void ServerReliableEndpoint::onClose() {
 
 static bool sendMaterial(socket_t clientSocket, const Material& material) {
 
-	ResourceHeader<shared::Material> packet;
+	ResourcePacket<shared::Material> packet;
 	packet.type = MsgType::RSRC_TYPE_MATERIAL;
-	packet.size = sizeof(packet); // we have no additional payload
-	packet.head.name = material.name;
-	packet.head.diffuseTex = material.diffuseTex.length() > 0 ? sid(material.diffuseTex) : SID_NONE;
-	packet.head.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
+	packet.res.name = material.name;
+	packet.res.diffuseTex = material.diffuseTex.length() > 0 ? sid(material.diffuseTex) : SID_NONE;
+	packet.res.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
 
-	info("packet: { type = ", packet.type, ", size = ", packet.size, ", name = ",
-		packet.head.name, " (", sidToString(packet.head.name), "), diffuse = ",
-		packet.head.diffuseTex, ", specular = ", packet.head.specularTex, " }");
+	info("packet: { type = ", packet.type, ", name = ",
+		packet.res.name, " (", sidToString(packet.res.name), "), diffuse = ",
+		packet.res.diffuseTex, ", specular = ", packet.res.specularTex, " }");
+
+	// We want to send this in a single packet. This is reasonable, as a packet should be at least
+	// ~400 bytes of size and a material only takes some 10s.
+	static_assert(sizeof(packet) <= cfg::PACKET_SIZE_BYTES, "One packet is too small to contain a material!");
 
 	return sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&packet), sizeof(packet));
+}
+
+static bool sendModel(socket_t clientSocket, const Model& model) {
+/*
+	// Prepare header
+	ResourcePacket<shared::Model> packet;
+	packet.type = MsgType::RSRC_TYPE_MODEL;
+	packet.res.nMaterials = model.materials.size();
+	packet.res.nMeshes = model.meshes.size();
+
+	header.res.name = texNameSid;
+	header.res.format = format;
+
+	info("Sending texture ", texName, " (", texNameSid, ")");
+
+	// Put header into packet
+	info("header: { type = ", header.type, ", size = ", header.size, ", name = ",
+			header.res.name, ", format = ", int(header.res.format), " }");
+	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
+
+	// Fill remaining space with payload
+	auto len = std::min(texture.size, packet.size() - sizeof(header));
+	memcpy(packet.data() + sizeof(header), texture.data, len);
+
+	if (!sendPacket(clientSocket, packet.data(), len + sizeof(header)))
+		return false;
+
+	std::size_t bytesSent = len;
+	// Send more packets with remaining payload if needed
+	while (bytesSent < texture.size) {
+		auto len = std::min(texture.size - bytesSent, cfg::PACKET_SIZE_BYTES);
+		if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(texture.data) + bytesSent, len))
+			return false;
+		bytesSent += len;
+	}
+*/
+	return true;
 }
 
 bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
@@ -378,12 +418,18 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 
 		const auto& model = modpair.second;
 
+		bool ok = sendModel(clientSocket, model);
+		if (!ok) {
+			err("Failed sending model");
+			return false;
+		}
+
 		info("model.materials = ", model.materials.size());
 		for (const auto& mat : model.materials) {
 
 			info("sending new material ", mat.name);
 
-			bool ok = sendMaterial(clientSocket, mat);
+			ok = sendMaterial(clientSocket, mat);
 			if (!ok) {
 				err("Failed sending material");
 				return false;
@@ -441,7 +487,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::string& texName,
 		shared::TextureFormat format)
 {
-	using shared::TextureHeader;
+	using shared::TextureInfo;
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
 
@@ -455,17 +501,17 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 	// Prepare header
 	const auto texNameSid = sid(texName);
 	const auto& texture = server.resources.textures[texNameSid];
-	ResourceHeader<TextureHeader> header;
+	ResourcePacket<TextureInfo> header;
 	header.type = MsgType::RSRC_TYPE_TEXTURE;
-	header.size = texture.size;
-	header.head.name = texNameSid;
-	header.head.format = format;
+	header.res.name = texNameSid;
+	header.res.format = format;
+	header.res.size = texture.size;
 
 	info("Sending texture ", texName, " (", texNameSid, ")");
 
 	// Put header into packet
-	info("header: { type = ", header.type, ", size = ", header.size, ", name = ",
-			header.head.name, ", format = ", int(header.head.format), " }");
+	info("texheader: { type = ", header.type, ", size = ", header.res.size, ", name = ",
+			header.res.name, ", format = ", int(header.res.format), " }");
 	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
 
 	// Fill remaining space with payload

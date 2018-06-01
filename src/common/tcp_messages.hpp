@@ -19,7 +19,11 @@ enum class MsgType : uint8_t {
 	/** The packet is part of a resource payload previously started */
 	//RSRC_CONT           = 0x09,
 	RSRC_TYPE_MATERIAL  = 0x0A,
-	END_RSRC_EXCHANGE   = 0x0B,
+	RSRC_TYPE_MODEL     = 0x0B,
+	END_RSRC_EXCHANGE   = 0x0C,
+	/** Tell client to start receiving UDP data */
+	START_STREAMING     = 0x20,
+	END_STREAMING       = 0x21,
 	UNKNOWN,
 };
 
@@ -35,7 +39,10 @@ inline std::ostream& operator<<(std::ostream& s, MsgType msg) {
 	case M::RSRC_EXCHANGE_ACK:   s << "RSRC_EXCHANGE_ACK"; break;
 	case M::RSRC_TYPE_TEXTURE:   s << "RSRC_TYPE_TEXTURE"; break;
 	case M::RSRC_TYPE_MATERIAL:  s << "RSRC_TYPE_MATERIAL"; break;
+	case M::RSRC_TYPE_MODEL:     s << "RSRC_TYPE_MODEL"; break;
 	case M::END_RSRC_EXCHANGE:   s << "END_RSRC_EXCHANGE"; break;
+	case M::START_STREAMING:     s << "START_STREAMING"; break;
+	case M::END_STREAMING:       s << "END_STREAMING"; break;
 	default:                     s << "UNKNOWN"; break;
 	}
 	return s;
