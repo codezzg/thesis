@@ -24,6 +24,8 @@ struct Material {
  * This structure only stores the information, not the data itself.
  */
 struct Model {
+	StringId name = SID_NONE;
+
 	/** Unowning pointer to the model's vertices */
 	Vertex *vertices = nullptr;
 	/** Unowning pointer to the model's indices */

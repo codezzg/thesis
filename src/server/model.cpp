@@ -90,6 +90,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 		model.meshes.emplace_back(mesh);
 	}
 
+	model.name = sid(modelPath);
 	model.vertices = reinterpret_cast<Vertex*>(buffer);
 	model.indices = reinterpret_cast<Index*>(reinterpret_cast<uint8_t*>(buffer)
 					+ sizeof(Vertex) * model.nVertices);

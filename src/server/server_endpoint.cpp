@@ -364,46 +364,56 @@ static bool sendMaterial(socket_t clientSocket, const Material& material) {
 }
 
 static bool sendModel(socket_t clientSocket, const Model& model) {
-/*
+
+	info("Sending model ", model.name, " (", sidToString(model.name), ")");
+
+	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
+
 	// Prepare header
-	ResourcePacket<shared::Model> packet;
-	packet.type = MsgType::RSRC_TYPE_MODEL;
-	packet.res.nMaterials = model.materials.size();
-	packet.res.nMeshes = model.meshes.size();
+	ResourcePacket<shared::Model> header;
+	header.type = MsgType::RSRC_TYPE_MODEL;
+	header.res.name = model.name;
+	header.res.nMaterials = model.materials.size();
+	header.res.nMeshes = model.meshes.size();
 
-	header.res.name = texNameSid;
-	header.res.format = format;
-
-	info("Sending texture ", texName, " (", texNameSid, ")");
-
-	// Put header into packet
-	info("header: { type = ", header.type, ", size = ", header.size, ", name = ",
-			header.res.name, ", format = ", int(header.res.format), " }");
+	// Put header into header
+	info("header: { type = ", header.type, ", name = ", header.res.name,
+			", nMaterials = ", int(header.res.nMaterials),
+			", nMeshes = ", int(header.res.nMeshes), " }");
 	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
 
-	// Fill remaining space with payload
-	auto len = std::min(texture.size, packet.size() - sizeof(header));
-	memcpy(packet.data() + sizeof(header), texture.data, len);
+	const auto matSize = header.res.nMaterials * sizeof(StringId);
+	const auto meshSize = header.res.nMeshes * sizeof(shared::Mesh);
+	const auto size = matSize + meshSize;
+
+	// Fill remaining space with payload (materials | meshes)
+	std::vector<uint8_t> payload(size);
+	memcpy(payload.data(), model.materials.data(), matSize);
+	memcpy(payload.data() + matSize, model.meshes.data(), meshSize);
+
+	auto len = std::min(size, packet.size() - sizeof(header));
+	memcpy(packet.data() + sizeof(header), payload.data(), len);
 
 	if (!sendPacket(clientSocket, packet.data(), len + sizeof(header)))
 		return false;
 
 	std::size_t bytesSent = len;
 	// Send more packets with remaining payload if needed
-	while (bytesSent < texture.size) {
-		auto len = std::min(texture.size - bytesSent, cfg::PACKET_SIZE_BYTES);
-		if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(texture.data) + bytesSent, len))
+	while (bytesSent < size) {
+		auto len = std::min(size - bytesSent, cfg::PACKET_SIZE_BYTES);
+		if (!sendPacket(clientSocket, reinterpret_cast<uint8_t*>(payload.data()) + bytesSent, len))
 			return false;
 		bytesSent += len;
 	}
-*/
+
 	return true;
 }
 
 bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 
-	/* Send all materials (which are basically maps (mat id) => { (diffuse): tex id, (specular): tex id, ... })
-	 * and all textures data.
+	/* Send all models info,
+	 * materials (which are basically maps (mat id) => { (diffuse): tex id, (specular): tex id, ... })
+	 * and textures data.
 	 */
 
 	std::array<uint8_t, 1> packet = {};
@@ -421,6 +431,11 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 		bool ok = sendModel(clientSocket, model);
 		if (!ok) {
 			err("Failed sending model");
+			return false;
+		}
+		ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+		if (!ok) {
+			warn("Not received RSRC_EXCHANGE_ACK!");
 			return false;
 		}
 

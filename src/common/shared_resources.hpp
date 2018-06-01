@@ -63,6 +63,7 @@ struct Mesh {
 };
 
 struct Model {
+	StringId name;
 	uint8_t nMaterials;
 	uint8_t nMeshes;
 	/** Follows payload: [materialIds (StringId) | meshes (shared::Mesh)] */

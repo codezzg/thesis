@@ -6,6 +6,7 @@
 #include "stack_allocator.hpp"
 #include "shared_resources.hpp"
 #include "hashing.hpp"
+#include "models.hpp"
 
 /** This class provides a RAII facility to store resources.
  *  Memory used by this class is owned and allocated by this own class.
@@ -26,6 +27,7 @@ public:
 
 	std::unordered_map<StringId, shared::Texture> textures;
 	std::unordered_map<StringId, shared::Material> materials;
+	std::unordered_map<StringId, ModelInfo> models;
 
 	explicit ClientTmpResources(std::size_t size)
 		: memory(size)
