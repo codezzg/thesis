@@ -27,8 +27,8 @@ Model loadModel(const char *modelPath, void *buffer) {
 
 	warn("Using STABLE tinyobj_loader");
 	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath,
-		(xplatDirname(modelPath) + "/").c_str(), // mtl base path
-		true))                                   // triangulate
+		xplatDirname(modelPath).c_str(), // mtl base path
+		true))                           // triangulate
 	{
 		logging::err(err);
 		return model;
