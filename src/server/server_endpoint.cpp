@@ -390,7 +390,7 @@ static bool sendModel(socket_t clientSocket, const Model& model) {
 	std::vector<uint8_t> payload(size);
 	for (unsigned i = 0; i < model.materials.size(); ++i) {
 		// For materials we just copy the name
-		*(reinterpret_cast<StringId*>(payload.data()) + i) = model.materials[i].name;
+		reinterpret_cast<StringId*>(payload.data())[i] = model.materials[i].name;
 	}
 	memcpy(payload.data() + matSize, model.meshes.data(), meshSize);
 

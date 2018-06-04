@@ -49,6 +49,7 @@
 #include "pipelines.hpp"
 #include "multipass.hpp"
 #include "shared_resources.hpp"
+#include "defer.hpp"
 
 // Fuck off, Windows
 #undef max
@@ -111,8 +112,7 @@ private:
 	// Single buffer to contain all uniform buffer objects needed
 	CombinedUniformBuffers uniformBuffers;
 
-	Image texDiffuseImage;
-	Image texSpecularImage;
+	NetworkResources netRsrc;
 	VkSampler texSampler;
 
 	/** Pointer to the memory area staging vertices and indices coming from the server */
@@ -153,8 +153,8 @@ private:
 					app.res.descriptorSetLayouts->get("multi")));
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app);
-		app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app,
-				uniformBuffers, texDiffuseImage, texSpecularImage, texSampler));
+		app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, uniformBuffers,
+					netRsrc.defaults.diffuseTex, netRsrc.defaults.specularTex, texSampler));
 
 		recordAllCommandBuffers();
 
@@ -186,7 +186,7 @@ private:
 					app.res.descriptorSetLayouts->get("swap")));
 		app.swapChain.pipeline = createSwapChainDebugPipeline(app);
 		app.res.descriptorSets->add("swap", createSwapChainDebugDescriptorSet(app,
-				uniformBuffers, texDiffuseImage, texSampler));
+				uniformBuffers, netRsrc.defaults.diffuseTex, texSampler));
 
 		recordAllCommandBuffers();
 
@@ -287,28 +287,37 @@ private:
 		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
 
 		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
+		DEFER([&] () {
+			unmapBuffersMemory(app.device, { stagingBuffer });
+			destroyBuffer(app.device, stagingBuffer);
+		});
 
 		// Load textures (TODO: use correct materials)
 		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
 
 		TextureLoader texLoader{ stagingBuffer };
+		// Create default textures
+		texLoader.addTexture(netRsrc.defaults.diffuseTex,
+				"textures/default.jpg", shared::TextureFormat::RGBA);
+		texLoader.addTexture(netRsrc.defaults.specularTex,
+				"textures/default.jpg", shared::TextureFormat::GREY);
 		if (tex.size() == 0) {
-			// received no textures from the server: use default ones
 			warn("Received no textures: using default ones.");
-			texLoader.addTexture(texDiffuseImage, "textures/chalet.jpg", shared::TextureFormat::RGBA);
-			texLoader.addTexture(texSpecularImage, "textures/chalet.jpg", shared::TextureFormat::GREY);
-		}
-		else {
-			texLoader.addTexture(texDiffuseImage, (tex.begin())->second);
-			texLoader.addTexture(texSpecularImage, (++tex.begin())->second);
+		} else {
+			for (const auto& pair : resources.textures) {
+				if (pair.first == SID_NONE) continue;
+				texLoader.addTexture(netRsrc.textures[pair.first], pair.second);
+			}
 		}
 		texLoader.create(app);
 		texSampler = createTextureSampler(app);
 
-		prepareBufferMemory(stagingBuffer);
+		// Prepare materials
+		for (const auto& pair : resources.materials) {
+			netRsrc.materials[pair.first] = createMaterial(pair.second, netRsrc);
+		}
 
-		unmapBuffersMemory(app.device, { stagingBuffer });
-		destroyBuffer(app.device, stagingBuffer);
+		prepareBufferMemory(stagingBuffer);
 	}
 
 	void mainLoop(const char *serverIp) {
@@ -397,7 +406,8 @@ private:
 
 		// Copy received data into the streaming buffer
 		PayloadHeader phead;
-		passiveEP.retreive(phead, reinterpret_cast<Vertex*>(vertexBuffer.ptr), reinterpret_cast<Index*>(indexBuffer.ptr));
+		passiveEP.retreive(phead, reinterpret_cast<Vertex*>(vertexBuffer.ptr),
+				reinterpret_cast<Index*>(indexBuffer.ptr));
 
 		// streamingBufferData now contains [vertices|indices]
 		nVertices = phead.nVertices;
@@ -457,8 +467,8 @@ private:
 
 			VLKCHECK(vkFreeDescriptorSets(app.device, app.descriptorPool, 1,
 					&app.res.descriptorSets->get("multi")));
-			app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app,
-					uniformBuffers, texDiffuseImage, texSpecularImage, texSampler));
+			app.res.descriptorSets->add("multi", createMultipassDescriptorSet(app, uniformBuffers,
+					netRsrc.defaults.diffuseTex, netRsrc.defaults.specularTex, texSampler));
 
 			app.gBuffer.pipeline = createGBufferPipeline(app);
 			app.swapChain.pipeline = createSwapChainPipeline(app);
@@ -719,7 +729,15 @@ private:
 		});
 
 		vkDestroySampler(app.device, texSampler, nullptr);
-		destroyAllImages(app.device, { texDiffuseImage, texSpecularImage });
+		{
+			std::vector<Image> imagesToDestroy;
+			imagesToDestroy.reserve(2 + netRsrc.textures.size());
+			imagesToDestroy.emplace_back(netRsrc.defaults.diffuseTex);
+			imagesToDestroy.emplace_back(netRsrc.defaults.specularTex);
+			for (const auto& tex : netRsrc.textures)
+				imagesToDestroy.emplace_back(tex.second);
+			destroyAllImages(app.device, imagesToDestroy);
+		}
 
 		destroyAllBuffers(app.device, {
 			uniformBuffers,

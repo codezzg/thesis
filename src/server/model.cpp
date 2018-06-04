@@ -25,7 +25,6 @@ Model loadModel(const char *modelPath, void *buffer) {
 
 	const auto load_t_begin = std::chrono::high_resolution_clock::now();
 
-	warn("Using STABLE tinyobj_loader");
 	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath,
 		xplatDirname(modelPath).c_str(), // mtl base path
 		true))                           // triangulate
@@ -79,7 +78,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 			if (uniqueVertices.count(vertex) == 0) {
 				// This vertex is new: insert new index
 				uniqueVertices[vertex] = model.nVertices;
-				*(reinterpret_cast<Vertex*>(buffer) + model.nVertices) = vertex;
+				reinterpret_cast<Vertex*>(buffer)[model.nVertices] = vertex;
 				model.nVertices++;
 			}
 
