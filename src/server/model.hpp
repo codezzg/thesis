@@ -45,8 +45,12 @@ struct Model {
 		std::stringstream ss;
 		ss << "n vertices = " << nVertices << ", n indices = " << nIndices << "\n"
 			<< "size: " << size() << " bytes\n"
-			<< "# materials: " << materials.size() << "\n"
-			<< "# meshes: " << meshes.size() << "\n";
+			<< "# materials: " << materials.size() << "\n";
+		for (const auto& mat : materials) {
+			ss << "mat { name = " << mat.name << ", diff = " << mat.diffuseTex
+				<< ", spec = " << mat.specularTex << " }\n";
+		}
+		ss << "# meshes: " << meshes.size() << "\n";
 		for (const auto& mesh : meshes) {
 			ss << "mesh { off = " << mesh.offset << ", len = "
 				<< mesh.len << ", mat = " << mesh.materialId << " }\n";

@@ -376,7 +376,7 @@ static bool sendModel(socket_t clientSocket, const Model& model) {
 	header.res.nMaterials = model.materials.size();
 	header.res.nMeshes = model.meshes.size();
 
-	// Put header into header
+	// Put header into packet
 	info("header: { type = ", header.type, ", name = ", header.res.name,
 			", nMaterials = ", int(header.res.nMaterials),
 			", nMeshes = ", int(header.res.nMeshes), " }");
@@ -388,7 +388,10 @@ static bool sendModel(socket_t clientSocket, const Model& model) {
 
 	// Fill remaining space with payload (materials | meshes)
 	std::vector<uint8_t> payload(size);
-	memcpy(payload.data(), model.materials.data(), matSize);
+	for (unsigned i = 0; i < model.materials.size(); ++i) {
+		// For materials we just copy the name
+		*(reinterpret_cast<StringId*>(payload.data()) + i) = model.materials[i].name;
+	}
 	memcpy(payload.data() + matSize, model.meshes.data(), meshSize);
 
 	auto len = std::min(size, packet.size() - sizeof(header));

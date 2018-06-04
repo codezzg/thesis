@@ -72,7 +72,7 @@ public:
 		app.init();
 
 		glfwSetWindowUserPointer(app.window, this);
-		glfwSetWindowSizeCallback(app.window, onWindowResized);
+		//glfwSetWindowSizeCallback(app.window, onWindowResized);
 		if (gUseCamera) {
 			glfwSetInputMode(app.window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 			glfwSetCursorPosCallback(app.window, cursorPosCallback);
@@ -195,34 +195,6 @@ private:
 		prepareCamera();
 	}
 
-	void loadAssets(const ClientTmpResources& resources) {
-		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
-
-		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
-
-		// Load textures (TODO: use correct materials)
-		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
-
-		TextureLoader texLoader{ stagingBuffer };
-		if (tex.size() == 0) {
-			// received no textures from the server: use default ones
-			warn("Received no textures: using default ones.");
-			texLoader.addTexture(texDiffuseImage, "textures/chalet.jpg", shared::TextureFormat::RGBA);
-			texLoader.addTexture(texSpecularImage, "textures/chalet.jpg", shared::TextureFormat::GREY);
-		}
-		else {
-			texLoader.addTexture(texDiffuseImage, (tex.begin())->second);
-			texLoader.addTexture(texSpecularImage, (++tex.begin())->second);
-		}
-		texLoader.create(app);
-		texSampler = createTextureSampler(app);
-
-		prepareBufferMemory(stagingBuffer);
-
-		unmapBuffersMemory(app.device, { stagingBuffer });
-		destroyBuffer(app.device, stagingBuffer);
-	}
-
 	void startNetwork(const char *serverIp) {
 		passiveEP.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		passiveEP.runLoop();
@@ -252,7 +224,8 @@ private:
 				throw std::runtime_error("Failed to receive the one-time data!");
 			}
 
-			info("resources.textures.size = ", resources.textures.size());
+			checkAssets(resources);
+
 			// Process the received data
 			loadAssets(resources);
 
@@ -268,6 +241,74 @@ private:
 		info("Received READY.");
 
 		// Ready to start the main loop
+	}
+
+	/** Check we received all the resources needed by all models */
+	void checkAssets(const ClientTmpResources& resources) {
+
+		// Collect textures ids into a set (so we can use set_difference later)
+		std::set<StringId> textureSet;
+		for (const auto& pair : resources.textures)
+			textureSet.emplace(pair.first);
+
+		for (const auto& pair : resources.models) {
+			const auto& model = pair.second;
+
+			std::set<StringId> neededTextureSet;
+
+			// Check materials, and gather needed textures information in the meantime
+			for (const auto& mat : model.materials) {
+				if (mat == SID_NONE) continue;
+				auto it = resources.materials.find(mat);
+				if (it != resources.materials.end()) {
+					const auto& mat = it->second;
+					neededTextureSet.emplace(mat.diffuseTex);
+					neededTextureSet.emplace(mat.specularTex);
+				} else {
+					warn("Material ", mat, " is needed by model ",
+							model.name, " but was not received!");
+				}
+			}
+
+			neededTextureSet.erase(SID_NONE);
+
+			// Find if we're missing some textures
+			std::set<StringId> diffTextureSet;
+			std::set_difference(neededTextureSet.begin(), neededTextureSet.end(),
+					textureSet.begin(), textureSet.end(),
+					std::inserter(diffTextureSet, diffTextureSet.begin()));
+
+			for (const auto& tex : diffTextureSet)
+				warn("Texture ", tex, " is needed by model ", model.name, " but was not received!");
+		}
+	}
+
+	void loadAssets(const ClientTmpResources& resources) {
+		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
+
+		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
+
+		// Load textures (TODO: use correct materials)
+		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
+
+		TextureLoader texLoader{ stagingBuffer };
+		if (tex.size() == 0) {
+			// received no textures from the server: use default ones
+			warn("Received no textures: using default ones.");
+			texLoader.addTexture(texDiffuseImage, "textures/chalet.jpg", shared::TextureFormat::RGBA);
+			texLoader.addTexture(texSpecularImage, "textures/chalet.jpg", shared::TextureFormat::GREY);
+		}
+		else {
+			texLoader.addTexture(texDiffuseImage, (tex.begin())->second);
+			texLoader.addTexture(texSpecularImage, (++tex.begin())->second);
+		}
+		texLoader.create(app);
+		texSampler = createTextureSampler(app);
+
+		prepareBufferMemory(stagingBuffer);
+
+		unmapBuffersMemory(app.device, { stagingBuffer });
+		destroyBuffer(app.device, stagingBuffer);
 	}
 
 	void mainLoop(const char *serverIp) {
