@@ -300,7 +300,7 @@ private:
 		texLoader.addTexture(netRsrc.defaults.diffuseTex,
 				"textures/default.jpg", shared::TextureFormat::RGBA);
 		texLoader.addTexture(netRsrc.defaults.specularTex,
-				"textures/default.jpg", shared::TextureFormat::GREY);
+				"textures/default_spec.jpg", shared::TextureFormat::GREY);
 		if (tex.size() == 0) {
 			warn("Received no textures: using default ones.");
 		} else {

@@ -96,7 +96,7 @@ Buffer createBuffer(
 Buffer createStagingBuffer(const Application& app, VkDeviceSize size);
 
 void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image, 
+void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image,
 		uint32_t width, uint32_t height, VkDeviceSize bufOffset = 0);
 
 void destroyBuffer(VkDevice device, Buffer& buffer);
@@ -107,10 +107,10 @@ void destroyBuffer(VkDevice device, Buffer& buffer);
 void destroyAllBuffers(VkDevice device, const std::vector<Buffer>& buffers);
 
 /** Given the `buffers`, maps them to host memory in a proper way (i.e. maps each memory only once).
- *  - buffers must have already been created and bound to memory 
- *  - buffers must have the HOST_COHERENT bit set 
+ *  - buffers must have already been created and bound to memory
+ *  - buffers must have the HOST_COHERENT bit set
  */
-void mapBuffersMemory(VkDevice device, 
+void mapBuffersMemory(VkDevice device,
 		/* inout */ const std::vector<Buffer*>& buffers);
 
 /** Does the opposite of `mapBuffersMemory` */
@@ -121,5 +121,6 @@ BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties();
 
 /** Fills `screenQuadBuf` with vertex data using `stagingBuf` as a staging buffer.
  *  Both of the buffers must already be valid.
+ *  (Note: the staging buffer is needed because it's host-mapped, while screenQuadBuf isn't.)
  */
 void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf);

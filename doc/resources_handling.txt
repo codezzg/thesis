@@ -1,0 +1,41 @@
+### Server side ###
+
+The server starts up, allocates a big chunk of memory, then splits it into its various
+subsystems.
+
+More precisely, it reserves the first 2/3 of its memory for storing resources (models,
+textures, etc) and the last 1/3 for the temporary buffer used by its active endpoint
+to operate on UDP geometry data.
+
+Then the server loads the models into memory. Models are parsed from obj into the structs
+found in model.hpp (which include materials and meshes info).
+Textures are NOT loaded at this time.
+
+When the client connects, the server loads the actual textures into memory, one at a time,
+then discards them.
+It goes like this:
+	- for each texture needed by the models:
+		- server loads the texture into memory
+		- server sends the texture to client
+		- server deallocates the texture
+
+### Client side ###
+
+The client connects to the server, performs its handshake, then prepares a temporary
+buffer to stage incoming server TCP data.
+
+After the server sends all the data, the client processes it to convert the received
+resources from their network representation to the client Vulkan representation.
+The staging buffer is deallocated after the processing completes.
+
+The resources processing is carried out by VulkanClient::loadAssets.
+Another staging buffer is allocated here: this will serve as the backing memory for
+the assets conversion (e.g. texture loading, buffer allocation, etc)
+
+Textures are loaded from the raw image data received from the server and stored in
+NetworkResources::textures.
+
+Materials are created and linked to the respective textures; then, one descriptor set
+per material is created.
+
+Buffers for vertices, indices and uniforms are allocated at this point.
