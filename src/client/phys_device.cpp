@@ -1,11 +1,9 @@
 #include "phys_device.hpp"
-#include <unordered_set>
-#include "vulk_utils.hpp"
 #include "vulk_errors.hpp"
+#include "vulk_utils.hpp"
+#include <unordered_set>
 
-const std::vector<const char*> gDeviceExtensions = {
-	VK_KHR_SWAPCHAIN_EXTENSION_NAME
-};
+const std::vector<const char*> gDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
 	QueueFamilyIndices indices;
@@ -47,7 +45,8 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSur
 
 	if (formatCount != 0) {
 		details.formats.resize(formatCount);
-		VLKCHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, details.formats.data()));
+		VLKCHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+		        physDevice, surface, &formatCount, details.formats.data()));
 	}
 
 	uint32_t presentModeCount;
@@ -55,8 +54,8 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSur
 
 	if (presentModeCount != 0) {
 		details.presentModes.resize(presentModeCount);
-		VLKCHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface,
-				&presentModeCount, details.presentModes.data()));
+		VLKCHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+		        physDevice, surface, &presentModeCount, details.presentModes.data()));
 	}
 
 	return details;
@@ -76,8 +75,7 @@ bool isDeviceSuitable(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
 	VkPhysicalDeviceFeatures supportedFeatures;
 	vkGetPhysicalDeviceFeatures(physDevice, &supportedFeatures);
 
-	return indices.isComplete() && extensionsSupported &&
-		swapChainAdequate && supportedFeatures.samplerAnisotropy;
+	return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
 bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
@@ -85,7 +83,8 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
 	VLKCHECK(vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, nullptr));
 
 	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-	VLKCHECK(vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, availableExtensions.data()));
+	VLKCHECK(
+	        vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, availableExtensions.data()));
 
 	std::unordered_set<std::string> requiredExtensions(gDeviceExtensions.begin(), gDeviceExtensions.end());
 

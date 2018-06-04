@@ -9,11 +9,7 @@
 
 namespace shared {
 
-enum class TextureFormat : uint8_t {
-	RGBA,
-	GREY,
-	UNKNOWN
-};
+enum class TextureFormat : uint8_t { RGBA, GREY, UNKNOWN };
 
 /** Texture information. Note that this structure is only used to *store*
  *  that information, and is NOT sent directly
@@ -22,7 +18,7 @@ enum class TextureFormat : uint8_t {
  */
 struct Texture {
 	uint64_t size = 0;
-	void *data = nullptr;
+	void* data = nullptr;
 	TextureFormat format;
 };
 
@@ -70,4 +66,4 @@ struct Model {
 };
 #pragma pack(pop)
 
-} // end namespace shared
+}   // end namespace shared

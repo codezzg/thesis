@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <vector>
 #include <unordered_map>
+#include <vector>
+#include <vulkan/vulkan.h>
 
 #ifndef NDEBUG
 class MemoryMonitor final {

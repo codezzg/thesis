@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include "logging.hpp"
+#include <vector>
 
 /** This class manages an externally provided memory buffer as a stack allocator.
  *  It does not perform any actual memory allocation or free, it merely gives back the
@@ -9,7 +9,7 @@
  */
 class StackAllocator final {
 
-	uint8_t *const mem;
+	uint8_t* const mem;
 	std::size_t used = 0;
 	/** Sizes of the allocations made so far */
 	std::vector<std::size_t> allocations;
@@ -17,10 +17,9 @@ class StackAllocator final {
 public:
 	const std::size_t capacity;
 
-	explicit StackAllocator(uint8_t *buffer, std::size_t bufsize)
-		: mem{ buffer }
-		, capacity{ bufsize }
-	{}
+	explicit StackAllocator(uint8_t* buffer, std::size_t bufsize)
+	        : mem{ buffer }
+	        , capacity{ bufsize } {}
 
 	template <typename T>
 	T* alloc() {
@@ -36,8 +35,15 @@ public:
 		auto ptr = mem + used;
 		used += size;
 		allocations.emplace_back(size);
-		logging::debug("Allocating. # allocs so far: ", allocations.size(),
-				" (used: ", used, " / ", capacity, " [", float(used) / capacity * 100, "%])");
+		logging::debug("Allocating. # allocs so far: ",
+		        allocations.size(),
+		        " (used: ",
+		        used,
+		        " / ",
+		        capacity,
+		        " [",
+		        float(used) / capacity * 100,
+		        "%])");
 
 		return ptr;
 	}
@@ -45,7 +51,7 @@ public:
 	/** Allocates all the remaining memory. If `size` is not null, it's filled with the
 	 *  size of the allocation.
 	 */
-	void* allocAll(std::size_t *size = nullptr) {
+	void* allocAll(std::size_t* size = nullptr) {
 		if (size != nullptr)
 			*size = capacity - used;
 
@@ -60,8 +66,15 @@ public:
 
 		used -= allocations.back();
 		allocations.pop_back();
-		logging::debug("Deallocating. # allocs so far: ", allocations.size(),
-				" (used: ", used, " / ", capacity, " [", float(used) / capacity * 100, "%])");
+		logging::debug("Deallocating. # allocs so far: ",
+		        allocations.size(),
+		        " (used: ",
+		        used,
+		        " / ",
+		        capacity,
+		        " [",
+		        float(used) / capacity * 100,
+		        "%])");
 	}
 
 	void deallocAll() {

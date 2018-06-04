@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cassert>
-#include <unordered_map>
-#include "model.hpp"
-#include "utils.hpp"
 #include "hashing.hpp"
 #include "logging.hpp"
+#include "model.hpp"
 #include "shared_resources.hpp"
 #include "stack_allocator.hpp"
+#include "utils.hpp"
+#include <cassert>
+#include <unordered_map>
 
 /** This class manages the portion of server memory which stores resources, such as
  *  models and textures. Resources can have different lifespans: models are long-lived
@@ -20,7 +20,7 @@
 class ServerResources final {
 
 	/** Server memory, owned externally */
-	uint8_t *const memory = nullptr;
+	uint8_t* const memory = nullptr;
 	const std::size_t memsize = 0;
 
 public:
@@ -34,21 +34,19 @@ public:
 	std::unordered_map<StringId, Model> models;
 	std::unordered_map<StringId, shared::Texture> textures;
 
-
 	/** `memory` is a pointer into a valid buffer. The buffer should be large enough to contain all
 	 *  resources and should not be manipulated by other than this class.
 	 *  The buffer is freed externally, not by this class.
 	 */
-	explicit ServerResources(uint8_t *memory, std::size_t memsize)
-		: memory{ memory }
-		, memsize{ memsize }
-		, allocator{ memory, memsize }
-	{}
+	explicit ServerResources(uint8_t* memory, std::size_t memsize)
+	        : memory{ memory }
+	        , memsize{ memsize }
+	        , allocator{ memory, memsize } {}
 
 	/** Loads a model from `file` into `memory` and stores its info in `models`.
 	 *  @return The loaded Model information.
 	 */
-	Model loadModel(const char *file) {
+	Model loadModel(const char* file) {
 		const auto fileSid = sid(file);
 		if (models.count(fileSid) > 0) {
 			logging::warn("Tried to load model ", file, " which is already loaded!");
@@ -71,7 +69,7 @@ public:
 	 *  Does NOT set the texture format (in fact, it sets it to UNKNOWN)
 	 *  @return The loaded Texture information
 	 */
-	shared::Texture loadTexture(const char *file) {
+	shared::Texture loadTexture(const char* file) {
 		const auto fileSid = sid(file);
 		if (textures.count(fileSid) > 0) {
 			logging::warn("Tried to load texture ", file, " which is already loaded!");

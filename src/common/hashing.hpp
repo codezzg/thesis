@@ -1,10 +1,10 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <string>
-#include <cassert>
 #ifndef NDEBUG
-	#include <unordered_map>
+#	include <unordered_map>
 #endif
 
 using StringId = uint32_t;
@@ -29,7 +29,7 @@ constexpr uint32_t fnv1_hash(const char* buffer) {
 	return result;
 }
 
-} // end namespace hashing
+}   // end namespace hashing
 
 #ifndef NDEBUG
 
@@ -44,8 +44,8 @@ public:
 
 		// If key is already in the map, the value must be the same
 		if (it->second != value) {
-			throw std::invalid_argument("Two strings match the same StringId: '" + it->second
-				+ "'" + " and '" + value + "' !!!");
+			throw std::invalid_argument("Two strings match the same StringId: '" + it->second + "'" +
+			                            " and '" + value + "' !!!");
 		}
 	}
 };
@@ -56,7 +56,7 @@ extern StringIdMap stringDb;
 #endif
 
 #ifdef NDEBUG
-constexpr StringId sid(const char *buf) {
+constexpr StringId sid(const char* buf) {
 	return hashing::fnv1_hash(buf);
 }
 
@@ -68,7 +68,7 @@ inline std::string sidToString(StringId id) {
 	return std::to_string(static_cast<uint32_t>(id));
 }
 #else
-inline StringId sid(const char *buf) {
+inline StringId sid(const char* buf) {
 	const auto h = hashing::fnv1_hash(buf);
 	stringDb.addUnique(h, std::string{ buf });
 	return h;

@@ -1,16 +1,15 @@
 #include "swap.hpp"
-#include <limits>
-#include <algorithm>
-#include <array>
-#include "buffers.hpp"
 #include "application.hpp"
+#include "buffers.hpp"
+#include "images.hpp"
 #include "phys_device.hpp"
 #include "shaders.hpp"
 #include "vertex.hpp"
 #include "vulk_errors.hpp"
-#include "images.hpp"
-#include "buffers.hpp"
+#include <algorithm>
+#include <array>
 #include <iostream>
+#include <limits>
 
 // Windows, really...
 #undef max
@@ -23,8 +22,8 @@ static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFor
 	if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
 		return { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
 	for (const auto& availableFormat : availableFormats) {
-		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM
-				&& availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
+		        availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 			return availableFormat;
 	}
 
@@ -44,7 +43,7 @@ static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR
 	return bestMode;
 }
 
-static VkExtent2D chooseSwapExtent(GLFWwindow *window, const VkSurfaceCapabilitiesKHR& capabilities) {
+static VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities) {
 	if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
 		return capabilities.currentExtent;
 	else {
@@ -52,21 +51,19 @@ static VkExtent2D chooseSwapExtent(GLFWwindow *window, const VkSurfaceCapabiliti
 		glfwGetWindowSize(window, &width, &height);
 		VkExtent2D actualExtent = { uint32_t(width), uint32_t(height) };
 		actualExtent.width = std::max(capabilities.minImageExtent.width,
-						std::min(capabilities.maxImageExtent.width, actualExtent.width));
+		        std::min(capabilities.maxImageExtent.width, actualExtent.width));
 		actualExtent.height = std::max(capabilities.minImageExtent.height,
-						std::min(capabilities.maxImageExtent.height, actualExtent.height));
+		        std::min(capabilities.maxImageExtent.height, actualExtent.height));
 		return actualExtent;
 	}
 }
 
 static VkCompositeAlphaFlagBitsKHR chooseCompositeAlphaMode(const SwapChainSupportDetails& support) {
 	auto cAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	const std::array<VkCompositeAlphaFlagBitsKHR, 4> flags = {
-		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+	const std::array<VkCompositeAlphaFlagBitsKHR, 4> flags = { VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
 		VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
-		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR
-	};
+		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR };
 	for (auto mode : flags)
 		if (support.capabilities.supportedCompositeAlpha & mode)
 			return mode;
@@ -80,7 +77,7 @@ void SwapChain::destroyTransient(VkDevice device) {
 	for (auto imageView : imageViews)
 		vkDestroyImageView(device, imageView, nullptr);
 
-	//vkDestroyImageView(device, depthOnlyView, nullptr);
+	// vkDestroyImageView(device, depthOnlyView, nullptr);
 	destroyImage(device, depthImage);
 
 	vkDestroySwapchainKHR(device, handle, nullptr);
@@ -96,8 +93,7 @@ SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain) {
 
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 	if (swapChainSupport.capabilities.maxImageCount > 0 &&
-			swapChainSupport.capabilities.maxImageCount < imageCount)
-	{
+	        swapChainSupport.capabilities.maxImageCount < imageCount) {
 		imageCount = swapChainSupport.capabilities.maxImageCount;
 	}
 
@@ -119,10 +115,8 @@ SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain) {
 		createInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 	auto indices = findQueueFamilies(app.physicalDevice, app.surface);
-	const std::array<uint32_t, 2> queueFamilyIndices = {
-		static_cast<uint32_t>(indices.graphicsFamily),
-		static_cast<uint32_t>(indices.presentFamily)
-	};
+	const std::array<uint32_t, 2> queueFamilyIndices = { static_cast<uint32_t>(indices.graphicsFamily),
+		static_cast<uint32_t>(indices.presentFamily) };
 
 	if (indices.graphicsFamily != indices.presentFamily) {
 		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
@@ -156,8 +150,8 @@ std::vector<VkImageView> createSwapChainImageViews(const Application& app, const
 	std::vector<VkImageView> imageViews{ swapChain.images.size() };
 
 	for (std::size_t i = 0; i < swapChain.images.size(); ++i) {
-		imageViews[i] = createImageView(app,
-			swapChain.images[i], swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		imageViews[i] =
+		        createImageView(app, swapChain.images[i], swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
 
 	return imageViews;
@@ -220,9 +214,12 @@ std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Applicatio
 
 bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore, uint32_t& index) {
 	uint32_t imageIndex;
-	const auto result = vkAcquireNextImageKHR(app.device, app.swapChain.handle,
-			std::numeric_limits<uint64_t>::max(),
-			imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+	const auto result = vkAcquireNextImageKHR(app.device,
+	        app.swapChain.handle,
+	        std::numeric_limits<uint64_t>::max(),
+	        imageAvailableSemaphore,
+	        VK_NULL_HANDLE,
+	        &imageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 		return false;
@@ -266,10 +263,8 @@ VkPipeline createSwapChainPipeline(const Application& app) {
 	fragShaderStageInfo.module = fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
-	const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
-		vertShaderStageInfo,
-		fragShaderStageInfo
-	};
+	const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = { vertShaderStageInfo,
+		fragShaderStageInfo };
 
 	// Configure fixed pipeline
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
@@ -295,7 +290,7 @@ VkPipeline createSwapChainPipeline(const Application& app) {
 	viewport.maxDepth = 1.f;
 
 	VkRect2D scissor = {};
-	scissor.offset = {0, 0};
+	scissor.offset = { 0, 0 };
 	scissor.extent = app.swapChain.extent;
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
@@ -321,8 +316,8 @@ VkPipeline createSwapChainPipeline(const Application& app) {
 	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
-	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
-					| VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+	                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendAttachmentState.blendEnable = VK_FALSE;
 	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
 	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -392,14 +387,11 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 	texLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	const std::array<VkDescriptorSetLayoutBinding, 2> bindings = {
-		uboBinding,
-		texLayoutBinding
-	};
+	const std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboBinding, texLayoutBinding };
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount =  bindings.size();
+	layoutInfo.bindingCount = bindings.size();
 	layoutInfo.pBindings = bindings.data();
 
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -410,8 +402,9 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 }
 
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
-		const Buffer& ubo, const Image& tex, VkSampler texSampler)
-{
+        const Buffer& ubo,
+        const Image& tex,
+        VkSampler texSampler) {
 	VkDescriptorBufferInfo uboInfo = {};
 	uboInfo.buffer = ubo.handle;
 	uboInfo.offset = 0;
@@ -454,9 +447,11 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 	return descriptorSet;
 }
 
-void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& commandBuffers,
-		uint32_t nIndices, const Buffer& vertexBuffer, const Buffer& indexBuffer)
-{
+void recordSwapChainDebugCommandBuffers(const Application& app,
+        std::vector<VkCommandBuffer>& commandBuffers,
+        uint32_t nIndices,
+        const Buffer& vertexBuffer,
+        const Buffer& indexBuffer) {
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -469,11 +464,11 @@ void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCo
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = app.renderPass;
 		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
-		renderPassInfo.renderArea.offset = {0, 0};
+		renderPassInfo.renderArea.offset = { 0, 0 };
 		renderPassInfo.renderArea.extent = app.swapChain.extent;
 		std::array<VkClearValue, 2> clearValues = {};
-		clearValues[0].color = {0.12f, 0.83f, 1.0f, 1.f};
-		clearValues[1].depthStencil = {1.f, 0};
+		clearValues[0].color = { 0.12f, 0.83f, 1.0f, 1.f };
+		clearValues[1].depthStencil = { 1.f, 0 };
 		renderPassInfo.clearValueCount = clearValues.size();
 		renderPassInfo.pClearValues = clearValues.data();
 
@@ -481,14 +476,19 @@ void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCo
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
 		const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
-		static_assert(vertexBuffers.size() == offsets.size(),
-				"offsets should be the same amount of vertexBuffers!");
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, vertexBuffers.size(),
-				vertexBuffers.data(), offsets.data());
+		static_assert(
+		        vertexBuffers.size() == offsets.size(), "offsets should be the same amount of vertexBuffers!");
+		vkCmdBindVertexBuffers(
+		        commandBuffers[i], 0, vertexBuffers.size(), vertexBuffers.data(), offsets.data());
 		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-				app.res.pipelineLayouts->get("swap"), 0, 1,
-				&app.res.descriptorSets->get("swap"), 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffers[i],
+		        VK_PIPELINE_BIND_POINT_GRAPHICS,
+		        app.res.pipelineLayouts->get("swap"),
+		        0,
+		        1,
+		        &app.res.descriptorSets->get("swap"),
+		        0,
+		        nullptr);
 		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);
@@ -513,10 +513,8 @@ VkPipeline createSwapChainDebugPipeline(const Application& app) {
 	fragShaderStageInfo.module = fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
-	const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {
-		vertShaderStageInfo,
-		fragShaderStageInfo
-	};
+	const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = { vertShaderStageInfo,
+		fragShaderStageInfo };
 
 	// Configure fixed pipeline
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
@@ -542,7 +540,7 @@ VkPipeline createSwapChainDebugPipeline(const Application& app) {
 	viewport.maxDepth = 1.f;
 
 	VkRect2D scissor = {};
-	scissor.offset = {0, 0};
+	scissor.offset = { 0, 0 };
 	scissor.extent = app.swapChain.extent;
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
@@ -568,8 +566,8 @@ VkPipeline createSwapChainDebugPipeline(const Application& app) {
 	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
-	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
-					| VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+	                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendAttachmentState.blendEnable = VK_FALSE;
 	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
 	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;

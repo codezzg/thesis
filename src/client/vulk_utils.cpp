@@ -17,7 +17,6 @@ std::vector<char> readFile(const std::string& filename) {
 	return buffer;
 }
 
-
 void dumpPhysicalDevice(VkPhysicalDevice& physicalDevice) {
 	VkPhysicalDeviceProperties props;
 	vkGetPhysicalDeviceProperties(physicalDevice, &props);

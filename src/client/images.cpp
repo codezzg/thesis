@@ -1,24 +1,22 @@
 #include "images.hpp"
 #include "application.hpp"
-#include "vulk_errors.hpp"
-#include "phys_device.hpp"
 #include "commands.hpp"
 #include "formats.hpp"
-#include "vulk_memory.hpp"
 #include "logging.hpp"
+#include "phys_device.hpp"
+#include "vulk_errors.hpp"
+#include "vulk_memory.hpp"
 #include <unordered_set>
 
 using namespace logging;
 
-void ImageAllocator::addImage(
-		Image& image,
-		uint32_t width,
-		uint32_t height,
-		VkFormat format,
-		VkImageTiling tiling,
-		VkImageUsageFlags usage,
-		VkMemoryPropertyFlags properties)
-{
+void ImageAllocator::addImage(Image& image,
+        uint32_t width,
+        uint32_t height,
+        VkFormat format,
+        VkImageTiling tiling,
+        VkImageUsageFlags usage,
+        VkMemoryPropertyFlags properties) {
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -58,8 +56,7 @@ void ImageAllocator::create(const Application& app) {
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(app.device, imageHandle, &memRequirements);
 
-		const auto memType = findMemoryType(app.physicalDevice,
-				memRequirements.memoryTypeBits, properties[i]);
+		const auto memType = findMemoryType(app.physicalDevice, memRequirements.memoryTypeBits, properties[i]);
 		images[i]->offset = requiredSizes[memType];
 		requiredSizes[memType] += memRequirements.size;
 
@@ -97,15 +94,13 @@ void ImageAllocator::create(const Application& app) {
 	info("Created ", images.size(), " images via ", memories.size(), " allocations.");
 }
 
-Image createImage(
-		const Application& app,
-		uint32_t width,
-		uint32_t height,
-		VkFormat format,
-		VkImageTiling tiling,
-		VkImageUsageFlags usage,
-		VkMemoryPropertyFlags properties)
-{
+Image createImage(const Application& app,
+        uint32_t width,
+        uint32_t height,
+        VkFormat format,
+        VkImageTiling tiling,
+        VkImageUsageFlags usage,
+        VkMemoryPropertyFlags properties) {
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -169,9 +164,11 @@ VkImageView createImageView(const Application& app, VkImage image, VkFormat form
 	return imageView;
 }
 
-void transitionImageLayout(const Application& app, VkImage image, VkFormat format,
-		VkImageLayout oldLayout, VkImageLayout newLayout)
-{
+void transitionImageLayout(const Application& app,
+        VkImage image,
+        VkFormat format,
+        VkImageLayout oldLayout,
+        VkImageLayout newLayout) {
 	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	VkImageMemoryBarrier barrier = {};
@@ -195,8 +192,7 @@ void transitionImageLayout(const Application& app, VkImage image, VkFormat forma
 	barrier.srcAccessMask = 0;
 	barrier.dstAccessMask = 0;
 
-	VkPipelineStageFlags sourceStage,
-			     destinationStage;
+	VkPipelineStageFlags sourceStage, destinationStage;
 
 	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
 		barrier.srcAccessMask = 0;
@@ -204,20 +200,18 @@ void transitionImageLayout(const Application& app, VkImage image, VkFormat forma
 
 		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	} else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-			&& newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
+	} else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+	           newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	} else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
-			&& newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-	{
+	} else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+	           newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
-					| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask =
+		        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
@@ -225,28 +219,26 @@ void transitionImageLayout(const Application& app, VkImage image, VkFormat forma
 		throw std::invalid_argument("unsupported layout transition!");
 	}
 
-	vkCmdPipelineBarrier(commandBuffer,
-			sourceStage,
-			destinationStage,
-			0,
-			0, nullptr,
-			0, nullptr,
-			1, &barrier);
+	vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }
 
 Image createDepthImage(const Application& app) {
 	auto depthImage = createImage(app,
-			app.swapChain.extent.width, app.swapChain.extent.height,
-			formats::depth,
-			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-				| VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	depthImage.view = createImageView(app, depthImage.handle,
-			formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);
+	        app.swapChain.extent.width,
+	        app.swapChain.extent.height,
+	        formats::depth,
+	        VK_IMAGE_TILING_OPTIMAL,
+	        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+	                VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+	        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	depthImage.view = createImageView(app, depthImage.handle, formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-	transitionImageLayout(app, depthImage.handle, formats::depth, VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	transitionImageLayout(app,
+	        depthImage.handle,
+	        formats::depth,
+	        VK_IMAGE_LAYOUT_UNDEFINED,
+	        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
 	return depthImage;
 }

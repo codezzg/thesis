@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
 #include "shared_resources.hpp"
+#include <vulkan/vulkan.h>
 
 struct NetworkResources;
 

@@ -1,10 +1,10 @@
 #include "shaders.hpp"
-#include "vulk_utils.hpp"
-#include "vulk_errors.hpp"
 #include "application.hpp"
+#include "vulk_errors.hpp"
+#include "vulk_utils.hpp"
 #include <vector>
 
-VkShaderModule createShaderModule(const Application& app, const char *fname) {
+VkShaderModule createShaderModule(const Application& app, const char* fname) {
 	const auto code = readFile(fname);
 
 	VkShaderModuleCreateInfo createInfo = {};

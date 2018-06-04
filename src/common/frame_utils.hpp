@@ -32,9 +32,8 @@ public:
 	bool enabled = true;
 
 	explicit LimitFrameTime(std::chrono::milliseconds targetFrameTime)
-		: targetFrameTime(targetFrameTime)
-		, beginFrameTime(std::chrono::high_resolution_clock::now())
-	{}
+	        : targetFrameTime(targetFrameTime)
+	        , beginFrameTime(std::chrono::high_resolution_clock::now()) {}
 
 	~LimitFrameTime() {
 		if (enabled) {
@@ -46,7 +45,7 @@ public:
 
 	std::chrono::milliseconds getFrameDuration() const {
 		return std::chrono::duration_cast<std::chrono::milliseconds>(
-				std::chrono::high_resolution_clock::now() - beginFrameTime);
+		        std::chrono::high_resolution_clock::now() - beginFrameTime);
 	}
 
 	std::chrono::milliseconds getFrameDelay() const {

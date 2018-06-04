@@ -1,20 +1,20 @@
 #include "xplatform.hpp"
 
 #ifdef _WIN32
-	#define WINDOWS_LEAN_AND_MEAN 1
-	#include <windows.h>
-	#include <Shlwapi.h>
+#	define WINDOWS_LEAN_AND_MEAN 1
+#	include <windows.h>
+#	include <Shlwapi.h>
 #else
-	#include <csignal>
-	#include <unistd.h>
-	#include <libgen.h>
+#	include <csignal>
+#	include <unistd.h>
+#	include <libgen.h>
 #endif
+#include "logging.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <utility>
 #include <iostream>
-#include "logging.hpp"
+#include <utility>
 
 using namespace logging;
 
@@ -54,7 +54,7 @@ static void wrapper(int) {
 
 void xplatSetExitHandler(signal_handler_t handler) {
 	gHandler = handler;
-	std::atexit([] () { wrapper(0); });
+	std::atexit([]() { wrapper(0); });
 }
 
 bool xplatEnableExitHandler() {
@@ -107,11 +107,11 @@ std::string xplatGetCwd() {
 	return std::string{ buf };
 }
 
-std::string xplatDirname(const char *path) {
+std::string xplatDirname(const char* path) {
 	// Copy path into a modifiable buffer
 	std::string res;
 	const auto len = strlen(path);
-	char *buf = new char[len];
+	char* buf = new char[len];
 	strncpy(buf, path, len);
 #ifdef _WIN32
 	PathRemoveFileSpec(buf);
@@ -119,7 +119,7 @@ std::string xplatDirname(const char *path) {
 #else
 	res = std::string{ dirname(buf) };
 #endif
-	delete [] buf;
+	delete[] buf;
 	return res;
 }
 

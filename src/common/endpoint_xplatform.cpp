@@ -1,9 +1,9 @@
 #include "endpoint_xplatform.hpp"
+#include "logging.hpp"
 #include <cstring>
 #include <iostream>
-#include "logging.hpp"
 #ifndef _WIN32
-	#include <cerrno>
+#	include <cerrno>
 #endif
 
 bool xplatSocketInit() {
@@ -38,7 +38,8 @@ int xplatSockClose(socket_t sock) {
 		status = close(sock);
 		logging::info("Socket ", sock, " shut down.");
 #endif
-	} else logging::warn("Error shutting down the socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
+	} else
+		logging::warn("Error shutting down the socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 
 	return status;
 }

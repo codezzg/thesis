@@ -1,12 +1,12 @@
 #include "server_appstage.hpp"
-#include <glm/gtx/string_cast.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <iostream>
+#include "clock.hpp"
 #include "serialization.hpp"
 #include <cmath>
-#include "clock.hpp"
-#include <vector>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
+#include <iostream>
 #include <unordered_map>
+#include <vector>
 
 struct Sphere {
 	glm::vec3 center;
@@ -29,12 +29,13 @@ static Sphere calcBoundingSphere(const Model& model) {
 
 	// Find y with the largest distance from x
 
-	const auto findMaxDist = [&model] (const glm::vec3& x) {
+	const auto findMaxDist = [&model](const glm::vec3& x) {
 		float d = 0;
 		glm::vec3 y;
 		for (unsigned i = 0; i < model.nVertices; ++i) {
 			const auto& v = model.vertices[i];
-			if (v.pos == x) continue;
+			if (v.pos == x)
+				continue;
 			const auto nd = glm::distance(x, v.pos);
 			if (nd > d) {
 				d = nd;
@@ -65,20 +66,23 @@ static Sphere calcBoundingSphere(const Model& model) {
 	return Sphere{ center, radius };
 }
 
-void transformVertices(Model& model, const std::array<uint8_t, FrameData().payload.size()>& clientData,
-		uint8_t *buffer, std::size_t bufsize, int& nVertices, int& nIndices)
-{
+void transformVertices(Model& model,
+        const std::array<uint8_t, FrameData().payload.size()>& clientData,
+        uint8_t* buffer,
+        std::size_t bufsize,
+        int& nVertices,
+        int& nIndices) {
 	const auto camera = deserializeCamera(clientData);
 
 	// STUB
-	//wiggle(model);
+	// wiggle(model);
 
-	const auto& frustum = calcFrustum(/*camera.projMatrix()*/ glm::mat4{ 1.f }); // TODO
+	const auto& frustum = calcFrustum(/*camera.projMatrix()*/ glm::mat4{ 1.f });   // TODO
 	const auto sphere = calcBoundingSphere(model);
 
-	//std::cerr << "bounding sphere = " << sphere.center << ", r = " << sphere.radius << "\n";
-	//std::cerr << "frustum = " << frustum.left << ", " << frustum.right << ", " <<
-		//frustum.bottom << ", " << frustum.top << ", " << frustum.near << ", " << frustum.far << "\n";
+	// std::cerr << "bounding sphere = " << sphere.center << ", r = " << sphere.radius << "\n";
+	// std::cerr << "frustum = " << frustum.left << ", " << frustum.right << ", " <<
+	// frustum.bottom << ", " << frustum.top << ", " << frustum.near << ", " << frustum.far << "\n";
 
 	std::unordered_map<Index, Index> indexRemap;
 	{
@@ -90,11 +94,11 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 			const auto vv = camera.viewMatrix() * glm::vec4{ v.pos.x, v.pos.y, v.pos.z, 1.0 };
 			if (/* FIXME */ true || sphereInFrustum(vv, sphere.radius * 2, frustum)) {
 				assert(sizeof(Vertex) * vertexIdx < bufsize &&
-						"transformVertices: writing in unowned memory area!");
+				        "transformVertices: writing in unowned memory area!");
 				verticesBuffer[vertexIdx] = v;
 				indexRemap[i] = vertexIdx;
-				//if (!sphereInFrustum(vv, sphere.radius, frustum))
-					//verticesBuffer[vertexIdx].color = glm::vec3{ 1.f, 0.f, 0.f };
+				// if (!sphereInFrustum(vv, sphere.radius, frustum))
+				// verticesBuffer[vertexIdx].color = glm::vec3{ 1.f, 0.f, 0.f };
 				++vertexIdx;
 			}
 		}
@@ -113,7 +117,7 @@ void transformVertices(Model& model, const std::array<uint8_t, FrameData().paylo
 				continue;
 			}
 			assert(nVertices * sizeof(Vertex) + sizeof(Index) * indexIdx < bufsize &&
-					"transformVertices: writing in unowned memory area!");
+			        "transformVertices: writing in unowned memory area!");
 			indicesBuffer[indexIdx] = it->second;
 			++indexIdx;
 		}

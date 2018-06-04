@@ -1,8 +1,8 @@
 #include "camera.hpp"
 #include "clock.hpp"
 #include <glm/gtc/matrix_transform.hpp>
-#include <iostream>
 #include <immintrin.h>
+#include <iostream>
 
 void Camera::updateVectors() {
 	front.x = std::cos(glm::radians(yaw)) * std::cos(glm::radians(pitch));
@@ -17,8 +17,8 @@ glm::mat4 Camera::viewMatrix() const {
 	return glm::lookAt(position, position + front, up);
 }
 
-//glm::mat4 Camera::projMatrix() const {
-	//return glm::perspective(glm::radians(fov), ratio, near, far);
+// glm::mat4 Camera::projMatrix() const {
+// return glm::perspective(glm::radians(fov), ratio, near, far);
 //}
 
 Frustum calcFrustum(const glm::mat4& m) {

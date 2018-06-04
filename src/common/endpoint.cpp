@@ -1,19 +1,19 @@
 #include "endpoint.hpp"
-#include <stdexcept>
-#include <cstdlib>
-#include <iostream>
-#include <fstream>
-#include <utility>
-#include <cstring>
-#include <string>
-#include <functional>
 #include "frame_data.hpp"
-#include "utils.hpp"
 #include "logging.hpp"
+#include "utils.hpp"
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <utility>
 
 using namespace logging;
 
-static socket_t findFirstValidSocket(const addrinfo *result, socket_connect_op op) {
+static socket_t findFirstValidSocket(const addrinfo* result, socket_connect_op op) {
 	// Connect
 	for (auto info = result; info != nullptr; info = info->ai_next) {
 		socket_t sock = ::socket(info->ai_family, info->ai_socktype, info->ai_protocol);
@@ -42,10 +42,9 @@ Endpoint::~Endpoint() {
 	close();
 }
 
-bool Endpoint::start(const char *ip, uint16_t port, bool passive, int socktype) {
+bool Endpoint::start(const char* ip, uint16_t port, bool passive, int socktype) {
 
-	addrinfo hints = {},
-	         *result;
+	addrinfo hints = {}, *result;
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = socktype;
 	if (passive)
@@ -65,8 +64,7 @@ bool Endpoint::start(const char *ip, uint16_t port, bool passive, int socktype) 
 		return false;
 	}
 
-	info("Endpoint: started ", (passive ? "passive" : "active"),
-			" on ", ip, ":", port, " (type ", socktype, ")");
+	info("Endpoint: started ", (passive ? "passive" : "active"), " on ", ip, ":", port, " (type ", socktype, ")");
 
 	this->ip = ip;
 	this->port = port;
@@ -74,11 +72,11 @@ bool Endpoint::start(const char *ip, uint16_t port, bool passive, int socktype) 
 	return true;
 }
 
-bool Endpoint::startPassive(const char *ip, uint16_t port, int socktype) {
+bool Endpoint::startPassive(const char* ip, uint16_t port, int socktype) {
 	return start(ip, port, true, socktype);
 }
 
-bool Endpoint::startActive(const char *ip, uint16_t port, int socktype) {
+bool Endpoint::startActive(const char* ip, uint16_t port, int socktype) {
 	return start(ip, port, false, socktype);
 }
 
@@ -115,11 +113,11 @@ void Endpoint::close() {
 	loopThread.reset(nullptr);
 }
 
-bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
+bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len) {
 	const auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
 
 	if (count < 0) {
-		err("Error receiving message: [" , count, "] ", xplatGetErrorString(), " (", xplatGetError(), ")");
+		err("Error receiving message: [", count, "] ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	} else if (count == sizeof(buffer)) {
 		warn("Warning: message was truncated as it's too large.");
@@ -133,12 +131,10 @@ bool receivePacket(socket_t socket, uint8_t *buffer, std::size_t len) {
 	if (gDebugLv >= LOGLV_VERBOSE)
 		dumpBytes(buffer, count);
 
-
 	return true;
 }
 
-
-bool validateUDPPacket(uint8_t *packetBuf, int64_t frameId) {
+bool validateUDPPacket(uint8_t* packetBuf, int64_t frameId) {
 	const auto packet = reinterpret_cast<FrameData*>(packetBuf);
 	if (packet->header.magic != cfg::PACKET_MAGIC) {
 		info("Packet has invalid magic: dropping.");
@@ -151,10 +147,11 @@ bool validateUDPPacket(uint8_t *packetBuf, int64_t frameId) {
 	return true;
 }
 
-void dumpPacket(const char *fname, const FrameData& packet) {
+void dumpPacket(const char* fname, const FrameData& packet) {
 	std::ofstream file(fname, std::ios::app);
 	file << "\n--- packet " << packet.header.frameId << ":" << packet.header.packetId << "\n"
-		<< "Header:\n" << std::hex;
+	     << "Header:\n"
+	     << std::hex;
 
 	for (unsigned i = 0; i < sizeof(FrameHeader); ++i)
 		file << (reinterpret_cast<const uint8_t*>(&packet.header)[i] & 0xFF) << " ";
@@ -165,7 +162,7 @@ void dumpPacket(const char *fname, const FrameData& packet) {
 	}
 }
 
-bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
+bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len) {
 	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
 		warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
@@ -180,7 +177,7 @@ bool sendPacket(socket_t socket, const uint8_t *data, std::size_t len) {
 /** Receives a message from `socket` into `buffer` and fills the `msgType` variable according to the
  *  type of message received (i.e. the message header)
  */
-bool receiveTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType& msgType) {
+bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, MsgType& msgType) {
 
 	msgType = MsgType::UNKNOWN;
 
@@ -197,7 +194,7 @@ bool receiveTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgTyp
 	return true;
 }
 
-bool expectTCPMsg(socket_t socket, uint8_t *buffer, std::size_t bufsize, MsgType expectedType) {
+bool expectTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, MsgType expectedType) {
 	MsgType type;
 	return receiveTCPMsg(socket, buffer, bufsize, type) && type == expectedType;
 }

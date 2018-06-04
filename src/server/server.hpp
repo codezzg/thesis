@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vector>
-#include <array>
-#include <mutex>
-#include <condition_variable>
 #include "server_endpoint.hpp"
 #include "server_resources.hpp"
+#include <array>
+#include <condition_variable>
+#include <mutex>
+#include <vector>
 
 /** This struct contains data that is shared between the server's active and passive endpoints. */
 struct ServerSharedData final {

@@ -1,12 +1,14 @@
 #include "multipass.hpp"
+#include "application.hpp"
 #include "buffers.hpp"
 #include "images.hpp"
-#include "application.hpp"
 #include <array>
 
-void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& commandBuffers,
-		uint32_t nIndices, const Buffer& vBuffer, const Buffer& iBuffer)
-{
+void recordMultipassCommandBuffers(const Application& app,
+        std::vector<VkCommandBuffer>& commandBuffers,
+        uint32_t nIndices,
+        const Buffer& vBuffer,
+        const Buffer& iBuffer) {
 	std::array<VkClearValue, 5> clearValues = {};
 	clearValues[0].color = { 0.f, 0.2f, 0.6f, 1.f };
 	clearValues[1].depthStencil = { 1, 0 };
@@ -31,9 +33,14 @@ void recordMultipassCommandBuffers(const Application& app, std::vector<VkCommand
 		//// First subpass
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-				app.res.pipelineLayouts->get("multi"), 0, 1,
-				&app.res.descriptorSets->get("multi"), 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffers[i],
+		        VK_PIPELINE_BIND_POINT_GRAPHICS,
+		        app.res.pipelineLayouts->get("multi"),
+		        0,
+		        1,
+		        &app.res.descriptorSets->get("multi"),
+		        0,
+		        nullptr);
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
 
 		std::array<VkBuffer, 1> vertexBuffers = { vBuffer.handle };
@@ -79,7 +86,6 @@ VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app)
 	mvpUboLayoutBinding.descriptorCount = 1;
 	mvpUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	mvpUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
 
 	// gPosition: sampler2D
 	VkDescriptorSetLayoutBinding gPosLayoutBinding = {};
@@ -132,9 +138,10 @@ VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app)
 }
 
 VkDescriptorSet createMultipassDescriptorSet(const Application& app,
-		const CombinedUniformBuffers& uniformBuffers,
-		const Image& texDiffuse, const Image& texSpecular, VkSampler texSampler)
-{
+        const CombinedUniformBuffers& uniformBuffers,
+        const Image& texDiffuse,
+        const Image& texSpecular,
+        VkSampler texSampler) {
 	const std::array<VkDescriptorSetLayout, 1> layouts = { app.res.descriptorSetLayouts->get("multi") };
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -145,7 +152,6 @@ VkDescriptorSet createMultipassDescriptorSet(const Application& app,
 	VkDescriptorSet descriptorSet;
 	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
 	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
-
 
 	VkDescriptorImageInfo diffuseInfo = {};
 	diffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

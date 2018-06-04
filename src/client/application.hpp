@@ -1,14 +1,14 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <GLFW/glfw3.h>
-#include "validation.hpp"
-#include "swap.hpp"
-#include "images.hpp"
-#include "memory.hpp"
 #include "buffers.hpp"
 #include "gbuffer.hpp"
+#include "images.hpp"
+#include "memory.hpp"
 #include "resources.hpp"
+#include "swap.hpp"
+#include "validation.hpp"
+#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
 
 struct Queues final {
 	VkQueue graphics;
@@ -17,7 +17,7 @@ struct Queues final {
 
 struct Application final {
 
-	//ApplicationMemory memory;
+	// ApplicationMemory memory;
 
 	GLFWwindow* window = nullptr;
 

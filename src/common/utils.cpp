@@ -1,14 +1,14 @@
 #include "utils.hpp"
-#include <algorithm>
-#include <fstream>
-#include <cstring>
 #include "logging.hpp"
+#include <algorithm>
+#include <cstring>
+#include <fstream>
 
 using namespace logging;
 
-std::vector<char> readFileIntoMemory(const char *path) {
+std::vector<char> readFileIntoMemory(const char* path) {
 	std::ifstream file{ path, std::ios::binary | std::ios::ate };
-	auto dataLen  = file.tellg();
+	auto dataLen = file.tellg();
 	file.seekg(0, std::ios::beg);
 
 	std::vector<char> data(dataLen);
@@ -22,9 +22,9 @@ std::vector<char> readFileIntoMemory(const char *path) {
 	return data;
 }
 
-std::size_t readFileIntoMemory(const char *path, void *buffer, std::size_t bufsize) {
+std::size_t readFileIntoMemory(const char* path, void* buffer, std::size_t bufsize) {
 	std::ifstream file{ path, std::ios::binary | std::ios::ate };
-	auto dataLen  = file.tellg();
+	auto dataLen = file.tellg();
 
 	if (!file.good()) {
 		err("File ", path, " is not good.");
@@ -37,8 +37,13 @@ std::size_t readFileIntoMemory(const char *path, void *buffer, std::size_t bufsi
 	}
 
 	if (dataLen > static_cast<signed>(bufsize)) {
-		err("readFileIntoMemory(", path, "): buffer is too small! (",
-				bufsize, " while needing ", dataLen, " bytes.)");
+		err("readFileIntoMemory(",
+		        path,
+		        "): buffer is too small! (",
+		        bufsize,
+		        " while needing ",
+		        dataLen,
+		        " bytes.)");
 		return -1;
 	}
 
@@ -54,7 +59,7 @@ std::size_t readFileIntoMemory(const char *path, void *buffer, std::size_t bufsi
 	return dataLen;
 }
 
-void dumpBytes(const void *buffer, std::size_t count, std::size_t maxCount, LogLevel lv) {
+void dumpBytes(const void* buffer, std::size_t count, std::size_t maxCount, LogLevel lv) {
 	for (unsigned i = 0; i < std::min(count, maxCount); ++i) {
 		char str[5];
 		snprintf(str, 5, "0x%.2X", *(reinterpret_cast<const uint8_t*>(buffer) + i));

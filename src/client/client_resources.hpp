@@ -1,14 +1,14 @@
 #pragma once
 
-#include <cstdint>
-#include <memory>
-#include <map>
-#include "stack_allocator.hpp"
-#include "shared_resources.hpp"
 #include "hashing.hpp"
-#include "models.hpp"
-#include "materials.hpp"
 #include "images.hpp"
+#include "materials.hpp"
+#include "models.hpp"
+#include "shared_resources.hpp"
+#include "stack_allocator.hpp"
+#include <cstdint>
+#include <map>
+#include <memory>
 
 /** This class provides a RAII facility to store resources.
  *  Memory used by this class is owned and allocated by this own class.
@@ -32,9 +32,8 @@ public:
 	std::unordered_map<StringId, ModelInfo> models;
 
 	explicit ClientTmpResources(std::size_t size)
-		: memory(size)
-		, allocator{ memory.data(), memory.size() }
-	{}
+	        : memory(size)
+	        , allocator{ memory.data(), memory.size() } {}
 };
 
 /** This struct stores the "final form" of the resources received via network. */

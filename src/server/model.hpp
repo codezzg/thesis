@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vector>
-#include <unordered_set>
-#include <sstream>
-#include "vertex.hpp"
-#include "shared_resources.hpp"
 #include "hashing.hpp"
+#include "shared_resources.hpp"
+#include "vertex.hpp"
+#include <sstream>
+#include <unordered_set>
+#include <vector>
 
 struct Material {
 	StringId name = SID_NONE;
@@ -27,9 +27,9 @@ struct Model {
 	StringId name = SID_NONE;
 
 	/** Unowning pointer to the model's vertices */
-	Vertex *vertices = nullptr;
+	Vertex* vertices = nullptr;
 	/** Unowning pointer to the model's indices */
-	Index *indices = nullptr;
+	Index* indices = nullptr;
 
 	uint32_t nVertices = 0;
 	uint32_t nIndices = 0;
@@ -44,16 +44,16 @@ struct Model {
 	std::string toString() const {
 		std::stringstream ss;
 		ss << "n vertices = " << nVertices << ", n indices = " << nIndices << "\n"
-			<< "size: " << size() << " bytes\n"
-			<< "# materials: " << materials.size() << "\n";
+		   << "size: " << size() << " bytes\n"
+		   << "# materials: " << materials.size() << "\n";
 		for (const auto& mat : materials) {
 			ss << "mat { name = " << mat.name << ", diff = " << mat.diffuseTex
-				<< ", spec = " << mat.specularTex << " }\n";
+			   << ", spec = " << mat.specularTex << " }\n";
 		}
 		ss << "# meshes: " << meshes.size() << "\n";
 		for (const auto& mesh : meshes) {
-			ss << "mesh { off = " << mesh.offset << ", len = "
-				<< mesh.len << ", mat = " << mesh.materialId << " }\n";
+			ss << "mesh { off = " << mesh.offset << ", len = " << mesh.len << ", mat = " << mesh.materialId
+			   << " }\n";
 		}
 		return ss.str();
 	}
@@ -65,5 +65,5 @@ struct Model {
  *  offset `sizeof(Vertex) * nVertices`.
  *  @return a valid model, or one with nullptr `vertices` and `indices` if there were errors.
  */
-Model loadModel(const char *modelPath,
-		/* inout */ void *buffer);
+Model loadModel(const char* modelPath,
+        /* inout */ void* buffer);

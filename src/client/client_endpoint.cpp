@@ -1,20 +1,20 @@
 #include "client_endpoint.hpp"
+#include "camera.hpp"
+#include "config.hpp"
+#include "frame_data.hpp"
+#include "frame_utils.hpp"
+#include "logging.hpp"
+#include "serialization.hpp"
+#include "shared_resources.hpp"
+#include "tcp_messages.hpp"
+#include "units.hpp"
+#include "utils.hpp"
+#include "vertex.hpp"
+#include <array>
 #include <chrono>
 #include <cstdlib>
-#include <iostream>
-#include <array>
 #include <cstring>
-#include "frame_data.hpp"
-#include "config.hpp"
-#include "vertex.hpp"
-#include "camera.hpp"
-#include "serialization.hpp"
-#include "frame_utils.hpp"
-#include "tcp_messages.hpp"
-#include "shared_resources.hpp"
-#include "logging.hpp"
-#include "utils.hpp"
-#include "units.hpp"
+#include <iostream>
 
 using namespace logging;
 using namespace std::literals::chrono_literals;
@@ -56,10 +56,10 @@ void ClientPassiveEndpoint::loopFunc() {
 			nIndices = packet->header.phead.nIndices;
 		}
 
-		uint8_t *payload = packet->payload.data();
+		uint8_t* payload = packet->payload.data();
 		auto payloadLen = packet->payload.size();
 
-		//dumpPacket("client.dump", *packet);
+		// dumpPacket("client.dump", *packet);
 
 		// Compute the offset to insert data at
 		const size_t offset = packet->header.packetId * packet->payload.size();
@@ -68,9 +68,11 @@ void ClientPassiveEndpoint::loopFunc() {
 		memcpy(backBuffer + offset, payload, payloadLen);
 
 		nBytesReceived += payloadLen;
-		//std::cerr << "payload len = " << payloadLen << "\n";
-		verbose("Bytes received: ", nBytesReceived, " / ",
-				nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
+		// std::cerr << "payload len = " << payloadLen << "\n";
+		verbose("Bytes received: ",
+		        nBytesReceived,
+		        " / ",
+		        nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
 		bufferFilled = nBytesReceived >= (nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
 
 		if (bufferFilled && !bufferCopied) {
@@ -82,11 +84,11 @@ void ClientPassiveEndpoint::loopFunc() {
 		}
 	}
 
-	delete [] backBuffer;
-	delete [] buffer;
+	delete[] backBuffer;
+	delete[] buffer;
 }
 
-void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex *outVBuf, Index *outIBuf) {
+void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex* outVBuf, Index* outIBuf) {
 	phead.nVertices = nVertices;
 	phead.nIndices = nIndices;
 	{
@@ -95,7 +97,6 @@ void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex *outVBuf, Inde
 		memcpy(outIBuf, buffer + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
 	}
 }
-
 
 /////////////////////// Active EP
 void ClientActiveEndpoint::loopFunc() {
@@ -125,7 +126,6 @@ void ClientActiveEndpoint::loopFunc() {
 	}
 }
 
-
 /////////////////////// ReliableEP
 
 bool ClientReliableEndpoint::await(std::chrono::seconds timeout) {
@@ -133,7 +133,6 @@ bool ClientReliableEndpoint::await(std::chrono::seconds timeout) {
 	std::unique_lock<std::mutex> ulk{ mtx };
 	return cv.wait_for(ulk, timeout) == std::cv_status::no_timeout;
 }
-
 
 static bool performHandshake(socket_t socket) {
 
@@ -228,7 +227,7 @@ void ClientReliableEndpoint::loopFunc() {
 	cv.notify_one();
 
 	// Spawn the keepalive routine
-	std::thread keepaliveThread {
+	std::thread keepaliveThread{
 		keepaliveTask,
 		socket,
 		std::ref(mtx),
@@ -268,9 +267,10 @@ void ClientReliableEndpoint::onClose() {
  *  need to be read for the texture, receive them from `socket` until completion.
  *  Texture received is stored into `resources`.
  */
-static bool receiveTexture(socket_t socket, const uint8_t *buffer, std::size_t bufsize,
-		/* out */ ClientTmpResources& resources)
-{
+static bool receiveTexture(socket_t socket,
+        const uint8_t* buffer,
+        std::size_t bufsize,
+        /* out */ ClientTmpResources& resources) {
 	// Parse header
 	// [0] msgType    (1 B)
 	// [1] tex.name   (4 B)
@@ -291,7 +291,7 @@ static bool receiveTexture(socket_t socket, const uint8_t *buffer, std::size_t b
 	// Retreive payload
 
 	/** Obtain the memory to store the texture data in */
-	void *texdata = resources.allocator.alloc(expectedSize);
+	void* texdata = resources.allocator.alloc(expectedSize);
 	if (!texdata)
 		return false;
 
@@ -343,9 +343,9 @@ static bool receiveTexture(socket_t socket, const uint8_t *buffer, std::size_t b
 }
 
 /** Read a material out of `buffer` and store it in `resources` */
-static bool receiveMaterial(const uint8_t *buffer, std::size_t bufsize,
-		/* out */ ClientTmpResources& resources)
-{
+static bool receiveMaterial(const uint8_t* buffer,
+        std::size_t bufsize,
+        /* out */ ClientTmpResources& resources) {
 	assert(bufsize >= sizeof(shared::ResourcePacket<shared::Material>));
 	static_assert(sizeof(StringId) == 4, "StringId size should be 4!");
 
@@ -355,8 +355,13 @@ static bool receiveMaterial(const uint8_t *buffer, std::size_t bufsize,
 	// [9] material.specular (4 B)
 	const auto material = *reinterpret_cast<const shared::Material*>(buffer + 1);
 
-	debug("received material: { name = ", material.name,
-			", diff = ", material.diffuseTex, ", spec = ", material.specularTex, " }");
+	debug("received material: { name = ",
+	        material.name,
+	        ", diff = ",
+	        material.diffuseTex,
+	        ", spec = ",
+	        material.specularTex,
+	        " }");
 
 	if (resources.materials.count(material.name) > 0) {
 		warn("Received the same material two times: ", material.name);
@@ -368,9 +373,10 @@ static bool receiveMaterial(const uint8_t *buffer, std::size_t bufsize,
 	return true;
 }
 
-static bool receiveModel(socket_t socket, const uint8_t *buffer, std::size_t bufsize,
-		/* out */ ClientTmpResources& resources)
-{
+static bool receiveModel(socket_t socket,
+        const uint8_t* buffer,
+        std::size_t bufsize,
+        /* out */ ClientTmpResources& resources) {
 	constexpr auto sizeOfPrelude = sizeof(MsgType) + sizeof(StringId) + 2 * sizeof(uint8_t);
 	assert(bufsize >= sizeOfPrelude);
 
@@ -386,7 +392,7 @@ static bool receiveModel(socket_t socket, const uint8_t *buffer, std::size_t buf
 
 	// Retreive payload [materials | meshes]
 
-	void *payload = resources.allocator.alloc(expectedSize);
+	void* payload = resources.allocator.alloc(expectedSize);
 	if (!payload)
 		return false;
 
@@ -424,7 +430,7 @@ static bool receiveModel(socket_t socket, const uint8_t *buffer, std::size_t buf
 
 	model.meshes.reserve(nMeshes);
 	const auto meshes = reinterpret_cast<const shared::Mesh*>(
-			reinterpret_cast<uint8_t*>(payload) + nMaterials * sizeof(StringId));
+	        reinterpret_cast<uint8_t*>(payload) + nMaterials * sizeof(StringId));
 	for (unsigned i = 0; i < nMeshes; ++i)
 		model.meshes.emplace_back(meshes[i]);
 
@@ -441,8 +447,15 @@ static bool receiveModel(socket_t socket, const uint8_t *buffer, std::size_t buf
 			debug("material ", mat);
 
 		for (const auto& mesh : model.meshes) {
-			debug("mesh { off = ", mesh.offset, ", len = ", mesh.len,
-					", mat = ", mesh.materialId, " (", model.materials[mesh.materialId], ") }");
+			debug("mesh { off = ",
+			        mesh.offset,
+			        ", len = ",
+			        mesh.len,
+			        ", mat = ",
+			        mesh.materialId,
+			        " (",
+			        model.materials[mesh.materialId],
+			        ") }");
 		}
 	}
 
@@ -518,7 +531,7 @@ bool ClientReliableEndpoint::receiveOneTimeData() {
 		default:
 			err("Invalid data type: ", incomingDataType, " (", unsigned(incomingDataType), ")");
 			// Retry: maybe it was garbage from the previous sending
-			//return false;
+			// return false;
 		}
 	}
 }

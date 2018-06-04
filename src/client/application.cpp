@@ -1,12 +1,12 @@
 #include "application.hpp"
-#include "phys_device.hpp"
-#include "formats.hpp"
-#include "window.hpp"
-#include "vulk_errors.hpp"
-#include "logging.hpp"
 #include "commands.hpp"
-#include <set>
+#include "formats.hpp"
+#include "logging.hpp"
+#include "phys_device.hpp"
+#include "vulk_errors.hpp"
+#include "window.hpp"
 #include <array>
+#include <set>
 
 using namespace logging;
 
@@ -35,7 +35,7 @@ static VkInstance createInstance(const Validation& validation) {
 	return instance;
 }
 
-static VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow *window) {
+static VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window) {
 	VkSurfaceKHR surface;
 	VLKCHECK(glfwCreateWindowSurface(instance, window, nullptr, &surface));
 
@@ -46,10 +46,7 @@ static void createLogicalDevice(Application& app) {
 	QueueFamilyIndices indices = findQueueFamilies(app.physicalDevice, app.surface);
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-	std::set<int> uniqueQueueFamilies = {
-		indices.graphicsFamily,
-		indices.presentFamily
-	};
+	std::set<int> uniqueQueueFamilies = { indices.graphicsFamily, indices.presentFamily };
 
 	float queuePriority = 1.0f;
 	for (int queueFamily : uniqueQueueFamilies) {
@@ -106,9 +103,7 @@ VkDescriptorPool createDescriptorPool(const Application& app) {
 
 void Application::init() {
 #ifndef NDEBUG
-	const std::vector<const char*> enabledLayers = {
-		"VK_LAYER_LUNARG_standard_validation"
-	};
+	const std::vector<const char*> enabledLayers = { "VK_LAYER_LUNARG_standard_validation" };
 	validation.requestLayers(enabledLayers);
 #endif
 	window = initWindow();
@@ -116,7 +111,12 @@ void Application::init() {
 
 	uint32_t version;
 	vkEnumerateInstanceVersion(&version);
-	info("Vulkan: using version ", VK_VERSION_MAJOR(version), ".", VK_VERSION_MINOR(version), ".", VK_VERSION_PATCH(version));
+	info("Vulkan: using version ",
+	        VK_VERSION_MAJOR(version),
+	        ".",
+	        VK_VERSION_MINOR(version),
+	        ".",
+	        VK_VERSION_PATCH(version));
 
 	validation.init(instance);
 

@@ -1,7 +1,7 @@
 #include "commands.hpp"
+#include "application.hpp"
 #include "phys_device.hpp"
 #include "vulk_errors.hpp"
-#include "application.hpp"
 #include <stdexcept>
 
 VkCommandPool createCommandPool(const Application& app) {
@@ -43,9 +43,10 @@ VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool co
 	return commandBuffer;
 }
 
-void endSingleTimeCommands(VkDevice device, VkQueue graphicsQueue,
-		VkCommandPool commandPool, VkCommandBuffer commandBuffer)
-{
+void endSingleTimeCommands(VkDevice device,
+        VkQueue graphicsQueue,
+        VkCommandPool commandPool,
+        VkCommandBuffer commandBuffer) {
 	vkEndCommandBuffer(commandBuffer);
 
 	VkSubmitInfo submitInfo = {};
@@ -58,4 +59,3 @@ void endSingleTimeCommands(VkDevice device, VkQueue graphicsQueue,
 
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
-

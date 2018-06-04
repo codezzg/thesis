@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 
 class ApplicationMemory final {
-	uint8_t *mem = nullptr;
+	uint8_t* mem = nullptr;
 	std::size_t memsize = 0;
-	uint8_t *firstFree = nullptr;
+	uint8_t* firstFree = nullptr;
 
 public:
 	/** Request that at least `size` bytes be reserved for the memory pool. */

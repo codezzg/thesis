@@ -1,13 +1,13 @@
 #pragma once
 
-#include <mutex>
-#include <condition_variable>
-#include <chrono>
 #include "endpoint.hpp"
-#include "vertex.hpp"
-#include "shared_resources.hpp"
-#include "hashing.hpp"
 #include "frame_data.hpp"
+#include "hashing.hpp"
+#include "shared_resources.hpp"
+#include "vertex.hpp"
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 
 struct Server;
 struct ServerSharedData;
@@ -21,26 +21,26 @@ class ServerActiveEndpoint final : public Endpoint {
 	Server& server;
 
 	/** This memory is owned externally */
-	uint8_t *memory;
+	uint8_t* memory;
 	std::size_t memsize;
 
 	void loopFunc() override;
 	/** Sends vertices and indices, stored at `buffer`, to client */
-	void sendFrameData(int64_t frameId, uint8_t *buffer, int nVertices, int nIndices);
+	void sendFrameData(int64_t frameId, uint8_t* buffer, int nVertices, int nIndices);
+
 public:
 	std::chrono::milliseconds targetFrameTime;
 
 	/** Constructs a ServerActiveEndpoint owned by `server`.
 	 */
 	explicit ServerActiveEndpoint(Server& server)
-		: server{ server }
-		, targetFrameTime{ std::chrono::milliseconds{ 33 } }
-	{}
+	        : server{ server }
+	        , targetFrameTime{ std::chrono::milliseconds{ 33 } } {}
 
 	/*  `memory` is a pointer into a valid memory buffer, which must be large enough to contain
 	 *  the processed data (TODO: enforce this requirement).
 	 */
-	void initialize(uint8_t *mem, std::size_t size) {
+	void initialize(uint8_t* mem, std::size_t size) {
 		memory = mem;
 		memsize = size;
 	}
@@ -59,8 +59,7 @@ class ServerPassiveEndpoint final : public Endpoint {
 
 public:
 	explicit ServerPassiveEndpoint(Server& server)
-		: server{ server }
-	{}
+	        : server{ server } {}
 };
 
 /** This class implements a reliable connection server endpoint which handles the server-side
@@ -97,6 +96,5 @@ public:
 	std::string serverIp;
 
 	explicit ServerReliableEndpoint(Server& server)
-		: server{ server }
-	{}
+	        : server{ server } {}
 };

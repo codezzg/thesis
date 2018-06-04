@@ -1,16 +1,16 @@
+#include "config.hpp"
+#include "hashing.hpp"
+#include "logging.hpp"
+#include "model.hpp"
+#include "server.hpp"
 #include "server_endpoint.hpp"
+#include "units.hpp"
+#include "xplatform.hpp"
 #include <chrono>
-#include <thread>
 #include <cstring>
 #include <iostream>
+#include <thread>
 #include <unordered_map>
-#include "config.hpp"
-#include "model.hpp"
-#include "hashing.hpp"
-#include "server.hpp"
-#include "xplatform.hpp"
-#include "logging.hpp"
-#include "units.hpp"
 
 using namespace logging;
 using namespace std::literals::chrono_literals;
@@ -18,12 +18,12 @@ using namespace std::literals::chrono_literals;
 static constexpr std::size_t MEMSIZE = megabytes(32);
 static constexpr auto CLIENT_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
-Server *gServer;
+Server* gServer;
 
-static void parseArgs(int argc, char **argv, std::string& ip);
+static void parseArgs(int argc, char** argv, std::string& ip);
 static bool loadAssets(Server& server);
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 
 	std::string ip = "127.0.0.1";
 	parseArgs(argc, argv, ip);
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
 		std::cerr << "Failed to enable exit handler!\n";
 		return EXIT_FAILURE;
 	}
-	xplatSetExitHandler([] () {
+	xplatSetExitHandler([]() {
 		gServer->closeNetwork();
 		if (Endpoint::cleanup())
 			info("Successfully cleaned up sockets.");
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 			warn("Error cleaning up sockets: ", xplatGetErrorString());
 	});
 
-	Server server { MEMSIZE };
+	Server server{ MEMSIZE };
 	gServer = &server;
 
 	server.activeEP.targetFrameTime = CLIENT_UPDATE_TIME;
@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 	server.relEP.runLoopSync();
 }
 
-void parseArgs(int argc, char **argv, std::string& ip) {
+void parseArgs(int argc, char** argv, std::string& ip) {
 	int i = argc - 1;
 	int posArgs = 0;
 	while (i > 0) {
@@ -106,15 +106,20 @@ bool loadAssets(Server& server) {
 	info("Starting server. cwd: ", cwd);
 
 	// Load the models first: they'll remain at the bottom of our stack allocator
-	auto model = server.resources.loadModel(
-			(cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
-			//(cwd + xplatPath("/models/mill.obj")).c_str());
+	auto model = server.resources.loadModel((cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
+	//(cwd + xplatPath("/models/mill.obj")).c_str());
 	if (model.vertices == nullptr) {
 		err("Failed to load model.");
 		return EXIT_FAILURE;
 	}
-	info("Loaded ", model.nVertices, " vertices + ", model.nIndices, " indices. ",
-		"Tot size = ", (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024, " KiB");
+	info("Loaded ",
+	        model.nVertices,
+	        " vertices + ",
+	        model.nIndices,
+	        " indices. ",
+	        "Tot size = ",
+	        (model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024,
+	        " KiB");
 
 	return true;
 }

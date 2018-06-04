@@ -4,4 +4,4 @@
 
 struct Application;
 
-VkShaderModule createShaderModule(const Application& app, const char *fname);
+VkShaderModule createShaderModule(const Application& app, const char* fname);

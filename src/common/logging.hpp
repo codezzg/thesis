@@ -21,7 +21,6 @@ constexpr auto C_YELLOW = "\033[0;33m";
 constexpr auto C_NONE = "\033[0m";
 #endif
 
-
 inline void log(LogLevel debugLv, bool breakLine) {
 #ifdef COLORED_LOGS
 	std::cerr << C_NONE;
@@ -32,27 +31,32 @@ inline void log(LogLevel debugLv, bool breakLine) {
 
 template <typename Arg, typename... Args>
 inline void log(LogLevel debugLv, bool breakLine, Arg&& arg, Args&&... args) {
-	if (gDebugLv < debugLv) return;
+	if (gDebugLv < debugLv)
+		return;
 	std::cerr << arg;
 	log(debugLv, breakLine, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void err(Args&&... args) {
-	log(LOGLV_ERR, true,
+	log(LOGLV_ERR,
+	        true,
 #ifdef COLORED_LOGS
-		C_RED,
+	        C_RED,
 #endif
-		"[E] ", std::forward<Args>(args)...);
+	        "[E] ",
+	        std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warn(Args&&... args) {
-	log(LOGLV_WARN, true,
+	log(LOGLV_WARN,
+	        true,
 #ifdef COLORED_LOGS
-		C_YELLOW,
+	        C_YELLOW,
 #endif
-		"[W] ", std::forward<Args>(args)...);
+	        "[W] ",
+	        std::forward<Args>(args)...);
 }
 
 template <typename... Args>
@@ -70,4 +74,4 @@ inline void verbose(Args&&... args) {
 	log(LOGLV_VERBOSE, true, "[V] ", std::forward<Args>(args)...);
 }
 
-} // end namespace logging
+}   // end namespace logging

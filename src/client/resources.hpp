@@ -1,10 +1,9 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <unordered_map>
-#include "vulk_errors.hpp"
 #include "hashing.hpp"
-
+#include "vulk_errors.hpp"
+#include <unordered_map>
+#include <vulkan/vulkan.h>
 
 template <typename T>
 class ResourceMap {
@@ -13,13 +12,16 @@ protected:
 	VkDevice device;
 
 public:
-	explicit ResourceMap(VkDevice device) : device(device) {}
+	explicit ResourceMap(VkDevice device)
+	        : device(device) {}
 	virtual ~ResourceMap() {}
 
 	T& operator[](const StringId& name) {
 		return resources[name];
 	}
-	T& operator[](const char *name) { return operator[](sid(name)); }
+	T& operator[](const char* name) {
+		return operator[](sid(name));
+	}
 
 	T& get(const StringId& name) {
 		auto it = resources.find(name);
@@ -27,17 +29,22 @@ public:
 			throw std::runtime_error("Couldn't find resource: " + sidToString(name));
 		return it->second;
 	}
-	T& get(const char *name) { return get(sid(name)); }
+	T& get(const char* name) {
+		return get(sid(name));
+	}
 
 	void add(const StringId& name, T rsrc) {
 		resources[name] = rsrc;
 	}
-	void add(const char *name, T rsrc) { add(sid(name), rsrc); }
+	void add(const char* name, T rsrc) {
+		add(sid(name), rsrc);
+	}
 };
 
 class PipelineLayoutMap : public ResourceMap<VkPipelineLayout> {
 public:
-	explicit PipelineLayoutMap(VkDevice device) : ResourceMap(device) {}
+	explicit PipelineLayoutMap(VkDevice device)
+	        : ResourceMap(device) {}
 	~PipelineLayoutMap() {
 		for (auto& pair : resources)
 			vkDestroyPipelineLayout(device, pair.second, nullptr);
@@ -49,14 +56,15 @@ public:
 		resources[name] = rsrc;
 		return rsrc;
 	}
-	VkPipelineLayout create(const char *name, const VkPipelineLayoutCreateInfo& createInfo) {
+	VkPipelineLayout create(const char* name, const VkPipelineLayoutCreateInfo& createInfo) {
 		return create(sid(name), createInfo);
 	}
 };
 
 class DescriptorSetLayoutMap : public ResourceMap<VkDescriptorSetLayout> {
 public:
-	explicit DescriptorSetLayoutMap(VkDevice device) : ResourceMap(device) {}
+	explicit DescriptorSetLayoutMap(VkDevice device)
+	        : ResourceMap(device) {}
 	~DescriptorSetLayoutMap() {
 		for (auto& pair : resources)
 			vkDestroyDescriptorSetLayout(device, pair.second, nullptr);
@@ -68,14 +76,15 @@ public:
 		resources[name] = rsrc;
 		return rsrc;
 	}
-	VkDescriptorSetLayout create(const char *name, const VkDescriptorSetLayoutCreateInfo& createInfo) {
+	VkDescriptorSetLayout create(const char* name, const VkDescriptorSetLayoutCreateInfo& createInfo) {
 		return create(sid(name), createInfo);
 	}
 };
 
 class PipelineMap : public ResourceMap<VkPipeline> {
 public:
-	explicit PipelineMap(VkDevice device) : ResourceMap(device) {}
+	explicit PipelineMap(VkDevice device)
+	        : ResourceMap(device) {}
 	~PipelineMap() {
 		for (auto& pair : resources)
 			vkDestroyPipeline(device, pair.second, nullptr);
@@ -87,23 +96,23 @@ public:
 		resources[name] = pipeline;
 		return pipeline;
 	}
-	VkPipeline create(const char *name, const VkGraphicsPipelineCreateInfo& createInfo) {
+	VkPipeline create(const char* name, const VkGraphicsPipelineCreateInfo& createInfo) {
 		return create(sid(name), createInfo);
 	}
 };
 
 class DescriptorSetMap : public ResourceMap<VkDescriptorSet> {
 	const VkDescriptorPool& descriptorPool;
+
 public:
 	explicit DescriptorSetMap(VkDevice device, VkDescriptorPool& pool)
-		: ResourceMap(device)
-		, descriptorPool(pool)
-	{}
+	        : ResourceMap(device)
+	        , descriptorPool(pool) {}
 
 	~DescriptorSetMap() {
 		// These get freed automatically by vkDestroyDescriptorPool
-		//for (auto& pair : resources)
-			//vkFreeDescriptorSets(device, descriptorPool, 1, &pair.second);
+		// for (auto& pair : resources)
+		// vkFreeDescriptorSets(device, descriptorPool, 1, &pair.second);
 	}
 
 	VkDescriptorSet create(const StringId& name, const VkDescriptorSetAllocateInfo& allocInfo) {
@@ -112,16 +121,16 @@ public:
 		resources[name] = descriptorSet;
 		return descriptorSet;
 	}
-	VkDescriptorSet create(const char *name, const VkDescriptorSetAllocateInfo& allocInfo) {
+	VkDescriptorSet create(const char* name, const VkDescriptorSetAllocateInfo& allocInfo) {
 		return create(sid(name), allocInfo);
 	}
 };
 
 struct Resources {
-	PipelineLayoutMap *pipelineLayouts;
-	PipelineMap *pipelines;
-	DescriptorSetLayoutMap *descriptorSetLayouts;
-	DescriptorSetMap *descriptorSets;
+	PipelineLayoutMap* pipelineLayouts;
+	PipelineMap* pipelines;
+	DescriptorSetLayoutMap* descriptorSetLayouts;
+	DescriptorSetMap* descriptorSets;
 
 	void init(VkDevice device, VkDescriptorPool descriptorPool) {
 		pipelineLayouts = new PipelineLayoutMap(device);

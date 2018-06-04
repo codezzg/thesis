@@ -8,7 +8,7 @@ constexpr char DIRSEP = '\\';
 constexpr char DIRSEP = '/';
 #endif
 
-using signal_handler_t = void(*)();
+using signal_handler_t = void (*)();
 
 /** @return the absolute path to the executable's directory.  */
 std::string xplatGetCwd();
@@ -23,6 +23,6 @@ bool xplatEnableExitHandler();
  */
 void xplatSetExitHandler(signal_handler_t handler);
 
-std::string xplatDirname(const char *path);
+std::string xplatDirname(const char* path);
 
 std::string xplatPath(std::string&& str);

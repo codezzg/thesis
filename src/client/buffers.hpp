@@ -9,10 +9,10 @@
  * To do that, see VulkanAllocator, create/destroy/map/unmapBuffers* functions.
  */
 
-#include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
-#include <vector>
 #include <tuple>
+#include <vector>
+#include <vulkan/vulkan.h>
 
 struct Application;
 
@@ -23,7 +23,7 @@ struct Buffer {
 	/** Offset in the underlying memory */
 	VkDeviceSize offset;
 	/** Host-mapped pointer, if any */
-	void *ptr = nullptr;
+	void* ptr = nullptr;
 };
 
 struct MVPUniformBufferObject final {
@@ -33,7 +33,7 @@ struct MVPUniformBufferObject final {
 };
 
 struct CompositionUniformBufferObject final {
-	glm::vec4 viewPos; // w used as 'showGbufTex'
+	glm::vec4 viewPos;   // w used as 'showGbufTex'
 };
 
 /** A struct containing both an MVPUniformBuffer and a CompositionUniformBuffer
@@ -50,7 +50,8 @@ struct CombinedUniformBuffers : public Buffer {
 	}
 
 	CompositionUniformBufferObject* getComp() const {
-		return reinterpret_cast<CompositionUniformBufferObject*>(reinterpret_cast<uint8_t*>(ptr) + offsets.comp);
+		return reinterpret_cast<CompositionUniformBufferObject*>(
+		        reinterpret_cast<uint8_t*>(ptr) + offsets.comp);
 	}
 };
 
@@ -67,10 +68,7 @@ public:
 	using BufferCreateInfo = std::tuple<VkDeviceSize, VkBufferUsageFlags, VkMemoryPropertyFlags>;
 
 	/** Schedules a new buffer to be created and binds it to `buffer`. */
-	void addBuffer(Buffer& buffer,
-			VkDeviceSize size,
-			VkBufferUsageFlags flags,
-			VkMemoryPropertyFlags properties);
+	void addBuffer(Buffer& buffer, VkDeviceSize size, VkBufferUsageFlags flags, VkMemoryPropertyFlags properties);
 
 	void addBuffer(Buffer& buffer, const BufferCreateInfo& info);
 
@@ -81,11 +79,10 @@ public:
 /** Creates a single buffer with its own allocation.
  *  NOTE: this is a pessimizing memory access pattern, try to avoid it!
  */
-Buffer createBuffer(
-		const Application& app,
-		VkDeviceSize size,
-		VkBufferUsageFlags usage,
-		VkMemoryPropertyFlags properties);
+Buffer createBuffer(const Application& app,
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags properties);
 
 /** Creates a buffer suited for use as a staging buffer and maps its memory to the host.
  *  Note: in the case of staging buffers it's probably better to create a single one of them
@@ -96,8 +93,12 @@ Buffer createBuffer(
 Buffer createStagingBuffer(const Application& app, VkDeviceSize size);
 
 void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image,
-		uint32_t width, uint32_t height, VkDeviceSize bufOffset = 0);
+void copyBufferToImage(const Application& app,
+        VkBuffer buffer,
+        VkImage image,
+        uint32_t width,
+        uint32_t height,
+        VkDeviceSize bufOffset = 0);
 
 void destroyBuffer(VkDevice device, Buffer& buffer);
 
@@ -111,7 +112,7 @@ void destroyAllBuffers(VkDevice device, const std::vector<Buffer>& buffers);
  *  - buffers must have the HOST_COHERENT bit set
  */
 void mapBuffersMemory(VkDevice device,
-		/* inout */ const std::vector<Buffer*>& buffers);
+        /* inout */ const std::vector<Buffer*>& buffers);
 
 /** Does the opposite of `mapBuffersMemory` */
 void unmapBuffersMemory(VkDevice device, const std::vector<Buffer>& buffers);

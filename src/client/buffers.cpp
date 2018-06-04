@@ -1,14 +1,14 @@
 #include "buffers.hpp"
+#include "application.hpp"
+#include "commands.hpp"
+#include "logging.hpp"
+#include "phys_device.hpp"
+#include "vertex.hpp"
+#include "vulk_errors.hpp"
+#include "vulk_memory.hpp"
 #include <array>
 #include <cstring>
 #include <unordered_set>
-#include "commands.hpp"
-#include "phys_device.hpp"
-#include "application.hpp"
-#include "vertex.hpp"
-#include "vulk_errors.hpp"
-#include "logging.hpp"
-#include "vulk_memory.hpp"
 
 using namespace logging;
 
@@ -24,12 +24,10 @@ void BufferAllocator::addBuffer(Buffer& buffer, const BufferAllocator::BufferCre
 	addBuffer(buffer, std::get<0>(info), std::get<1>(info), std::get<2>(info));
 }
 
-void BufferAllocator::addBuffer(
-		Buffer& buffer,
-		VkDeviceSize size,
-		VkBufferUsageFlags usage,
-		VkMemoryPropertyFlags properties)
-{
+void BufferAllocator::addBuffer(Buffer& buffer,
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags properties) {
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferInfo.size = size;
@@ -60,8 +58,7 @@ void BufferAllocator::create(const Application& app) {
 		VkMemoryRequirements memRequirements;
 		vkGetBufferMemoryRequirements(app.device, bufHandle, &memRequirements);
 
-		const auto memType = findMemoryType(app.physicalDevice,
-				memRequirements.memoryTypeBits, properties[i]);
+		const auto memType = findMemoryType(app.physicalDevice, memRequirements.memoryTypeBits, properties[i]);
 		buffers[i]->offset = requiredSizes[memType];
 		requiredSizes[memType] += memRequirements.size;
 
@@ -99,12 +96,10 @@ void BufferAllocator::create(const Application& app) {
 	info("Created ", buffers.size(), " buffers via ", memories.size(), " allocations.");
 }
 
-Buffer createBuffer(
-		const Application& app,
-		VkDeviceSize size,
-		VkBufferUsageFlags usage,
-		VkMemoryPropertyFlags properties)
-{
+Buffer createBuffer(const Application& app,
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags properties) {
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferInfo.size = size;
@@ -152,9 +147,12 @@ void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, 
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }
 
-void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image,
-		uint32_t width, uint32_t height, VkDeviceSize bufOffset)
-{
+void copyBufferToImage(const Application& app,
+        VkBuffer buffer,
+        VkImage image,
+        uint32_t width,
+        uint32_t height,
+        VkDeviceSize bufOffset) {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	VkBufferImageCopy region = {};
@@ -175,10 +173,9 @@ void copyBufferToImage(const Application& app, VkBuffer buffer, VkImage image,
 
 Buffer createStagingBuffer(const Application& app, VkDeviceSize size) {
 	auto buf = createBuffer(app,
-		size,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-	);
+	        size,
+	        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	VLKCHECK(vkMapMemory(app.device, buf.memory, 0, buf.size, 0, &buf.ptr));
 
@@ -207,7 +204,7 @@ void mapBuffersMemory(VkDevice device, const std::vector<Buffer*>& buffers) {
 
 	struct MemInfo {
 		VkDeviceSize size;
-		void *ptr;
+		void* ptr;
 	};
 	std::unordered_map<VkDeviceMemory, MemInfo> mems;
 
@@ -234,20 +231,18 @@ void unmapBuffersMemory(VkDevice device, const std::vector<Buffer>& buffers) {
 }
 
 BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties() {
-	return std::make_tuple(
-		sizeof(Vertex) * 4,
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-	);
+	return std::make_tuple(sizeof(Vertex) * 4,
+	        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+	        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 }
 
 void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf) {
 	const std::array<Vertex, 4> quadVertices = {
 		// position, normal, texCoords
-		Vertex{ glm::vec3{ -1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 1.0f } },
+		Vertex{ glm::vec3{ -1.0f, 1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 1.0f } },
 		Vertex{ glm::vec3{ -1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 0.0f } },
-		Vertex{ glm::vec3{  1.0f,  1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f } },
-		Vertex{ glm::vec3{  1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 0.0f } },
+		Vertex{ glm::vec3{ 1.0f, 1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f } },
+		Vertex{ glm::vec3{ 1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 0.0f } },
 	};
 
 	memcpy(stagingBuf.ptr, quadVertices.data(), quadVertices.size() * sizeof(Vertex));

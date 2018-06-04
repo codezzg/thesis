@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vector>
-#include <tuple>
-#include <vulkan/vulkan.h>
-#include <string>
 #include "buffers.hpp"
 #include "images.hpp"
+#include <string>
+#include <tuple>
+#include <vector>
+#include <vulkan/vulkan.h>
 
 struct Application;
 
@@ -18,7 +18,7 @@ struct SwapChain final {
 	std::vector<VkImageView> imageViews;
 	std::vector<VkFramebuffer> framebuffers;
 	Image depthImage;
-	//VkImageView depthOnlyView; // view of depthImage without the stencil
+	// VkImageView depthOnlyView; // view of depthImage without the stencil
 
 	VkDescriptorSet descriptorSet;
 
@@ -58,11 +58,16 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 
 /** @return a descriptorSet suited for forward rendering */
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
-		const Buffer& uniformBuffer, const Image& tex, VkSampler texSampler);
+        const Buffer& uniformBuffer,
+        const Image& tex,
+        VkSampler texSampler);
 
 /** records a vector of commandBuffers that perform forward rendering */
-void recordSwapChainDebugCommandBuffers(const Application& app, std::vector<VkCommandBuffer>& buffers,
-		uint32_t nIndices, const Buffer& vertexBuffer, const Buffer& indexBuffer);
+void recordSwapChainDebugCommandBuffers(const Application& app,
+        std::vector<VkCommandBuffer>& buffers,
+        uint32_t nIndices,
+        const Buffer& vertexBuffer,
+        const Buffer& indexBuffer);
 
 /** @return a pipeline suited for forward rendering */
 VkPipeline createSwapChainDebugPipeline(const Application& app);

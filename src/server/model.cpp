@@ -1,9 +1,9 @@
 #include "model.hpp"
-#include <unordered_map>
+#include "logging.hpp"
+#include "xplatform.hpp"
 #include <chrono>
 #include <iostream>
-#include "xplatform.hpp"
-#include "logging.hpp"
+#include <unordered_map>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "third_party/tiny_obj_loader.h"
 
@@ -12,9 +12,9 @@ using shared::Mesh;
 
 namespace to = tinyobj;
 
-static Material saveMaterial(const char *modelPath, const to::material_t& mat);
+static Material saveMaterial(const char* modelPath, const to::material_t& mat);
 
-Model loadModel(const char *modelPath, void *buffer) {
+Model loadModel(const char* modelPath, void* buffer) {
 
 	Model model = {};
 
@@ -25,9 +25,13 @@ Model loadModel(const char *modelPath, void *buffer) {
 
 	const auto load_t_begin = std::chrono::high_resolution_clock::now();
 
-	if (!to::LoadObj(&attrib, &shapes, &materials, &err, modelPath,
-		xplatDirname(modelPath).c_str(), // mtl base path
-		true))                           // triangulate
+	if (!to::LoadObj(&attrib,
+	            &shapes,
+	            &materials,
+	            &err,
+	            modelPath,
+	            xplatDirname(modelPath).c_str(),   // mtl base path
+	            true))                             // triangulate
 	{
 		logging::err(err);
 		return model;
@@ -62,8 +66,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 					attrib.normals[3 * index.normal_index + 1],
 					attrib.normals[3 * index.normal_index + 2],
 				};
-			}
-			else {
+			} else {
 				vertex.norm = {};
 			}
 			if (index.texcoord_index >= 0) {
@@ -91,8 +94,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 
 	model.name = sid(modelPath);
 	model.vertices = reinterpret_cast<Vertex*>(buffer);
-	model.indices = reinterpret_cast<Index*>(reinterpret_cast<uint8_t*>(buffer)
-					+ sizeof(Vertex) * model.nVertices);
+	model.indices = reinterpret_cast<Index*>(reinterpret_cast<uint8_t*>(buffer) + sizeof(Vertex) * model.nVertices);
 	model.nIndices = indices.size();
 
 	// Save material info
@@ -109,7 +111,7 @@ Model loadModel(const char *modelPath, void *buffer) {
 	return model;
 }
 
-Material saveMaterial(const char *modelPath, const to::material_t& mat) {
+Material saveMaterial(const char* modelPath, const to::material_t& mat) {
 	const std::string basePath = xplatDirname(modelPath) + DIRSEP;
 
 	debug("material base path: ", basePath);

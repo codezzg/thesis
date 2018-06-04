@@ -1,11 +1,11 @@
 #include "camera_ctrl.hpp"
 #include "clock.hpp"
+#include "logging.hpp"
 #include <cmath>
 #include <glm/gtx/string_cast.hpp>
-#include "logging.hpp"
 
 #ifndef M_PI
-	#define M_PI 3.14159265358979323846264338327950288
+#	define M_PI 3.14159265358979323846264338327950288
 #endif
 
 using namespace logging;
@@ -54,7 +54,7 @@ void FPSCameraController::turn(double xoff, double yoff) {
 	camera.updateVectors();
 }
 
-void FPSCameraController::processInput(GLFWwindow *window) {
+void FPSCameraController::processInput(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_W))
 		move(Direction::FWD);
 	if (glfwGetKey(window, GLFW_KEY_A))
@@ -69,7 +69,7 @@ void FPSCameraController::processInput(GLFWwindow *window) {
 
 void CubeCameraController::turn(double, double) {}
 
-void CubeCameraController::processInput(GLFWwindow *window) {
+void CubeCameraController::processInput(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_W))
 		move(Direction::UP);
 	if (glfwGetKey(window, GLFW_KEY_A))
@@ -83,6 +83,3 @@ void CubeCameraController::processInput(GLFWwindow *window) {
 	if (glfwGetKey(window, GLFW_KEY_F))
 		move(Direction::BACK);
 }
-
-
-

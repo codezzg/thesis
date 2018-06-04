@@ -3,21 +3,21 @@
 /** Platform independence layer for sockets */
 #include <string>
 #ifdef _WIN32
-	#include <WinSock2.h>
-	#include <Ws2tcpip.h>
+#	include <WinSock2.h>
+#	include <Ws2tcpip.h>
 #else
-	#include <sys/socket.h>
-	#include <arpa/inet.h>
-	#include <netdb.h>
-	#include <unistd.h>
+#	include <sys/socket.h>
+#	include <arpa/inet.h>
+#	include <netdb.h>
+#	include <unistd.h>
 #endif
 
 #ifdef _WIN32
 using socket_t = SOCKET;
-using socket_connect_op = int (__stdcall*) (socket_t, const sockaddr*, int);
+using socket_connect_op = int(__stdcall*)(socket_t, const sockaddr*, int);
 #else
 using socket_t = int;
-using socket_connect_op = int (*) (socket_t, const sockaddr*, socklen_t);
+using socket_connect_op = int (*)(socket_t, const sockaddr*, socklen_t);
 #endif
 
 /** Checks if the given handle represents a valid socket */
@@ -52,4 +52,3 @@ const char* xplatGetErrorString();
 
 /** Returns the latest error code */
 int xplatGetError();
-

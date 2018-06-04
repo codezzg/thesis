@@ -1,25 +1,25 @@
 #include "server_endpoint.hpp"
-#include <chrono>
+#include "FPSCounter.hpp"
+#include "camera.hpp"
+#include "clock.hpp"
+#include "config.hpp"
+#include "defer.hpp"
+#include "frame_data.hpp"
+#include "frame_utils.hpp"
+#include "logging.hpp"
+#include "model.hpp"
+#include "serialization.hpp"
+#include "server.hpp"
+#include "server_appstage.hpp"
+#include "tcp_messages.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
+#include <cstring>
+#include <glm/gtx/string_cast.hpp>
 #include <iostream>
 #include <thread>
 #include <vector>
-#include <glm/gtx/string_cast.hpp>
-#include <cstring>
-#include "FPSCounter.hpp"
-#include "model.hpp"
-#include "tcp_messages.hpp"
-#include "frame_data.hpp"
-#include "config.hpp"
-#include "frame_utils.hpp"
-#include "camera.hpp"
-#include "logging.hpp"
-#include "serialization.hpp"
-#include "clock.hpp"
-#include "server_appstage.hpp"
-#include "server.hpp"
-#include "defer.hpp"
 
 using namespace logging;
 using namespace std::chrono_literals;
@@ -35,9 +35,11 @@ using shared::ResourcePacket;
  *  the buffer, or it will copy the unused garbage bytes too!
  */
 template <std::size_t N>
-static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
-		int nVertices, int nIndices, std::size_t offset)
-{
+static int writeAllPossible(std::array<uint8_t, N>& dst,
+        const uint8_t* src,
+        int nVertices,
+        int nIndices,
+        std::size_t offset) {
 	const auto srcSize = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 	auto srcIdx = offset;
 	auto dstIdx = 0lu;
@@ -50,7 +52,7 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 				return srcIdx;
 			}
 			*(reinterpret_cast<Vertex*>(dst.data() + dstIdx)) =
-					*(reinterpret_cast<const Vertex*>(src + srcIdx));
+			        *(reinterpret_cast<const Vertex*>(src + srcIdx));
 			dstIdx += sizeof(Vertex);
 			srcIdx += sizeof(Vertex);
 		} else {
@@ -60,7 +62,7 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 				return srcIdx;
 			}
 			*(reinterpret_cast<Index*>(dst.data() + dstIdx)) =
-					*(reinterpret_cast<const Index*>(src + srcIdx));
+			        *(reinterpret_cast<const Index*>(src + srcIdx));
 			dstIdx += sizeof(Index);
 			srcIdx += sizeof(Index);
 		}
@@ -71,15 +73,15 @@ static int writeAllPossible(std::array<uint8_t, N>& dst, const uint8_t *src,
 }
 
 // TODO
-//const std::vector<Vertex> vertices = {
-	////{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
-	//{{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
-	//{{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
-	//{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
+// const std::vector<Vertex> vertices = {
+////{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
+//{{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
+//{{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
+//{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
 //};
-//const std::vector<Index> indices = {
-	////8
-	//0, 1, 2, 2, 3, 0
+// const std::vector<Index> indices = {
+////8
+// 0, 1, 2, 2, 3, 0
 //};
 void ServerActiveEndpoint::loopFunc() {
 
@@ -108,23 +110,22 @@ void ServerActiveEndpoint::loopFunc() {
 		debug("Waiting for client data...");
 		/*std::unique_lock<std::mutex> loopUlk{ loopMtx };
 		shared.loopCv.wait(loopUlk);*/
-		//shared.loopCv.wait_for(loopMtx, 0.033s);
+		// shared.loopCv.wait_for(loopMtx, 0.033s);
 
 		debug("Received data from frame ", shared.clientFrame);
 
-		//int64_t frameId = -1;
+		// int64_t frameId = -1;
 		std::array<uint8_t, FrameData().payload.size()> clientData;
 		{
 			std::lock_guard<std::mutex> lock{ shared.clientDataMtx };
 			debug("Server frame = ", frameId, ", client frame = ", shared.clientFrame);
-			//frameId = shared.clientFrame;
+			// frameId = shared.clientFrame;
 			std::copy(shared.clientData.begin(), shared.clientData.end(), clientData.begin());
 		}
 
 		// TODO: multiple models
 		auto& model = server.resources.models.begin()->second;
-		int nVertices = model.nVertices,
-		    nIndices = model.nIndices;
+		int nVertices = model.nVertices, nIndices = model.nIndices;
 		log(LOGLV_DEBUG, false, "v/i: ", nVertices, ", ", nIndices, " ---> ");
 		transformVertices(model, clientData, memory, memsize, nVertices, nIndices);
 		debug(nVertices, ", ", nIndices);
@@ -139,7 +140,7 @@ void ServerActiveEndpoint::loopFunc() {
 	}
 }
 
-void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int nVertices, int nIndices) {
+void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t* buffer, int nVertices, int nIndices) {
 	// Start new frame
 	size_t totSent = 0;
 	int nPacketsSent = 0;
@@ -155,11 +156,11 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 		packet.header.packetId = packetId;
 		packet.header.phead.nVertices = nVertices;
 		packet.header.phead.nIndices = nIndices;
-		//const auto preOff = offset;
+		// const auto preOff = offset;
 		offset = writeAllPossible(packet.payload, buffer, nVertices, nIndices, offset);
-		//std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
-		//std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
-		//dumpPacket("server.dump", packet);
+		// std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
+		// std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
+		// dumpPacket("server.dump", packet);
 
 		sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(packet));
 
@@ -167,11 +168,10 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t *buffer, int n
 		++nPacketsSent;
 		++packetId;
 	}
-	//std::cerr << "Sent total " << totSent << " bytes (" << nPacketsSent << " packets).\n";
+	// std::cerr << "Sent total " << totSent << " bytes (" << nPacketsSent << " packets).\n";
 }
 
 ////////////////////////////////////////
-
 
 // Receives client parameters wherewith the server shall calculate the primitives to send during next frame
 void ServerPassiveEndpoint::loopFunc() {
@@ -231,8 +231,8 @@ void ServerReliableEndpoint::loopFunc() {
 		}
 
 		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
-		//std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSocket, clientAddr);
-		//listener.detach();
+		// std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSocket, clientAddr);
+		// listener.detach();
 
 		// Single client
 		listenTo(clientSocket, clientAddr);
@@ -240,9 +240,9 @@ void ServerReliableEndpoint::loopFunc() {
 }
 
 /** This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
-static void keepaliveTask(socket_t clientSocket, std::condition_variable& cv,
-		std::chrono::time_point<std::chrono::system_clock>& latestPing)
-{
+static void keepaliveTask(socket_t clientSocket,
+        std::condition_variable& cv,
+        std::chrono::time_point<std::chrono::system_clock>& latestPing) {
 	std::array<uint8_t, 1> buffer = {};
 
 	while (true) {
@@ -284,7 +284,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		if (!sendOneTimeData(clientSocket))
 			goto dropclient;
 
-		//std::exit(0);
+		// std::exit(0);
 
 		if (!sendTCPMsg(clientSocket, MsgType::END_RSRC_EXCHANGE))
 			goto dropclient;
@@ -352,9 +352,17 @@ static bool sendMaterial(socket_t clientSocket, const Material& material) {
 	packet.res.diffuseTex = material.diffuseTex.length() > 0 ? sid(material.diffuseTex) : SID_NONE;
 	packet.res.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
 
-	info("packet: { type = ", packet.type, ", name = ",
-		packet.res.name, " (", sidToString(packet.res.name), "), diffuse = ",
-		packet.res.diffuseTex, ", specular = ", packet.res.specularTex, " }");
+	info("packet: { type = ",
+	        packet.type,
+	        ", name = ",
+	        packet.res.name,
+	        " (",
+	        sidToString(packet.res.name),
+	        "), diffuse = ",
+	        packet.res.diffuseTex,
+	        ", specular = ",
+	        packet.res.specularTex,
+	        " }");
 
 	// We want to send this in a single packet. This is reasonable, as a packet should be at least
 	// ~400 bytes of size and a material only takes some 10s.
@@ -377,9 +385,15 @@ static bool sendModel(socket_t clientSocket, const Model& model) {
 	header.res.nMeshes = model.meshes.size();
 
 	// Put header into packet
-	info("header: { type = ", header.type, ", name = ", header.res.name,
-			", nMaterials = ", int(header.res.nMaterials),
-			", nMeshes = ", int(header.res.nMeshes), " }");
+	info("header: { type = ",
+	        header.type,
+	        ", name = ",
+	        header.res.name,
+	        ", nMaterials = ",
+	        int(header.res.nMaterials),
+	        ", nMeshes = ",
+	        int(header.res.nMeshes),
+	        " }");
 	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
 
 	const auto matSize = header.res.nMaterials * sizeof(StringId);
@@ -422,7 +436,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 	std::array<uint8_t, 1> packet = {};
 	std::unordered_set<std::string> texturesSent;
 
-	const auto shouldSendTexture = [&texturesSent] (const std::string& texName) {
+	const auto shouldSendTexture = [&texturesSent](const std::string& texName) {
 		return texName.length() > 0 && texturesSent.count(texName) == 0;
 	};
 
@@ -502,16 +516,16 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 	return true;
 }
 
-bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::string& texName,
-		shared::TextureFormat format)
-{
+bool ServerReliableEndpoint::sendTexture(socket_t clientSocket,
+        const std::string& texName,
+        shared::TextureFormat format) {
 	using shared::TextureInfo;
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
 
 	// Load the texture, and unload it as we finished using it
 	server.resources.loadTexture(texName.c_str());
-	DEFER([this] () {
+	DEFER([this]() {
 		server.resources.textures.clear();
 		server.resources.allocator.deallocLatest();
 	});
@@ -528,8 +542,15 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket, const std::strin
 	info("Sending texture ", texName, " (", texNameSid, ")");
 
 	// Put header into packet
-	info("texheader: { type = ", header.type, ", size = ", header.res.size, ", name = ",
-			header.res.name, ", format = ", int(header.res.format), " }");
+	info("texheader: { type = ",
+	        header.type,
+	        ", size = ",
+	        header.res.size,
+	        ", name = ",
+	        header.res.name,
+	        ", format = ",
+	        int(header.res.format),
+	        " }");
 	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
 
 	// Fill remaining space with payload

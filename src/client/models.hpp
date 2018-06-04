@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vector>
-#include "shared_resources.hpp"
 #include "hashing.hpp"
+#include "shared_resources.hpp"
+#include <vector>
 
 struct ModelInfo {
 	StringId name;

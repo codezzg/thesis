@@ -1,7 +1,7 @@
 #include "renderpass.hpp"
 #include "application.hpp"
-#include "vulk_errors.hpp"
 #include "formats.hpp"
+#include "vulk_errors.hpp"
 #include <array>
 
 VkRenderPass createForwardRenderPass(const Application& app) {
@@ -56,9 +56,7 @@ VkRenderPass createForwardRenderPass(const Application& app) {
 	dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-	const std::array<VkAttachmentDescription, 2> attachments = {
-		colorAttachment, depthAttachment
-	};
+	const std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
 
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -113,7 +111,6 @@ VkRenderPass createMultipassRenderPass(const Application& app) {
 	attachDesc[4] = attachDesc[3];
 	attachDesc[4].format = formats::albedoSpec;
 
-
 	const std::array<VkAttachmentReference, 3> colorRefs = {
 		VkAttachmentReference{ 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
 		VkAttachmentReference{ 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
@@ -145,10 +142,7 @@ VkRenderPass createMultipassRenderPass(const Application& app) {
 	lightSubpass.pColorAttachments = &outColorRef;
 	lightSubpass.pDepthStencilAttachment = &depthRORef;
 
-	const std::array<VkSubpassDescription, 2> subpasses = {
-		geomSubpass,
-		lightSubpass
-	};
+	const std::array<VkSubpassDescription, 2> subpasses = { geomSubpass, lightSubpass };
 
 	std::array<VkSubpassDependency, 2> subpassDependencies;
 
@@ -161,11 +155,10 @@ VkRenderPass createMultipassRenderPass(const Application& app) {
 	                                      VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
 	                                      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 	subpassDependencies[0].srcAccessMask =
-	    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	subpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-	                                       VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-	                                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
-	                                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+	        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	subpassDependencies[0].dstAccessMask =
+	        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
 	subpassDependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 	subpassDependencies[1].srcSubpass = 0;
@@ -173,16 +166,14 @@ VkRenderPass createMultipassRenderPass(const Application& app) {
 	subpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
 	                                      VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
 	                                      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	subpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-	                                      VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-	                                      VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
-	                                      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	subpassDependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-	                                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	subpassDependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-	                                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-	                                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-	                                       VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+	subpassDependencies[1].dstStageMask =
+	        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+	        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	subpassDependencies[1].srcAccessMask =
+	        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	subpassDependencies[1].dstAccessMask =
+	        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+	        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
 	subpassDependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 	VkRenderPassCreateInfo renderPassInfo = {};
