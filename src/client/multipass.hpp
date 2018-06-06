@@ -17,7 +17,7 @@ void recordMultipassCommandBuffers(const Application& app,
         const Buffer& iBuffer,
         const NetworkResources& netRsrc);
 
-VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app);
+std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const Application& app);
 
 /** Creates descriptor sets for all the given materials, assigning the proper textures.
  *  @return A vector where each descriptorset correspond to the i-th material in input.

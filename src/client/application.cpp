@@ -83,15 +83,21 @@ static void createLogicalDevice(Application& app)
 
 VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResources& netRsrc)
 {
+	/* We have 4 DescriptorSets, each updated at a different frequency:
+	 * #0: view resources (CompUbo)
+	 * #1: shader resources (G-pos, G-norm, G-albedoSpec)
+	 * #2: material resources (texDiffuse, texSpecular)
+	 * #3: object resources (MVPUbo)
+	 */
 	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = 2 * netRsrc.materials.size();
+	poolSizes[0].descriptorCount = 2;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = netRsrc.textures.size() + 2;   // +2 for default ones
+	poolSizes[1].descriptorCount = netRsrc.textures.size() + 2;   // diff/spec + 2 for default ones
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	poolSizes[2].descriptorCount = 3 * netRsrc.materials.size();   // one per G-buffer attachment
+	poolSizes[2].descriptorCount = 3;   // one per G-buffer attachment
 
-	info("Created descriptorPool with sizes ",
+	debug("Created descriptorPool with sizes ",
 	        poolSizes[0].descriptorCount,
 	        ", ",
 	        poolSizes[1].descriptorCount,
@@ -102,7 +108,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = netRsrc.materials.size();
+	poolInfo.maxSets = 4;
 	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
 	VkDescriptorPool descriptorPool;

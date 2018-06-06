@@ -70,6 +70,8 @@ void recordMultipassCommandBuffers(const Application& app,
 
 		vertexBuffers[0] = app.screenQuadBuffer.handle;
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
+		// vkCmdBindDescriptorSets(commandBuffers[i], app.res.pipelineLayouts->get("swap"),
+		// 0, 1,
 		vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);
@@ -78,77 +80,132 @@ void recordMultipassCommandBuffers(const Application& app,
 	}
 }
 
-VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app)
+std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const Application& app)
 {
-	// TexDiffuse
-	VkDescriptorSetLayoutBinding diffuseLayoutBinding = {};
-	diffuseLayoutBinding.binding = 0;
-	diffuseLayoutBinding.descriptorCount = 1;
-	diffuseLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	diffuseLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+	descriptorSetLayouts.reserve(4);
 
-	// TexSpecular
-	VkDescriptorSetLayoutBinding specLayoutBinding = {};
-	specLayoutBinding.binding = 1;
-	specLayoutBinding.descriptorCount = 1;
-	specLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	specLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	{
+		//// Set #0: view resources
 
-	// ubo: MVPUniformBufferObject
-	VkDescriptorSetLayoutBinding mvpUboLayoutBinding = {};
-	mvpUboLayoutBinding.binding = 2;
-	mvpUboLayoutBinding.descriptorCount = 1;
-	mvpUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	mvpUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		// CompUbo
+		VkDescriptorSetLayoutBinding compUboBinding = {};
+		compUboBinding.binding = 0;
+		compUboBinding.descriptorCount = 1;
+		compUboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		compUboBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	// gPosition: sampler2D
-	VkDescriptorSetLayoutBinding gPosLayoutBinding = {};
-	gPosLayoutBinding.binding = 3;
-	gPosLayoutBinding.descriptorCount = 1;
-	gPosLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	gPosLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { compUboBinding };
 
-	// gNormal: sampler2D
-	VkDescriptorSetLayoutBinding gNormalLayoutBinding = {};
-	gNormalLayoutBinding.binding = 4;
-	gNormalLayoutBinding.descriptorCount = 1;
-	gNormalLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	gNormalLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = bindings.size();
+		layoutInfo.pBindings = bindings.data();
 
-	// gAlbedoSpec: sampler2D
-	VkDescriptorSetLayoutBinding gAlbedoSpecLayoutBinding = {};
-	gAlbedoSpecLayoutBinding.binding = 5;
-	gAlbedoSpecLayoutBinding.descriptorCount = 1;
-	gAlbedoSpecLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	gAlbedoSpecLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		VkDescriptorSetLayout descriptorSetLayout;
+		VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
+		app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
 
-	// ubo: CompositionUniformBufferObject
-	VkDescriptorSetLayoutBinding compUboLayoutBinding = {};
-	compUboLayoutBinding.binding = 6;
-	compUboLayoutBinding.descriptorCount = 1;
-	compUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	compUboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		descriptorSetLayouts.emplace_back(descriptorSetLayout);
+	}
 
-	const std::array<VkDescriptorSetLayoutBinding, 7> bindings = {
-		diffuseLayoutBinding,
-		specLayoutBinding,
-		mvpUboLayoutBinding,
-		gPosLayoutBinding,
-		gNormalLayoutBinding,
-		gAlbedoSpecLayoutBinding,
-		compUboLayoutBinding,
-	};
+	{
+		//// Set #1: shader resources
 
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = bindings.size();
-	layoutInfo.pBindings = bindings.data();
+		// gPosition: sampler2D
+		VkDescriptorSetLayoutBinding gPosLayoutBinding = {};
+		gPosLayoutBinding.binding = 0;
+		gPosLayoutBinding.descriptorCount = 1;
+		gPosLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		gPosLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	VkDescriptorSetLayout descriptorSetLayout;
-	VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
-	app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
+		// gNormal: sampler2D
+		VkDescriptorSetLayoutBinding gNormalLayoutBinding = {};
+		gNormalLayoutBinding.binding = 1;
+		gNormalLayoutBinding.descriptorCount = 1;
+		gNormalLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		gNormalLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	return descriptorSetLayout;
+		// gAlbedoSpec: sampler2D
+		VkDescriptorSetLayoutBinding gAlbedoSpecLayoutBinding = {};
+		gAlbedoSpecLayoutBinding.binding = 2;
+		gAlbedoSpecLayoutBinding.descriptorCount = 1;
+		gAlbedoSpecLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		gAlbedoSpecLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		const std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+			gPosLayoutBinding, gNormalLayoutBinding, gAlbedoSpecLayoutBinding
+		};
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = bindings.size();
+		layoutInfo.pBindings = bindings.data();
+
+		VkDescriptorSetLayout descriptorSetLayout;
+		VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
+		app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
+
+		descriptorSetLayouts.emplace_back(descriptorSetLayout);
+	}
+
+	{
+		//// Set #2: material resources
+
+		// TexDiffuse
+		VkDescriptorSetLayoutBinding diffuseLayoutBinding = {};
+		diffuseLayoutBinding.binding = 0;
+		diffuseLayoutBinding.descriptorCount = 1;
+		diffuseLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		diffuseLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		// TexSpecular
+		VkDescriptorSetLayoutBinding specLayoutBinding = {};
+		specLayoutBinding.binding = 1;
+		specLayoutBinding.descriptorCount = 1;
+		specLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		specLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		const std::array<VkDescriptorSetLayoutBinding, 2> bindings = { diffuseLayoutBinding,
+			specLayoutBinding };
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = bindings.size();
+		layoutInfo.pBindings = bindings.data();
+
+		VkDescriptorSetLayout descriptorSetLayout;
+		VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
+		app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
+
+		descriptorSetLayouts.emplace_back(descriptorSetLayout);
+	}
+
+	{
+		//// Set #3: object resources
+
+		// MVP
+		VkDescriptorSetLayoutBinding mvpUboLayoutBinding = {};
+		mvpUboLayoutBinding.binding = 0;
+		mvpUboLayoutBinding.descriptorCount = 1;
+		mvpUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		mvpUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { mvpUboLayoutBinding };
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = bindings.size();
+		layoutInfo.pBindings = bindings.data();
+
+		VkDescriptorSetLayout descriptorSetLayout;
+		VLKCHECK(vkCreateDescriptorSetLayout(app.device, &layoutInfo, nullptr, &descriptorSetLayout));
+		app.validation.addObjectInfo(descriptorSetLayout, __FILE__, __LINE__);
+
+		descriptorSetLayouts.emplace_back(descriptorSetLayout);
+	}
+
+	return descriptorSetLayouts;
 }
 
 std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
@@ -156,9 +213,12 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
         const std::vector<Material>& materials,
         VkSampler texSampler)
 {
-	std::vector<VkDescriptorSetLayout> layouts(materials.size());
-	for (unsigned i = 0; i < layouts.size(); ++i)
-		layouts[i] = app.res.descriptorSetLayouts->get("multi");
+	std::vector<VkDescriptorSetLayout> layouts(1 + 1 + materials.size() + 1 /*TODO: n.objects*/);
+	layouts[0] = app.res.descriptorSetLayouts->get("view_res");     // we only have 1 view
+	layouts[1] = app.res.descriptorSetLayouts->get("shader_res");   // we only have 1 pipeline w/resources
+	for (unsigned i = 1; i < materials.size() + 1; ++i)
+		layouts[1 + i] = app.res.descriptorSetLayouts->get("mat_res");
+	layouts[materials.size() + 3] = app.res.descriptorSetLayouts->get("obj_res");   // we only have 1 model
 
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -167,109 +227,138 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	allocInfo.pSetLayouts = layouts.data();
 
 	debug(__FILE__, ":", __LINE__, ": Allocating ", allocInfo.descriptorSetCount, " descriptor sets");
-	std::vector<VkDescriptorSet> descriptorSets(materials.size());
+	std::vector<VkDescriptorSet> descriptorSets(layouts.size());
 	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, descriptorSets.data()));
 	for (const auto& descriptorSet : descriptorSets)
 		app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
 
-	// Diffuse and Specular textures are the only thing that change between different materials
-	std::vector<VkDescriptorImageInfo> diffuseInfos(layouts.size());
-	std::vector<VkDescriptorImageInfo> specularInfos(layouts.size());
+	std::vector<VkWriteDescriptorSet> descriptorWrites;
+	descriptorWrites.reserve(descriptorSets.size());
 
-	for (unsigned i = 0; i < layouts.size(); ++i) {
-		diffuseInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		diffuseInfos[i].sampler = texSampler;
-		diffuseInfos[i].imageView = materials[i].diffuse;
+	//// Set #0: view resources
+	VkDescriptorBufferInfo compUboInfo = {};
+	compUboInfo.buffer = uniformBuffers.handle;
+	compUboInfo.offset = uniformBuffers.offsets.comp;
+	compUboInfo.range = sizeof(CompositionUniformBufferObject);
+	{
+		VkWriteDescriptorSet descriptorWrite;
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[0];
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pBufferInfo = &compUboInfo;
 
-		specularInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		specularInfos[i].sampler = texSampler;
-		specularInfos[i].imageView = materials[i].specular;
+		descriptorWrites.emplace_back(descriptorWrite);
 	}
 
+	//// Set #1: shader resources
 	VkDescriptorImageInfo gPositionInfo = {};
 	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gPositionInfo.imageView = app.gBuffer.position.view;
 	gPositionInfo.sampler = texSampler;
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[1];
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &gPositionInfo;
+
+		descriptorWrites.emplace_back(descriptorWrite);
+	}
 
 	VkDescriptorImageInfo gNormalInfo = {};
 	gNormalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gNormalInfo.imageView = app.gBuffer.normal.view;
 	gNormalInfo.sampler = texSampler;
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[1];
+		descriptorWrite.dstBinding = 1;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &gNormalInfo;
+
+		descriptorWrites.emplace_back(descriptorWrite);
+	}
 
 	VkDescriptorImageInfo gAlbedoSpecInfo = {};
 	gAlbedoSpecInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gAlbedoSpecInfo.imageView = app.gBuffer.albedoSpec.view;
 	gAlbedoSpecInfo.sampler = texSampler;
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[1];
+		descriptorWrite.dstBinding = 2;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &gAlbedoSpecInfo;
 
+		descriptorWrites.emplace_back(descriptorWrite);
+	}
+
+	//// Set #2: material resources
+	std::vector<VkDescriptorImageInfo> diffuseInfos(layouts.size());
+	std::vector<VkDescriptorImageInfo> specularInfos(layouts.size());
+
+	for (unsigned i = 0; i < materials.size(); ++i) {
+		diffuseInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		diffuseInfos[i].sampler = texSampler;
+		diffuseInfos[i].imageView = materials[i].diffuse;
+		{
+			VkWriteDescriptorSet descriptorWrite = {};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = descriptorSets[2];
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pImageInfo = &diffuseInfos[i];
+
+			descriptorWrites.emplace_back(descriptorWrite);
+		}
+
+		specularInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		specularInfos[i].sampler = texSampler;
+		specularInfos[i].imageView = materials[i].specular;
+		{
+			VkWriteDescriptorSet descriptorWrite = {};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = descriptorSets[2];
+			descriptorWrite.dstBinding = 1;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pImageInfo = &specularInfos[i];
+
+			descriptorWrites.emplace_back(descriptorWrite);
+		}
+	}
+
+	//// Set #3: object resources
 	VkDescriptorBufferInfo mvpUboInfo = {};
 	mvpUboInfo.buffer = uniformBuffers.handle;
 	mvpUboInfo.offset = uniformBuffers.offsets.mvp;
 	mvpUboInfo.range = sizeof(MVPUniformBufferObject);
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[3];
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pBufferInfo = &mvpUboInfo;
 
-	VkDescriptorBufferInfo compUboInfo = {};
-	compUboInfo.buffer = uniformBuffers.handle;
-	compUboInfo.offset = uniformBuffers.offsets.comp;
-	compUboInfo.range = sizeof(CompositionUniformBufferObject);
-
-	// Write to the descriptor sets
-	std::vector<VkWriteDescriptorSet> descriptorWrites(7 * descriptorSets.size());
-
-	for (unsigned i = 0; i < descriptorSets.size(); ++i) {
-		descriptorWrites[7 * i + 0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[7 * i + 0].dstSet = descriptorSets[i];
-		descriptorWrites[7 * i + 0].dstBinding = 0;
-		descriptorWrites[7 * i + 0].dstArrayElement = 0;
-		descriptorWrites[7 * i + 0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[7 * i + 0].descriptorCount = 1;
-		descriptorWrites[7 * i + 0].pImageInfo = &diffuseInfos[i];
-
-		descriptorWrites[7 * i + 1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[7 * i + 1].dstSet = descriptorSets[i];
-		descriptorWrites[7 * i + 1].dstBinding = 1;
-		descriptorWrites[7 * i + 1].dstArrayElement = 0;
-		descriptorWrites[7 * i + 1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[7 * i + 1].descriptorCount = 1;
-		descriptorWrites[7 * i + 1].pImageInfo = &specularInfos[i];
-
-		descriptorWrites[7 * i + 2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[7 * i + 2].dstSet = descriptorSets[i];
-		descriptorWrites[7 * i + 2].dstBinding = 2;
-		descriptorWrites[7 * i + 2].dstArrayElement = 0;
-		descriptorWrites[7 * i + 2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrites[7 * i + 2].descriptorCount = 1;
-		descriptorWrites[7 * i + 2].pBufferInfo = &mvpUboInfo;
-
-		descriptorWrites[7 * i + 3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[7 * i + 3].dstSet = descriptorSets[i];
-		descriptorWrites[7 * i + 3].dstBinding = 3;
-		descriptorWrites[7 * i + 3].dstArrayElement = 0;
-		descriptorWrites[7 * i + 3].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-		descriptorWrites[7 * i + 3].descriptorCount = 1;
-		descriptorWrites[7 * i + 3].pImageInfo = &gPositionInfo;
-
-		descriptorWrites[7 * i + 4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[7 * i + 4].dstSet = descriptorSets[i];
-		descriptorWrites[7 * i + 4].dstBinding = 4;
-		descriptorWrites[7 * i + 4].dstArrayElement = 0;
-		descriptorWrites[7 * i + 4].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-		descriptorWrites[7 * i + 4].descriptorCount = 1;
-		descriptorWrites[7 * i + 4].pImageInfo = &gNormalInfo;
-
-		descriptorWrites[7 * i + 5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[7 * i + 5].dstSet = descriptorSets[i];
-		descriptorWrites[7 * i + 5].dstBinding = 5;
-		descriptorWrites[7 * i + 5].dstArrayElement = 0;
-		descriptorWrites[7 * i + 5].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-		descriptorWrites[7 * i + 5].descriptorCount = 1;
-		descriptorWrites[7 * i + 5].pImageInfo = &gAlbedoSpecInfo;
-
-		descriptorWrites[7 * i + 6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[7 * i + 6].dstSet = descriptorSets[i];
-		descriptorWrites[7 * i + 6].dstBinding = 6;
-		descriptorWrites[7 * i + 6].dstArrayElement = 0;
-		descriptorWrites[7 * i + 6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrites[7 * i + 6].descriptorCount = 1;
-		descriptorWrites[7 * i + 6].pBufferInfo = &compUboInfo;
+		descriptorWrites.emplace_back(descriptorWrite);
 	}
 
 	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);

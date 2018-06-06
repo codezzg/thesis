@@ -148,17 +148,16 @@ private:
 		app.res.init(app.device, app.descriptorPool);
 
 		// Create pipelines
-		app.res.descriptorSetLayouts->add("multi", createMultipassDescriptorSetLayout(app));
-		app.res.pipelineLayouts->add(
-		        "multi", createPipelineLayout(app, app.res.descriptorSetLayouts->get("multi")));
+		const auto descSetLayouts = createMultipassDescriptorSetLayouts(app);
+		app.res.descriptorSetLayouts->add("view_res", descSetLayouts[0]);
+		app.res.descriptorSetLayouts->add("shader_res", descSetLayouts[1]);
+		app.res.descriptorSetLayouts->add("mat_res", descSetLayouts[2]);
+		app.res.descriptorSetLayouts->add("obj_res", descSetLayouts[3]);
+
+		app.res.pipelineLayouts->add("multi", createPipelineLayout(app, descSetLayouts));
+
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app);
-		// app.res.descriptorSets->add("multi",
-		// createMultipassDescriptorSet(app,
-		// uniformBuffers,
-		// netRsrc.defaults.diffuseTex.view,
-		// netRsrc.defaults.specularTex.view,
-		// texSampler));
 
 		createDescriptorSetsForMaterials();
 
@@ -190,7 +189,7 @@ private:
 		// Create pipelines
 		app.res.descriptorSetLayouts->add("swap", createSwapChainDebugDescriptorSetLayout(app));
 		app.res.pipelineLayouts->add(
-		        "swap", createPipelineLayout(app, app.res.descriptorSetLayouts->get("swap")));
+		        "swap", createPipelineLayout(app, { app.res.descriptorSetLayouts->get("swap") }));
 		app.swapChain.pipeline = createSwapChainDebugPipeline(app);
 		app.res.descriptorSets->add("swap",
 		        createSwapChainDebugDescriptorSet(

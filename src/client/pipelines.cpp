@@ -3,13 +3,13 @@
 #include "vulk_errors.hpp"
 
 VkPipelineLayout createPipelineLayout(const Application& app,
-        VkDescriptorSetLayout descSetLayout,
+        const std::vector<VkDescriptorSetLayout>& descSetLayouts,
         const std::vector<VkPushConstantRange>& pushConstantRanges)
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &descSetLayout,
+	pipelineLayoutInfo.setLayoutCount = descSetLayouts.size(),
+	pipelineLayoutInfo.pSetLayouts = descSetLayouts.data(),
 	pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 	pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
 

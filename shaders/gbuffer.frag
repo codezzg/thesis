@@ -10,8 +10,8 @@ layout (location = 0) out vec3 outPos;
 layout (location = 1) out vec3 outNorm;
 layout (location = 2) out vec4 outAlbedoSpec;
 
-layout (set = 0, binding = 0) uniform sampler2D texDiffuse;
-layout (set = 0, binding = 1) uniform sampler2D texSpecular;
+layout (set = 2, binding = 0) uniform sampler2D texDiffuse;
+layout (set = 2, binding = 1) uniform sampler2D texSpecular;
 
 void main() {
 	outPos = inPos;

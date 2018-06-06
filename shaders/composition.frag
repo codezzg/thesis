@@ -5,10 +5,10 @@ layout (location = 0) in vec2 texCoords;
 
 layout (location = 0) out vec4 fragColor;
 
-layout (input_attachment_index = 0, set = 0, binding = 3) uniform subpassInput gPosition;
-layout (input_attachment_index = 1, set = 0, binding = 4) uniform subpassInput gNormal;
-layout (input_attachment_index = 2, set = 0, binding = 5) uniform subpassInput gAlbedoSpec;
-layout (set = 0, binding = 6) uniform CompositionUniformBuffer {
+layout (input_attachment_index = 0, set = 1, binding = 0) uniform subpassInput gPosition;
+layout (input_attachment_index = 1, set = 1, binding = 1) uniform subpassInput gNormal;
+layout (input_attachment_index = 2, set = 1, binding = 2) uniform subpassInput gAlbedoSpec;
+layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
 	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
 	// about avoiding using vec3
 	vec4 viewPos; // w is used as 'showGBufTexture'

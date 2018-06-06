@@ -14,7 +14,7 @@ layout (location = 0) out vec3 outPos;
 layout (location = 1) out vec3 outNorm;
 layout (location = 2) out vec2 outTexCoords;
 
-layout (set = 0, binding = 2) uniform UniformBufferObject {
+layout (set = 3, binding = 0) uniform UniformBufferObject {
 	mat4 model;
 	mat4 view;
 	mat4 proj;
