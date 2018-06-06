@@ -1,14 +1,19 @@
 #include "multipass.hpp"
 #include "application.hpp"
 #include "buffers.hpp"
-#include "images.hpp"
+#include "client_resources.hpp"
+#include "logging.hpp"
+#include "materials.hpp"
 #include <array>
+
+using namespace logging;
 
 void recordMultipassCommandBuffers(const Application& app,
         std::vector<VkCommandBuffer>& commandBuffers,
         uint32_t nIndices,
         const Buffer& vBuffer,
-        const Buffer& iBuffer)
+        const Buffer& iBuffer,
+        const NetworkResources& netRsrc)
 {
 	std::array<VkClearValue, 5> clearValues = {};
 	clearValues[0].color = { 0.f, 0.2f, 0.6f, 1.f };
@@ -34,22 +39,29 @@ void recordMultipassCommandBuffers(const Application& app,
 		//// First subpass
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindDescriptorSets(commandBuffers[i],
-		        VK_PIPELINE_BIND_POINT_GRAPHICS,
-		        app.res.pipelineLayouts->get("multi"),
-		        0,
-		        1,
-		        &app.res.descriptorSets->get("multi"),
-		        0,
-		        nullptr);
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
 
 		std::array<VkBuffer, 1> vertexBuffers = { vBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
-		vkCmdBindIndexBuffer(commandBuffers[i], iBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+		// Draw all meshes (i.e. for now, all materials)
+		for (const auto& modelpair : netRsrc.models) {
+			const auto& model = modelpair.second;
+			for (const auto& mesh : model.meshes) {
+				const auto& matName = model.materials[mesh.materialId];
+				vkCmdBindDescriptorSets(commandBuffers[i],
+				        VK_PIPELINE_BIND_POINT_GRAPHICS,
+				        app.res.pipelineLayouts->get("multi"),
+				        0,
+				        1,
+				        &app.res.descriptorSets->get(matName),
+				        0,
+				        nullptr);
+				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
+				vkCmdBindIndexBuffer(commandBuffers[i], iBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
-		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
+				vkCmdDrawIndexed(commandBuffers[i], mesh.len, 1, 0, mesh.offset, 0);
+			}
+		}
 
 		//// Second subpass
 		vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
@@ -139,32 +151,40 @@ VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app)
 	return descriptorSetLayout;
 }
 
-VkDescriptorSet createMultipassDescriptorSet(const Application& app,
+std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
         const CombinedUniformBuffers& uniformBuffers,
-        const Image& texDiffuse,
-        const Image& texSpecular,
+        const std::vector<Material>& materials,
         VkSampler texSampler)
 {
-	const std::array<VkDescriptorSetLayout, 1> layouts = { app.res.descriptorSetLayouts->get("multi") };
+	std::vector<VkDescriptorSetLayout> layouts(materials.size());
+	for (unsigned i = 0; i < layouts.size(); ++i)
+		layouts[i] = app.res.descriptorSetLayouts->get("multi");
+
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = app.descriptorPool;
 	allocInfo.descriptorSetCount = layouts.size();
 	allocInfo.pSetLayouts = layouts.data();
 
-	VkDescriptorSet descriptorSet;
-	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
-	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
+	debug(__FILE__, ":", __LINE__, ": Allocating ", allocInfo.descriptorSetCount, " descriptor sets");
+	std::vector<VkDescriptorSet> descriptorSets(materials.size());
+	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, descriptorSets.data()));
+	for (const auto& descriptorSet : descriptorSets)
+		app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
 
-	VkDescriptorImageInfo diffuseInfo = {};
-	diffuseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	diffuseInfo.imageView = texDiffuse.view;
-	diffuseInfo.sampler = texSampler;
+	// Diffuse and Specular textures are the only thing that change between different materials
+	std::vector<VkDescriptorImageInfo> diffuseInfos(layouts.size());
+	std::vector<VkDescriptorImageInfo> specularInfos(layouts.size());
 
-	VkDescriptorImageInfo specInfo = {};
-	specInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	specInfo.imageView = texSpecular.view;
-	specInfo.sampler = texSampler;
+	for (unsigned i = 0; i < layouts.size(); ++i) {
+		diffuseInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		diffuseInfos[i].sampler = texSampler;
+		diffuseInfos[i].imageView = materials[i].diffuse;
+
+		specularInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		specularInfos[i].sampler = texSampler;
+		specularInfos[i].imageView = materials[i].specular;
+	}
 
 	VkDescriptorImageInfo gPositionInfo = {};
 	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -191,65 +211,68 @@ VkDescriptorSet createMultipassDescriptorSet(const Application& app,
 	compUboInfo.offset = uniformBuffers.offsets.comp;
 	compUboInfo.range = sizeof(CompositionUniformBufferObject);
 
-	std::array<VkWriteDescriptorSet, 7> descriptorWrites = {};
+	// Write to the descriptor sets
+	std::vector<VkWriteDescriptorSet> descriptorWrites(7 * descriptorSets.size());
 
-	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[0].dstSet = descriptorSet;
-	descriptorWrites[0].dstBinding = 0;
-	descriptorWrites[0].dstArrayElement = 0;
-	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWrites[0].descriptorCount = 1;
-	descriptorWrites[0].pImageInfo = &diffuseInfo;
+	for (unsigned i = 0; i < descriptorSets.size(); ++i) {
+		descriptorWrites[7 * i + 0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[7 * i + 0].dstSet = descriptorSets[i];
+		descriptorWrites[7 * i + 0].dstBinding = 0;
+		descriptorWrites[7 * i + 0].dstArrayElement = 0;
+		descriptorWrites[7 * i + 0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[7 * i + 0].descriptorCount = 1;
+		descriptorWrites[7 * i + 0].pImageInfo = &diffuseInfos[i];
 
-	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[1].dstSet = descriptorSet;
-	descriptorWrites[1].dstBinding = 1;
-	descriptorWrites[1].dstArrayElement = 0;
-	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWrites[1].descriptorCount = 1;
-	descriptorWrites[1].pImageInfo = &specInfo;
+		descriptorWrites[7 * i + 1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[7 * i + 1].dstSet = descriptorSets[i];
+		descriptorWrites[7 * i + 1].dstBinding = 1;
+		descriptorWrites[7 * i + 1].dstArrayElement = 0;
+		descriptorWrites[7 * i + 1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[7 * i + 1].descriptorCount = 1;
+		descriptorWrites[7 * i + 1].pImageInfo = &specularInfos[i];
 
-	descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[2].dstSet = descriptorSet;
-	descriptorWrites[2].dstBinding = 2;
-	descriptorWrites[2].dstArrayElement = 0;
-	descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorWrites[2].descriptorCount = 1;
-	descriptorWrites[2].pBufferInfo = &mvpUboInfo;
+		descriptorWrites[7 * i + 2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[7 * i + 2].dstSet = descriptorSets[i];
+		descriptorWrites[7 * i + 2].dstBinding = 2;
+		descriptorWrites[7 * i + 2].dstArrayElement = 0;
+		descriptorWrites[7 * i + 2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrites[7 * i + 2].descriptorCount = 1;
+		descriptorWrites[7 * i + 2].pBufferInfo = &mvpUboInfo;
 
-	descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[3].dstSet = descriptorSet;
-	descriptorWrites[3].dstBinding = 3;
-	descriptorWrites[3].dstArrayElement = 0;
-	descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	descriptorWrites[3].descriptorCount = 1;
-	descriptorWrites[3].pImageInfo = &gPositionInfo;
+		descriptorWrites[7 * i + 3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[7 * i + 3].dstSet = descriptorSets[i];
+		descriptorWrites[7 * i + 3].dstBinding = 3;
+		descriptorWrites[7 * i + 3].dstArrayElement = 0;
+		descriptorWrites[7 * i + 3].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrites[7 * i + 3].descriptorCount = 1;
+		descriptorWrites[7 * i + 3].pImageInfo = &gPositionInfo;
 
-	descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[4].dstSet = descriptorSet;
-	descriptorWrites[4].dstBinding = 4;
-	descriptorWrites[4].dstArrayElement = 0;
-	descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	descriptorWrites[4].descriptorCount = 1;
-	descriptorWrites[4].pImageInfo = &gNormalInfo;
+		descriptorWrites[7 * i + 4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[7 * i + 4].dstSet = descriptorSets[i];
+		descriptorWrites[7 * i + 4].dstBinding = 4;
+		descriptorWrites[7 * i + 4].dstArrayElement = 0;
+		descriptorWrites[7 * i + 4].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrites[7 * i + 4].descriptorCount = 1;
+		descriptorWrites[7 * i + 4].pImageInfo = &gNormalInfo;
 
-	descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[5].dstSet = descriptorSet;
-	descriptorWrites[5].dstBinding = 5;
-	descriptorWrites[5].dstArrayElement = 0;
-	descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	descriptorWrites[5].descriptorCount = 1;
-	descriptorWrites[5].pImageInfo = &gAlbedoSpecInfo;
+		descriptorWrites[7 * i + 5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[7 * i + 5].dstSet = descriptorSets[i];
+		descriptorWrites[7 * i + 5].dstBinding = 5;
+		descriptorWrites[7 * i + 5].dstArrayElement = 0;
+		descriptorWrites[7 * i + 5].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrites[7 * i + 5].descriptorCount = 1;
+		descriptorWrites[7 * i + 5].pImageInfo = &gAlbedoSpecInfo;
 
-	descriptorWrites[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[6].dstSet = descriptorSet;
-	descriptorWrites[6].dstBinding = 6;
-	descriptorWrites[6].dstArrayElement = 0;
-	descriptorWrites[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorWrites[6].descriptorCount = 1;
-	descriptorWrites[6].pBufferInfo = &compUboInfo;
+		descriptorWrites[7 * i + 6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[7 * i + 6].dstSet = descriptorSets[i];
+		descriptorWrites[7 * i + 6].dstBinding = 6;
+		descriptorWrites[7 * i + 6].dstArrayElement = 0;
+		descriptorWrites[7 * i + 6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrites[7 * i + 6].descriptorCount = 1;
+		descriptorWrites[7 * i + 6].pBufferInfo = &compUboInfo;
+	}
 
 	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
-	return descriptorSet;
+	return descriptorSets;
 }

@@ -10,6 +10,8 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
+struct NetworkResources;
+
 struct Queues final {
 	VkQueue graphics;
 	VkQueue present;
@@ -50,4 +52,7 @@ struct Application final {
 	void cleanup();
 };
 
-VkDescriptorPool createDescriptorPool(const Application& app);
+/** Creates a DescriptorPool with enough space to create the descriptors needed
+ *  by resources in `netRsrc`.
+ */
+VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResources& netRsrc);

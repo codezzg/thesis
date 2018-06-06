@@ -1,4 +1,5 @@
 #include "application.hpp"
+#include "client_resources.hpp"
 #include "commands.hpp"
 #include "formats.hpp"
 #include "logging.hpp"
@@ -80,22 +81,28 @@ static void createLogicalDevice(Application& app)
 	vkGetDeviceQueue(app.device, indices.presentFamily, 0, &app.queues.present);
 }
 
-// FIXME: use a meaningful number of descriptorcount
-VkDescriptorPool createDescriptorPool(const Application& app)
+VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResources& netRsrc)
 {
 	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = 10;
+	poolSizes[0].descriptorCount = 2 * netRsrc.materials.size();
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = 10;
+	poolSizes[1].descriptorCount = netRsrc.textures.size() + 2;   // +2 for default ones
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	poolSizes[2].descriptorCount = 10;
+	poolSizes[2].descriptorCount = 3 * netRsrc.materials.size();   // one per G-buffer attachment
+
+	info("Created descriptorPool with sizes ",
+	        poolSizes[0].descriptorCount,
+	        ", ",
+	        poolSizes[1].descriptorCount,
+	        ", ",
+	        poolSizes[2].descriptorCount);
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 2;
+	poolInfo.maxSets = netRsrc.materials.size();
 	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
 	VkDescriptorPool descriptorPool;

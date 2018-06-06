@@ -142,10 +142,10 @@ private:
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
+		app.descriptorPool = createDescriptorPool(app, netRsrc);
+
 		// Initialize resource maps
 		app.res.init(app.device, app.descriptorPool);
-
-		app.descriptorPool = createDescriptorPool(app);
 
 		// Create pipelines
 		app.res.descriptorSetLayouts->add("multi", createMultipassDescriptorSetLayout(app));
@@ -153,12 +153,14 @@ private:
 		        "multi", createPipelineLayout(app, app.res.descriptorSetLayouts->get("multi")));
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app);
-		app.res.descriptorSets->add("multi",
-		        createMultipassDescriptorSet(app,
-		                uniformBuffers,
-		                netRsrc.defaults.diffuseTex,
-		                netRsrc.defaults.specularTex,
-		                texSampler));
+		// app.res.descriptorSets->add("multi",
+		// createMultipassDescriptorSet(app,
+		// uniformBuffers,
+		// netRsrc.defaults.diffuseTex.view,
+		// netRsrc.defaults.specularTex.view,
+		// texSampler));
+
+		createDescriptorSetsForMaterials();
 
 		recordAllCommandBuffers();
 
@@ -180,10 +182,10 @@ private:
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
+		app.descriptorPool = createDescriptorPool(app, netRsrc);
+
 		// Initialize resource maps
 		app.res.init(app.device, app.descriptorPool);
-
-		app.descriptorPool = createDescriptorPool(app);
 
 		// Create pipelines
 		app.res.descriptorSetLayouts->add("swap", createSwapChainDebugDescriptorSetLayout(app));
@@ -330,12 +332,7 @@ private:
 
 		// Prepare materials
 		for (const auto& pair : resources.materials) {
-			auto material = createMaterial(pair.second, netRsrc);
-			material.descriptorSet = createMultipassDescriptorSet(
-			        app, uniformBuffers, material.diffuse, material.specular, texSampler);
-			app.res.descriptorSets->add(material.name, material.descriptorSet);
-
-			netRsrc.materials[pair.first] = material;
+			netRsrc.materials[pair.first] = createMaterial(pair.second, netRsrc);
 		}
 
 		prepareBufferMemory(stagingBuffer);
@@ -472,6 +469,7 @@ private:
 
 	void recreateSwapChain()
 	{
+		warn("Recreating swap chain");
 		int width, height;
 		glfwGetWindowSize(app.window, &width, &height);
 		if (width == 0 || height == 0)
@@ -493,14 +491,14 @@ private:
 			app.gBuffer.createAttachments(app);
 			app.renderPass = createMultipassRenderPass(app);
 
-			VLKCHECK(vkFreeDescriptorSets(
-			        app.device, app.descriptorPool, 1, &app.res.descriptorSets->get("multi")));
-			app.res.descriptorSets->add("multi",
-			        createMultipassDescriptorSet(app,
-			                uniformBuffers,
-			                netRsrc.defaults.diffuseTex,
-			                netRsrc.defaults.specularTex,
-			                texSampler));
+			std::vector<VkDescriptorSet> toFree;
+			toFree.reserve(netRsrc.materials.size());
+			for (const auto& pair : netRsrc.materials)
+				toFree.emplace_back(app.res.descriptorSets->get(pair.first));
+
+			info("Freeing ", toFree.size(), " desc sets");
+			VLKCHECK(vkFreeDescriptorSets(app.device, app.descriptorPool, toFree.size(), toFree.data()));
+			createDescriptorSetsForMaterials();
 
 			app.gBuffer.pipeline = createGBufferPipeline(app);
 			app.swapChain.pipeline = createSwapChainPipeline(app);
@@ -746,7 +744,31 @@ private:
 			recordSwapChainDebugCommandBuffers(
 			        app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer);
 		} else {
-			recordMultipassCommandBuffers(app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer);
+			recordMultipassCommandBuffers(
+			        app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer, netRsrc);
+		}
+	}
+
+	void createDescriptorSetsForMaterials()
+	{
+		// Gather materials and names into vectors
+		std::vector<Material> materials;
+		std::vector<StringId> materialNames;
+		materials.reserve(netRsrc.materials.size());
+		materialNames.reserve(netRsrc.materials.size());
+		for (const auto& pair : netRsrc.materials) {
+			materialNames.emplace_back(pair.first);
+			materials.emplace_back(pair.second);
+		}
+
+		// Create the descriptor sets
+		auto descriptorSets = createMultipassDescriptorSets(app, uniformBuffers, materials, texSampler);
+
+		// Store them into materials and app resources
+		for (unsigned i = 0; i < descriptorSets.size(); ++i) {
+			auto descSet = descriptorSets[i];
+			netRsrc.materials[materialNames[i]].descriptorSet = descSet;
+			app.res.descriptorSets->add(materialNames[i], descSet);
 		}
 	}
 

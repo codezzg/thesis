@@ -2,6 +2,7 @@
 #include "application.hpp"
 #include "buffers.hpp"
 #include "images.hpp"
+#include "logging.hpp"
 #include "phys_device.hpp"
 #include "shaders.hpp"
 #include "vertex.hpp"
@@ -16,6 +17,7 @@
 #undef min
 
 using namespace std::literals::string_literals;
+using namespace logging;
 
 static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
@@ -438,6 +440,7 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 	VkDescriptorSet descriptorSet;
 	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, &descriptorSet));
 	app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
+	info(__FILE__, ":", __LINE__, ": Allocated ", allocInfo.descriptorSetCount, " descriptor sets");
 
 	std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

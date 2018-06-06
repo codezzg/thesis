@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 project(server)
 set(PROJECT_NAME server)
-set(CMAKE_MODULE_PATH ${
-	CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 set(MAIN_FILE server_main.cpp)
 
