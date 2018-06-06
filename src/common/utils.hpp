@@ -1,6 +1,7 @@
 #pragma once
 
 #include "logging.hpp"
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -19,3 +20,14 @@ std::vector<char> readFileIntoMemory(const char* path);
 std::size_t readFileIntoMemory(const char* path, void* buffer, std::size_t bufsize);
 
 void dumpBytes(const void* buffer, std::size_t count, std::size_t maxCount = 50, LogLevel lv = LOGLV_VERBOSE);
+
+template <typename T>
+std::string listToString(const T& list)
+{
+	std::stringstream ss;
+	ss << "{\n";
+	for (unsigned i = 0; i < list.size(); ++i)
+		ss << "\t" << list[i] << ",\n";
+	ss << "}\n";
+	return ss.str();
+}

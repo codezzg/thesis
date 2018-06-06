@@ -17,15 +17,15 @@ void TextureLoader::addTexture(Image& image, const shared::Texture& texture)
 {
 	int texWidth, texHeight, texChannels;
 
-	info("texture.data = ", texture.data);
-	dumpBytes(texture.data, texture.size, 50, LOGLV_INFO);
+	debug("texture.data = ", texture.data);
+	dumpBytes(texture.data, texture.size, 50, LOGLV_DEBUG);
 
 	auto pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(texture.data),
-	        texture.size,
-	        &texWidth,
-	        &texHeight,
-	        &texChannels,
-	        texture.format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
+		texture.size,
+		&texWidth,
+		&texHeight,
+		&texChannels,
+		texture.format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
 
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
@@ -50,10 +50,10 @@ void TextureLoader::addTexture(Image& image, const char* texturePath, TextureFor
 {
 	int texWidth, texHeight, texChannels;
 	auto pixels = stbi_load(texturePath,
-	        &texWidth,
-	        &texHeight,
-	        &texChannels,
-	        format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
+		&texWidth,
+		&texHeight,
+		&texChannels,
+		format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
 
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
@@ -79,12 +79,12 @@ void TextureLoader::create(const Application& app)
 	for (unsigned i = 0; i < imageInfos.size(); ++i) {
 		const auto& info = imageInfos[i];
 		imgAlloc.addImage(*images[i],
-		        info.width,
-		        info.height,
-		        info.format,
-		        VK_IMAGE_TILING_OPTIMAL,
-		        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			info.width,
+			info.height,
+			info.format,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 	imgAlloc.create(app);
 
@@ -96,22 +96,22 @@ void TextureLoader::create(const Application& app)
 		auto& textureImage = images[i];
 
 		transitionImageLayout(app,
-		        textureImage->handle,
-		        info.format,
-		        VK_IMAGE_LAYOUT_UNDEFINED,
-		        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			textureImage->handle,
+			info.format,
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 		copyBufferToImage(app, stagingBuffer.handle, textureImage->handle, info.width, info.height, bufOffset);
 		bufOffset += imageSize;
 
 		transitionImageLayout(app,
-		        textureImage->handle,
-		        info.format,
-		        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			textureImage->handle,
+			info.format,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		textureImage->view =
-		        createImageView(app, textureImage->handle, textureImage->format, VK_IMAGE_ASPECT_COLOR_BIT);
+			createImageView(app, textureImage->handle, textureImage->format, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
 }
 
@@ -119,10 +119,10 @@ Image createTextureImage(const Application& app, const char* texturePath, Textur
 {
 	int texWidth, texHeight, texChannels;
 	auto pixels = stbi_load(texturePath,
-	        &texWidth,
-	        &texHeight,
-	        &texChannels,
-	        format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
+		&texWidth,
+		&texHeight,
+		&texChannels,
+		format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
 
 	if (!pixels)
 		throw std::runtime_error("failed to load texture image!");
@@ -138,23 +138,23 @@ Image createTextureImage(const Application& app, const char* texturePath, Textur
 	const auto vkFormat = format == TextureFormat::RGBA ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8_UNORM;
 
 	auto textureImage = createImage(app,
-	        texWidth,
-	        texHeight,
-	        vkFormat,
-	        VK_IMAGE_TILING_OPTIMAL,
-	        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-	        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		texWidth,
+		texHeight,
+		vkFormat,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	textureImage.view = createImageView(app, textureImage.handle, textureImage.format, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	// Transfer the loaded buffer into the image
 	transitionImageLayout(
-	        app, textureImage.handle, vkFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		app, textureImage.handle, vkFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(app, stagingBuffer.handle, textureImage.handle, texWidth, texHeight);
 	transitionImageLayout(app,
-	        textureImage.handle,
-	        vkFormat,
-	        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		textureImage.handle,
+		vkFormat,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	return textureImage;
 }

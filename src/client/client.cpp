@@ -1,23 +1,4 @@
 /** @author Giacomo Parolini, 2018 */
-#include <algorithm>
-#include <array>
-#include <chrono>
-#include <cstdio>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <memory>
-#include <set>
-#include <stdexcept>
-#include <unordered_map>
-#include <utility>
-#include <vector>
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
 #include "FPSCounter.hpp"
 #include "application.hpp"
 #include "buffers.hpp"
@@ -48,6 +29,26 @@
 #include "vulk_utils.hpp"
 #include "window.hpp"
 #include "xplatform.hpp"
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <set>
+#include <stdexcept>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 
 // Fuck off, Windows
@@ -189,11 +190,11 @@ private:
 		// Create pipelines
 		app.res.descriptorSetLayouts->add("swap", createSwapChainDebugDescriptorSetLayout(app));
 		app.res.pipelineLayouts->add(
-		        "swap", createPipelineLayout(app, { app.res.descriptorSetLayouts->get("swap") }));
+			"swap", createPipelineLayout(app, { app.res.descriptorSetLayouts->get("swap") }));
 		app.swapChain.pipeline = createSwapChainDebugPipeline(app);
 		app.res.descriptorSets->add("swap",
-		        createSwapChainDebugDescriptorSet(
-		                app, uniformBuffers, netRsrc.defaults.diffuseTex, texSampler));
+			createSwapChainDebugDescriptorSet(
+				app, uniformBuffers, netRsrc.defaults.diffuseTex, texSampler));
 
 		recordAllCommandBuffers();
 
@@ -277,10 +278,10 @@ private:
 					neededTextureSet.emplace(mat.specularTex);
 				} else {
 					warn("Material ",
-					        mat,
-					        " is needed by model ",
-					        model.name,
-					        " but was not received!");
+						mat,
+						" is needed by model ",
+						model.name,
+						" but was not received!");
 				}
 			}
 
@@ -289,10 +290,10 @@ private:
 			// Find if we're missing some textures
 			std::set<StringId> diffTextureSet;
 			std::set_difference(neededTextureSet.begin(),
-			        neededTextureSet.end(),
-			        textureSet.begin(),
-			        textureSet.end(),
-			        std::inserter(diffTextureSet, diffTextureSet.begin()));
+				neededTextureSet.end(),
+				textureSet.begin(),
+				textureSet.end(),
+				std::inserter(diffTextureSet, diffTextureSet.begin()));
 
 			for (const auto& tex : diffTextureSet)
 				warn("Texture ", tex, " is needed by model ", model.name, " but was not received!");
@@ -316,7 +317,7 @@ private:
 		// Create default textures
 		texLoader.addTexture(netRsrc.defaults.diffuseTex, "textures/default.jpg", shared::TextureFormat::RGBA);
 		texLoader.addTexture(
-		        netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY);
+			netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY);
 		if (tex.size() == 0) {
 			warn("Received no textures: using default ones.");
 		} else {
@@ -389,9 +390,9 @@ private:
 			VLKCHECK(vkDeviceWaitIdle(app.device));
 			info("Re-recording command buffers");
 			vkFreeCommandBuffers(app.device,
-			        app.commandPool,
-			        static_cast<uint32_t>(swapCommandBuffers.size()),
-			        swapCommandBuffers.data());
+				app.commandPool,
+				static_cast<uint32_t>(swapCommandBuffers.size()),
+				swapCommandBuffers.data());
 			swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 			recordAllCommandBuffers();
 		}
@@ -427,7 +428,7 @@ private:
 		// Copy received data into the streaming buffer
 		PayloadHeader phead;
 		passiveEP.retreive(
-		        phead, reinterpret_cast<Vertex*>(vertexBuffer.ptr), reinterpret_cast<Index*>(indexBuffer.ptr));
+			phead, reinterpret_cast<Vertex*>(vertexBuffer.ptr), reinterpret_cast<Index*>(indexBuffer.ptr));
 
 		// streamingBufferData now contains [vertices|indices]
 		nVertices = phead.nVertices;
@@ -456,7 +457,7 @@ private:
 		auto& clock = Clock::instance();
 		const auto endTime = std::chrono::high_resolution_clock::now();
 		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
-		           1'000'000.f;
+			   1'000'000.f;
 		if (dt > 1.f)
 			dt = clock.targetDeltaTime;
 		clock.update(dt);
@@ -491,12 +492,16 @@ private:
 			app.renderPass = createMultipassRenderPass(app);
 
 			std::vector<VkDescriptorSet> toFree;
-			toFree.reserve(netRsrc.materials.size());
+			toFree.reserve(3 + netRsrc.materials.size());
+			toFree.emplace_back(app.res.descriptorSets->get("view_res"));
+			toFree.emplace_back(app.res.descriptorSets->get("shader_res"));
 			for (const auto& pair : netRsrc.materials)
 				toFree.emplace_back(app.res.descriptorSets->get(pair.first));
+			toFree.emplace_back(app.res.descriptorSets->get("obj_res"));
 
-			info("Freeing ", toFree.size(), " desc sets");
+			debug("Freeing ", toFree.size(), " desc sets");
 			VLKCHECK(vkFreeDescriptorSets(app.device, app.descriptorPool, toFree.size(), toFree.data()));
+
 			createDescriptorSetsForMaterials();
 
 			app.gBuffer.pipeline = createGBufferPipeline(app);
@@ -638,18 +643,18 @@ private:
 		} else {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
-			                     .count();
+					     .count();
 			ubo->model =
-			        glm::rotate(glm::mat4{ 1.0f }, time * glm::radians(89.f), glm::vec3{ 0.f, -1.f, 0.f });
+				glm::rotate(glm::mat4{ 1.0f }, time * glm::radians(89.f), glm::vec3{ 0.f, -1.f, 0.f });
 			// ubo->view = glm::lookAt(glm::vec3{ 14, 14, 14 },
 			// glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
 		}
 		ubo->view = camera.viewMatrix();
 		// ubo->proj = camera.projMatrix();
 		ubo->proj = glm::perspective(glm::radians(60.f),
-		        app.swapChain.extent.width / float(app.swapChain.extent.height),
-		        0.1f,
-		        300.f);
+			app.swapChain.extent.width / float(app.swapChain.extent.height),
+			0.1f,
+			300.f);
 		// Flip y
 		ubo->proj[1][1] *= -1;
 	}
@@ -694,19 +699,19 @@ private:
 
 		// vertex buffer
 		bufAllocator.addBuffer(vertexBuffer,
-		        VERTEX_BUFFER_SIZE,
-		        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			VERTEX_BUFFER_SIZE,
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		// index buffer
 		bufAllocator.addBuffer(indexBuffer,
-		        INDEX_BUFFER_SIZE,
-		        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-		        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			INDEX_BUFFER_SIZE,
+			VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		// uniform buffers
 		bufAllocator.addBuffer(uniformBuffers,
-		        uboSize,
-		        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			uboSize,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		// screen quad buffer
 		bufAllocator.addBuffer(app.screenQuadBuffer, getScreenQuadBufferProperties());
@@ -715,11 +720,11 @@ private:
 
 		// Map device memory to host
 		mapBuffersMemory(app.device,
-		        {
-		                &vertexBuffer,
-		                &indexBuffer,
-		                &uniformBuffers,
-		        });
+			{
+				&vertexBuffer,
+				&indexBuffer,
+				&uniformBuffers,
+			});
 
 		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
 	}
@@ -741,10 +746,10 @@ private:
 	{
 		if (gIsDebug) {
 			recordSwapChainDebugCommandBuffers(
-			        app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer);
+				app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer);
 		} else {
 			recordMultipassCommandBuffers(
-			        app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer, netRsrc);
+				app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer, netRsrc);
 		}
 	}
 
@@ -763,12 +768,16 @@ private:
 		// Create the descriptor sets
 		auto descriptorSets = createMultipassDescriptorSets(app, uniformBuffers, materials, texSampler);
 
-		// Store them into materials and app resources
-		for (unsigned i = 0; i < descriptorSets.size(); ++i) {
-			auto descSet = descriptorSets[i];
+		// Store them into app resources
+		app.res.descriptorSets->add("view_res", descriptorSets[0]);
+		app.res.descriptorSets->add("shader_res", descriptorSets[1]);
+		for (unsigned i = 0; i < materials.size(); ++i) {
+			auto descSet = descriptorSets[2 + i];
 			netRsrc.materials[materialNames[i]].descriptorSet = descSet;
 			app.res.descriptorSets->add(materialNames[i], descSet);
 		}
+		// TODO multiple objects (models)
+		app.res.descriptorSets->add("obj_res", descriptorSets[descriptorSets.size() - 1]);
 	}
 
 	void cleanupSwapChain()
@@ -782,9 +791,9 @@ private:
 		vkDestroyRenderPass(app.device, app.renderPass, nullptr);
 
 		vkFreeCommandBuffers(app.device,
-		        app.commandPool,
-		        static_cast<uint32_t>(swapCommandBuffers.size()),
-		        swapCommandBuffers.data());
+			app.commandPool,
+			static_cast<uint32_t>(swapCommandBuffers.size()),
+			swapCommandBuffers.data());
 	}
 
 	void cleanup()
@@ -792,11 +801,11 @@ private:
 		cleanupSwapChain();
 
 		unmapBuffersMemory(app.device,
-		        {
-		                vertexBuffer,
-		                indexBuffer,
-		                uniformBuffers,
-		        });
+			{
+				vertexBuffer,
+				indexBuffer,
+				uniformBuffers,
+			});
 
 		vkDestroySampler(app.device, texSampler, nullptr);
 		{
@@ -918,7 +927,7 @@ int main(int argc, char** argv)
 			} break;
 			default:
 				std::cout << "Usage: " << argv[0]
-				          << " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
+					  << " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
 				break;
 			}
 		} else {

@@ -4,16 +4,17 @@
 #include "client_resources.hpp"
 #include "logging.hpp"
 #include "materials.hpp"
+#include "utils.hpp"
 #include <array>
 
 using namespace logging;
 
 void recordMultipassCommandBuffers(const Application& app,
-        std::vector<VkCommandBuffer>& commandBuffers,
-        uint32_t nIndices,
-        const Buffer& vBuffer,
-        const Buffer& iBuffer,
-        const NetworkResources& netRsrc)
+	std::vector<VkCommandBuffer>& commandBuffers,
+	uint32_t nIndices,
+	const Buffer& vBuffer,
+	const Buffer& iBuffer,
+	const NetworkResources& netRsrc)
 {
 	std::array<VkClearValue, 5> clearValues = {};
 	clearValues[0].color = { 0.f, 0.2f, 0.6f, 1.f };
@@ -39,8 +40,28 @@ void recordMultipassCommandBuffers(const Application& app,
 		//// First subpass
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
+		// Bind view resources
+		vkCmdBindDescriptorSets(commandBuffers[i],
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			app.res.pipelineLayouts->get("multi"),
+			0,
+			1,
+			&app.res.descriptorSets->get("view_res"),
+			0,
+			nullptr);
 
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
+		// Bind shader resources
+		vkCmdBindDescriptorSets(commandBuffers[i],
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			app.res.pipelineLayouts->get("multi"),
+			1,
+			1,
+			&app.res.descriptorSets->get("shader_res"),
+			0,
+			nullptr);
+
+		// TODO: reorganize material / meshes hierarchy so that materials are higher
 		std::array<VkBuffer, 1> vertexBuffers = { vBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
 		// Draw all meshes (i.e. for now, all materials)
@@ -48,14 +69,24 @@ void recordMultipassCommandBuffers(const Application& app,
 			const auto& model = modelpair.second;
 			for (const auto& mesh : model.meshes) {
 				const auto& matName = model.materials[mesh.materialId];
+
 				vkCmdBindDescriptorSets(commandBuffers[i],
-				        VK_PIPELINE_BIND_POINT_GRAPHICS,
-				        app.res.pipelineLayouts->get("multi"),
-				        0,
-				        1,
-				        &app.res.descriptorSets->get(matName),
-				        0,
-				        nullptr);
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					app.res.pipelineLayouts->get("multi"),
+					2,
+					1,
+					&app.res.descriptorSets->get(matName),
+					0,
+					nullptr);
+				vkCmdBindDescriptorSets(commandBuffers[i],
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					app.res.pipelineLayouts->get("multi"),
+					3,
+					1,
+					&app.res.descriptorSets->get("obj_res"),
+					0,
+					nullptr);
+
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
 				vkCmdBindIndexBuffer(commandBuffers[i], iBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
@@ -209,16 +240,16 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 }
 
 std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
-        const CombinedUniformBuffers& uniformBuffers,
-        const std::vector<Material>& materials,
-        VkSampler texSampler)
+	const CombinedUniformBuffers& uniformBuffers,
+	const std::vector<Material>& materials,
+	VkSampler texSampler)
 {
 	std::vector<VkDescriptorSetLayout> layouts(1 + 1 + materials.size() + 1 /*TODO: n.objects*/);
 	layouts[0] = app.res.descriptorSetLayouts->get("view_res");     // we only have 1 view
 	layouts[1] = app.res.descriptorSetLayouts->get("shader_res");   // we only have 1 pipeline w/resources
 	for (unsigned i = 1; i < materials.size() + 1; ++i)
 		layouts[1 + i] = app.res.descriptorSetLayouts->get("mat_res");
-	layouts[materials.size() + 3] = app.res.descriptorSetLayouts->get("obj_res");   // we only have 1 model
+	layouts[materials.size() + 2] = app.res.descriptorSetLayouts->get("obj_res");   // we only have 1 model
 
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -241,7 +272,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	compUboInfo.offset = uniformBuffers.offsets.comp;
 	compUboInfo.range = sizeof(CompositionUniformBufferObject);
 	{
-		VkWriteDescriptorSet descriptorWrite;
+		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = descriptorSets[0];
 		descriptorWrite.dstBinding = 0;
@@ -306,8 +337,8 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	}
 
 	//// Set #2: material resources
-	std::vector<VkDescriptorImageInfo> diffuseInfos(layouts.size());
-	std::vector<VkDescriptorImageInfo> specularInfos(layouts.size());
+	std::vector<VkDescriptorImageInfo> diffuseInfos(materials.size());
+	std::vector<VkDescriptorImageInfo> specularInfos(materials.size());
 
 	for (unsigned i = 0; i < materials.size(); ++i) {
 		diffuseInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -316,7 +347,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		{
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = descriptorSets[2];
+			descriptorWrite.dstSet = descriptorSets[2 + i];
 			descriptorWrite.dstBinding = 0;
 			descriptorWrite.dstArrayElement = 0;
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -332,7 +363,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		{
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = descriptorSets[2];
+			descriptorWrite.dstSet = descriptorSets[2 + i];
 			descriptorWrite.dstBinding = 1;
 			descriptorWrite.dstArrayElement = 0;
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -351,7 +382,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	{
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = descriptorSets[3];
+		descriptorWrite.dstSet = descriptorSets[2 + materials.size()];
 		descriptorWrite.dstBinding = 0;
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;

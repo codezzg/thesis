@@ -88,6 +88,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	 * #1: shader resources (G-pos, G-norm, G-albedoSpec)
 	 * #2: material resources (texDiffuse, texSpecular)
 	 * #3: object resources (MVPUbo)
+	 * @see https://developer.nvidia.com/vulkan-shader-resource-binding
 	 */
 	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -98,17 +99,17 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolSizes[2].descriptorCount = 3;   // one per G-buffer attachment
 
 	debug("Created descriptorPool with sizes ",
-	        poolSizes[0].descriptorCount,
-	        ", ",
-	        poolSizes[1].descriptorCount,
-	        ", ",
-	        poolSizes[2].descriptorCount);
+		poolSizes[0].descriptorCount,
+		", ",
+		poolSizes[1].descriptorCount,
+		", ",
+		poolSizes[2].descriptorCount);
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 4;
+	poolInfo.maxSets = 3 + netRsrc.materials.size();
 	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
 	VkDescriptorPool descriptorPool;
@@ -130,11 +131,11 @@ void Application::init()
 	uint32_t version;
 	vkEnumerateInstanceVersion(&version);
 	info("Vulkan: using version ",
-	        VK_VERSION_MAJOR(version),
-	        ".",
-	        VK_VERSION_MINOR(version),
-	        ".",
-	        VK_VERSION_PATCH(version));
+		VK_VERSION_MAJOR(version),
+		".",
+		VK_VERSION_MINOR(version),
+		".",
+		VK_VERSION_PATCH(version));
 
 	validation.init(instance);
 
