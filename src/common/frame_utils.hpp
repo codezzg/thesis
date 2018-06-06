@@ -33,9 +33,12 @@ public:
 
 	explicit LimitFrameTime(std::chrono::milliseconds targetFrameTime)
 	        : targetFrameTime(targetFrameTime)
-	        , beginFrameTime(std::chrono::high_resolution_clock::now()) {}
+	        , beginFrameTime(std::chrono::high_resolution_clock::now())
+	{
+	}
 
-	~LimitFrameTime() {
+	~LimitFrameTime()
+	{
 		if (enabled) {
 			const auto timeSpared = targetFrameTime - getFrameDuration();
 			if (timeSpared.count() > 0)
@@ -43,12 +46,14 @@ public:
 		}
 	}
 
-	std::chrono::milliseconds getFrameDuration() const {
+	std::chrono::milliseconds getFrameDuration() const
+	{
 		return std::chrono::duration_cast<std::chrono::milliseconds>(
 		        std::chrono::high_resolution_clock::now() - beginFrameTime);
 	}
 
-	std::chrono::milliseconds getFrameDelay() const {
+	std::chrono::milliseconds getFrameDelay() const
+	{
 		using namespace std::literals::chrono_literals;
 		const auto delay = getFrameDuration() - targetFrameTime;
 		return delay.count() > 0 ? delay : 0ms;
@@ -56,6 +61,7 @@ public:
 };
 
 template <typename T>
-constexpr float asSeconds(const T& duration) {
+constexpr float asSeconds(const T& duration)
+{
 	return std::chrono::duration_cast<std::chrono::duration<float>>(duration).count();
 }

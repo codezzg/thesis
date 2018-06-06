@@ -10,7 +10,8 @@
 
 using namespace logging;
 
-static VkInstance createInstance(const Validation& validation) {
+static VkInstance createInstance(const Validation& validation)
+{
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pApplicationName = "Hello Triangle";
@@ -35,14 +36,16 @@ static VkInstance createInstance(const Validation& validation) {
 	return instance;
 }
 
-static VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window) {
+static VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
+{
 	VkSurfaceKHR surface;
 	VLKCHECK(glfwCreateWindowSurface(instance, window, nullptr, &surface));
 
 	return surface;
 }
 
-static void createLogicalDevice(Application& app) {
+static void createLogicalDevice(Application& app)
+{
 	QueueFamilyIndices indices = findQueueFamilies(app.physicalDevice, app.surface);
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -78,7 +81,8 @@ static void createLogicalDevice(Application& app) {
 }
 
 // FIXME: use a meaningful number of descriptorcount
-VkDescriptorPool createDescriptorPool(const Application& app) {
+VkDescriptorPool createDescriptorPool(const Application& app)
+{
 	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 10;
@@ -101,7 +105,8 @@ VkDescriptorPool createDescriptorPool(const Application& app) {
 	return descriptorPool;
 }
 
-void Application::init() {
+void Application::init()
+{
 #ifndef NDEBUG
 	const std::vector<const char*> enabledLayers = { "VK_LAYER_LUNARG_standard_validation" };
 	validation.requestLayers(enabledLayers);
@@ -128,7 +133,8 @@ void Application::init() {
 	commandPool = createCommandPool(*this);
 }
 
-void Application::cleanup() {
+void Application::cleanup()
+{
 	vkDestroyCommandPool(device, commandPool, nullptr);
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 

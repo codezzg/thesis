@@ -8,7 +8,8 @@ void recordMultipassCommandBuffers(const Application& app,
         std::vector<VkCommandBuffer>& commandBuffers,
         uint32_t nIndices,
         const Buffer& vBuffer,
-        const Buffer& iBuffer) {
+        const Buffer& iBuffer)
+{
 	std::array<VkClearValue, 5> clearValues = {};
 	clearValues[0].color = { 0.f, 0.2f, 0.6f, 1.f };
 	clearValues[1].depthStencil = { 1, 0 };
@@ -65,7 +66,8 @@ void recordMultipassCommandBuffers(const Application& app,
 	}
 }
 
-VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app) {
+VkDescriptorSetLayout createMultipassDescriptorSetLayout(const Application& app)
+{
 	// TexDiffuse
 	VkDescriptorSetLayoutBinding diffuseLayoutBinding = {};
 	diffuseLayoutBinding.binding = 0;
@@ -141,7 +143,8 @@ VkDescriptorSet createMultipassDescriptorSet(const Application& app,
         const CombinedUniformBuffers& uniformBuffers,
         const Image& texDiffuse,
         const Image& texSpecular,
-        VkSampler texSampler) {
+        VkSampler texSampler)
+{
 	const std::array<VkDescriptorSetLayout, 1> layouts = { app.res.descriptorSetLayouts->get("multi") };
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;

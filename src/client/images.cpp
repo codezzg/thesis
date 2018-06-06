@@ -16,7 +16,8 @@ void ImageAllocator::addImage(Image& image,
         VkFormat format,
         VkImageTiling tiling,
         VkImageUsageFlags usage,
-        VkMemoryPropertyFlags properties) {
+        VkMemoryPropertyFlags properties)
+{
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -39,7 +40,8 @@ void ImageAllocator::addImage(Image& image,
 	images.emplace_back(&image);
 }
 
-void ImageAllocator::create(const Application& app) {
+void ImageAllocator::create(const Application& app)
+{
 	// (memory type) => (memory size)
 	std::unordered_map<uint32_t, VkDeviceSize> requiredSizes;
 
@@ -100,7 +102,8 @@ Image createImage(const Application& app,
         VkFormat format,
         VkImageTiling tiling,
         VkImageUsageFlags usage,
-        VkMemoryPropertyFlags properties) {
+        VkMemoryPropertyFlags properties)
+{
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -145,7 +148,8 @@ Image createImage(const Application& app,
 	return image;
 }
 
-VkImageView createImageView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
+VkImageView createImageView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+{
 	VkImageViewCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	createInfo.image = image;
@@ -168,7 +172,8 @@ void transitionImageLayout(const Application& app,
         VkImage image,
         VkFormat format,
         VkImageLayout oldLayout,
-        VkImageLayout newLayout) {
+        VkImageLayout newLayout)
+{
 	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
 	VkImageMemoryBarrier barrier = {};
@@ -223,7 +228,8 @@ void transitionImageLayout(const Application& app,
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }
 
-Image createDepthImage(const Application& app) {
+Image createDepthImage(const Application& app)
+{
 	auto depthImage = createImage(app,
 	        app.swapChain.extent.width,
 	        app.swapChain.extent.height,
@@ -243,7 +249,8 @@ Image createDepthImage(const Application& app) {
 	return depthImage;
 }
 
-void destroyImage(VkDevice device, Image image) {
+void destroyImage(VkDevice device, Image image)
+{
 	if (image.view != VK_NULL_HANDLE)
 		vkDestroyImageView(device, image.view, nullptr);
 	vkDestroyImage(device, image.handle, nullptr);
@@ -253,7 +260,8 @@ void destroyImage(VkDevice device, Image image) {
 #endif
 }
 
-void destroyAllImages(VkDevice device, const std::vector<Image>& images) {
+void destroyAllImages(VkDevice device, const std::vector<Image>& images)
+{
 	std::unordered_set<VkDeviceMemory> mems;
 	for (auto& i : images) {
 		mems.emplace(i.memory);

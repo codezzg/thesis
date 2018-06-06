@@ -23,9 +23,11 @@ void transformVertices(Model& model,
         /* inout */ int& nIndices);
 
 #ifdef _WIN32
-inline bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum) {
+inline bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum)
+{
 #else
-constexpr bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum) {
+constexpr bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum)
+{
 #endif
 	{
 		const auto& plane = frustum.left;

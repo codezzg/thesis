@@ -39,7 +39,8 @@ static int writeAllPossible(std::array<uint8_t, N>& dst,
         const uint8_t* src,
         int nVertices,
         int nIndices,
-        std::size_t offset) {
+        std::size_t offset)
+{
 	const auto srcSize = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 	auto srcIdx = offset;
 	auto dstIdx = 0lu;
@@ -83,7 +84,8 @@ static int writeAllPossible(std::array<uint8_t, N>& dst,
 ////8
 // 0, 1, 2, 2, 3, 0
 //};
-void ServerActiveEndpoint::loopFunc() {
+void ServerActiveEndpoint::loopFunc()
+{
 
 	auto delay = 0ms;
 	auto& shared = server.sharedData;
@@ -140,7 +142,8 @@ void ServerActiveEndpoint::loopFunc() {
 	}
 }
 
-void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t* buffer, int nVertices, int nIndices) {
+void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t* buffer, int nVertices, int nIndices)
+{
 	// Start new frame
 	size_t totSent = 0;
 	int nPacketsSent = 0;
@@ -174,7 +177,8 @@ void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t* buffer, int n
 ////////////////////////////////////////
 
 // Receives client parameters wherewith the server shall calculate the primitives to send during next frame
-void ServerPassiveEndpoint::loopFunc() {
+void ServerPassiveEndpoint::loopFunc()
+{
 	// Track the latest frame we received
 	int64_t latestFrame = -1;
 	auto& shared = server.sharedData;
@@ -212,7 +216,8 @@ void ServerPassiveEndpoint::loopFunc() {
 
 /////////////////////////////////////////
 
-void ServerReliableEndpoint::loopFunc() {
+void ServerReliableEndpoint::loopFunc()
+{
 	// FIXME?
 	constexpr auto MAX_CLIENTS = 1;
 
@@ -242,7 +247,8 @@ void ServerReliableEndpoint::loopFunc() {
 /** This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
 static void keepaliveTask(socket_t clientSocket,
         std::condition_variable& cv,
-        std::chrono::time_point<std::chrono::system_clock>& latestPing) {
+        std::chrono::time_point<std::chrono::system_clock>& latestPing)
+{
 	std::array<uint8_t, 1> buffer = {};
 
 	while (true) {
@@ -257,7 +263,8 @@ static void keepaliveTask(socket_t clientSocket,
 	}
 }
 
-void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientAddr) {
+void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientAddr)
+{
 
 	const auto readableAddr = inet_ntoa(clientAddr.sin_addr);
 
@@ -340,11 +347,13 @@ dropclient:
 	xplatSockClose(clientSocket);
 }
 
-void ServerReliableEndpoint::onClose() {
+void ServerReliableEndpoint::onClose()
+{
 	loopCv.notify_all();
 }
 
-static bool sendMaterial(socket_t clientSocket, const Material& material) {
+static bool sendMaterial(socket_t clientSocket, const Material& material)
+{
 
 	ResourcePacket<shared::Material> packet;
 	packet.type = MsgType::RSRC_TYPE_MATERIAL;
@@ -371,7 +380,8 @@ static bool sendMaterial(socket_t clientSocket, const Material& material) {
 	return sendPacket(clientSocket, reinterpret_cast<uint8_t*>(&packet), sizeof(packet));
 }
 
-static bool sendModel(socket_t clientSocket, const Model& model) {
+static bool sendModel(socket_t clientSocket, const Model& model)
+{
 
 	info("Sending model ", model.name, " (", sidToString(model.name), ")");
 
@@ -426,7 +436,8 @@ static bool sendModel(socket_t clientSocket, const Model& model) {
 	return true;
 }
 
-bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
+bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
+{
 
 	/* Send all models info,
 	 * materials (which are basically maps (mat id) => { (diffuse): tex id, (specular): tex id, ... })
@@ -518,7 +529,8 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket) {
 
 bool ServerReliableEndpoint::sendTexture(socket_t clientSocket,
         const std::string& texName,
-        shared::TextureFormat format) {
+        shared::TextureFormat format)
+{
 	using shared::TextureInfo;
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;

@@ -41,12 +41,15 @@ public:
 	explicit ServerResources(uint8_t* memory, std::size_t memsize)
 	        : memory{ memory }
 	        , memsize{ memsize }
-	        , allocator{ memory, memsize } {}
+	        , allocator{ memory, memsize }
+	{
+	}
 
 	/** Loads a model from `file` into `memory` and stores its info in `models`.
 	 *  @return The loaded Model information.
 	 */
-	Model loadModel(const char* file) {
+	Model loadModel(const char* file)
+	{
 		const auto fileSid = sid(file);
 		if (models.count(fileSid) > 0) {
 			logging::warn("Tried to load model ", file, " which is already loaded!");
@@ -69,7 +72,8 @@ public:
 	 *  Does NOT set the texture format (in fact, it sets it to UNKNOWN)
 	 *  @return The loaded Texture information
 	 */
-	shared::Texture loadTexture(const char* file) {
+	shared::Texture loadTexture(const char* file)
+	{
 		const auto fileSid = sid(file);
 		if (textures.count(fileSid) > 0) {
 			logging::warn("Tried to load texture ", file, " which is already loaded!");

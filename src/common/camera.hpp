@@ -23,7 +23,8 @@ struct Camera {
 	// float near = 0.1f;
 	// float far = 300.f;
 
-	explicit Camera() {
+	explicit Camera()
+	{
 		updateVectors();
 	}
 

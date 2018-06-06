@@ -5,9 +5,11 @@
 #include <vulkan/vulkan.h>
 
 #ifdef _WIN32
-inline const char* vlkResultStr(VkResult res) {
+inline const char* vlkResultStr(VkResult res)
+{
 #else
-constexpr const char* vlkResultStr(VkResult res) {
+constexpr const char* vlkResultStr(VkResult res)
+{
 #endif
 	switch (res) {
 	case VK_SUCCESS:

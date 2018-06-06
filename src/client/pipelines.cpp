@@ -4,7 +4,8 @@
 
 VkPipelineLayout createPipelineLayout(const Application& app,
         VkDescriptorSetLayout descSetLayout,
-        const std::vector<VkPushConstantRange>& pushConstantRanges) {
+        const std::vector<VkPushConstantRange>& pushConstantRanges)
+{
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
@@ -19,7 +20,8 @@ VkPipelineLayout createPipelineLayout(const Application& app,
 	return pipelineLayout;
 }
 
-VkPipelineCache createPipelineCache(const Application& app) {
+VkPipelineCache createPipelineCache(const Application& app)
+{
 	VkPipelineCacheCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 

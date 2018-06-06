@@ -5,7 +5,8 @@
 
 const std::vector<const char*> gDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
+{
 	QueueFamilyIndices indices;
 
 	uint32_t queueFamilyCount = 0;
@@ -36,7 +37,8 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR s
 	return indices;
 }
 
-SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
+SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
+{
 	SwapChainSupportDetails details;
 	VLKCHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &details.capabilities));
 
@@ -61,7 +63,8 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSur
 	return details;
 }
 
-bool isDeviceSuitable(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
+bool isDeviceSuitable(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
+{
 	QueueFamilyIndices indices = findQueueFamilies(physDevice, surface);
 
 	bool extensionsSupported = checkDeviceExtensionSupport(physDevice);
@@ -78,7 +81,8 @@ bool isDeviceSuitable(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
 	return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
-bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
+bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice)
+{
 	uint32_t extensionCount;
 	VLKCHECK(vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, nullptr));
 
@@ -94,7 +98,8 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
 	return requiredExtensions.empty();
 }
 
-VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
+VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
+{
 	uint32_t deviceCount = 0;
 	VLKCHECK(vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr));
 
@@ -122,7 +127,8 @@ VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
 	return physicalDevice;
 }
 
-uint32_t findMemoryType(VkPhysicalDevice physDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+uint32_t findMemoryType(VkPhysicalDevice physDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(physDevice, &memProperties);
 	for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i)
@@ -132,7 +138,8 @@ uint32_t findMemoryType(VkPhysicalDevice physDevice, uint32_t typeFilter, VkMemo
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
-VkDeviceSize findMinUboAlign(VkPhysicalDevice physDevice) {
+VkDeviceSize findMinUboAlign(VkPhysicalDevice physDevice)
+{
 	VkPhysicalDeviceProperties props;
 	vkGetPhysicalDeviceProperties(physDevice, &props);
 	return props.limits.minUniformBufferOffsetAlignment;

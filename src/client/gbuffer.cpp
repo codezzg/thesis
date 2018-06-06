@@ -28,7 +28,8 @@ static Image createDepthAttachment(const Application& app) {
         return depthImg;
 }*/
 
-void GBuffer::createAttachments(const Application& app) {
+void GBuffer::createAttachments(const Application& app)
+{
 	ImageAllocator imgAlloc;
 
 	// position
@@ -68,7 +69,8 @@ void GBuffer::createAttachments(const Application& app) {
 	albedoSpec.view = createImageView(app, albedoSpec.handle, albedoSpec.format, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-VkPipeline createGBufferPipeline(const Application& app) {
+VkPipeline createGBufferPipeline(const Application& app)
+{
 	auto vertShaderModule = createShaderModule(app, "shaders/gbuffer.vert.spv");
 	auto fragShaderModule = createShaderModule(app, "shaders/gbuffer.frag.spv");
 

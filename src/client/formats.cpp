@@ -9,7 +9,8 @@ VkFormat formats::albedoSpec;
 VkFormat findSupportedFormat(VkPhysicalDevice physicalDevice,
         const std::vector<VkFormat>& candidates,
         VkImageTiling tiling,
-        VkFormatFeatureFlags features) {
+        VkFormatFeatureFlags features)
+{
 	for (auto format : candidates) {
 		VkFormatProperties props;
 		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
@@ -23,14 +24,16 @@ VkFormat findSupportedFormat(VkPhysicalDevice physicalDevice,
 	throw std::runtime_error("failed to find supported format!");
 }
 
-static VkFormat findDepthFormat(VkPhysicalDevice physicalDevice) {
+static VkFormat findDepthFormat(VkPhysicalDevice physicalDevice)
+{
 	return findSupportedFormat(physicalDevice,
 	        { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
 	        VK_IMAGE_TILING_OPTIMAL,
 	        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
-static VkFormat findNormalFormat(VkPhysicalDevice physicalDevice) {
+static VkFormat findNormalFormat(VkPhysicalDevice physicalDevice)
+{
 	return findSupportedFormat(physicalDevice,
 	        {
 	                VK_FORMAT_R32G32B32_SFLOAT,
@@ -40,7 +43,8 @@ static VkFormat findNormalFormat(VkPhysicalDevice physicalDevice) {
 	        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 }
 
-static VkFormat findPositionFormat(VkPhysicalDevice physicalDevice) {
+static VkFormat findPositionFormat(VkPhysicalDevice physicalDevice)
+{
 	return findSupportedFormat(physicalDevice,
 	        {
 	                VK_FORMAT_R32G32B32_SFLOAT,
@@ -50,7 +54,8 @@ static VkFormat findPositionFormat(VkPhysicalDevice physicalDevice) {
 	        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 }
 
-static VkFormat findAlbedoSpecFormat(VkPhysicalDevice physicalDevice) {
+static VkFormat findAlbedoSpecFormat(VkPhysicalDevice physicalDevice)
+{
 	return findSupportedFormat(physicalDevice,
 	        {
 	                VK_FORMAT_R8G8B8A8_UNORM,
@@ -59,7 +64,8 @@ static VkFormat findAlbedoSpecFormat(VkPhysicalDevice physicalDevice) {
 	        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 }
 
-void findBestFormats(VkPhysicalDevice physicalDevice) {
+void findBestFormats(VkPhysicalDevice physicalDevice)
+{
 	formats::depth = findDepthFormat(physicalDevice);
 	formats::position = findPositionFormat(physicalDevice);
 	formats::normal = findNormalFormat(physicalDevice);

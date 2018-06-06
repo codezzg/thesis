@@ -21,7 +21,8 @@ using namespace std::literals::chrono_literals;
 
 static constexpr auto BUFSIZE = megabytes(16);
 
-void ClientPassiveEndpoint::loopFunc() {
+void ClientPassiveEndpoint::loopFunc()
+{
 
 	// This will be filled like this:
 	// [vertices|indices]
@@ -88,7 +89,8 @@ void ClientPassiveEndpoint::loopFunc() {
 	delete[] buffer;
 }
 
-void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex* outVBuf, Index* outIBuf) {
+void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex* outVBuf, Index* outIBuf)
+{
 	phead.nVertices = nVertices;
 	phead.nIndices = nIndices;
 	{
@@ -99,7 +101,8 @@ void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex* outVBuf, Inde
 }
 
 /////////////////////// Active EP
-void ClientActiveEndpoint::loopFunc() {
+void ClientActiveEndpoint::loopFunc()
+{
 	int64_t frameId = 0;
 	uint32_t packetId = 0;
 
@@ -128,13 +131,15 @@ void ClientActiveEndpoint::loopFunc() {
 
 /////////////////////// ReliableEP
 
-bool ClientReliableEndpoint::await(std::chrono::seconds timeout) {
+bool ClientReliableEndpoint::await(std::chrono::seconds timeout)
+{
 	std::mutex mtx;
 	std::unique_lock<std::mutex> ulk{ mtx };
 	return cv.wait_for(ulk, timeout) == std::cv_status::no_timeout;
 }
 
-static bool performHandshake(socket_t socket) {
+static bool performHandshake(socket_t socket)
+{
 
 	std::array<uint8_t, 1> buf = {};
 
@@ -145,7 +150,8 @@ static bool performHandshake(socket_t socket) {
 	return expectTCPMsg(socket, buf.data(), 1, MsgType::HELO_ACK);
 }
 
-static bool sendReadyAndWait(socket_t socket) {
+static bool sendReadyAndWait(socket_t socket)
+{
 	if (!sendTCPMsg(socket, MsgType::READY))
 		return false;
 
@@ -153,7 +159,8 @@ static bool sendReadyAndWait(socket_t socket) {
 	return expectTCPMsg(socket, &buf, 1, MsgType::READY);
 }
 
-static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_variable& cv) {
+static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_variable& cv)
+{
 
 	std::unique_lock<std::mutex> ulk{ mtx };
 
@@ -178,7 +185,8 @@ static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_varia
  * - the client waits again for us to receive server's ready msg;
  * - as soon as we receive it this thread both notifies the client and starts the keepalive loop.
  */
-void ClientReliableEndpoint::loopFunc() {
+void ClientReliableEndpoint::loopFunc()
+{
 
 	// -> HELO / <- HELO-ACK
 	if (!performHandshake(socket)) {
@@ -259,7 +267,8 @@ void ClientReliableEndpoint::loopFunc() {
 	info("Keepalive thread joined.");
 }
 
-void ClientReliableEndpoint::onClose() {
+void ClientReliableEndpoint::onClose()
+{
 	cv.notify_all();
 }
 
@@ -270,7 +279,8 @@ void ClientReliableEndpoint::onClose() {
 static bool receiveTexture(socket_t socket,
         const uint8_t* buffer,
         std::size_t bufsize,
-        /* out */ ClientTmpResources& resources) {
+        /* out */ ClientTmpResources& resources)
+{
 	// Parse header
 	// [0] msgType    (1 B)
 	// [1] tex.name   (4 B)
@@ -345,7 +355,8 @@ static bool receiveTexture(socket_t socket,
 /** Read a material out of `buffer` and store it in `resources` */
 static bool receiveMaterial(const uint8_t* buffer,
         std::size_t bufsize,
-        /* out */ ClientTmpResources& resources) {
+        /* out */ ClientTmpResources& resources)
+{
 	assert(bufsize >= sizeof(shared::ResourcePacket<shared::Material>));
 	static_assert(sizeof(StringId) == 4, "StringId size should be 4!");
 
@@ -376,7 +387,8 @@ static bool receiveMaterial(const uint8_t* buffer,
 static bool receiveModel(socket_t socket,
         const uint8_t* buffer,
         std::size_t bufsize,
-        /* out */ ClientTmpResources& resources) {
+        /* out */ ClientTmpResources& resources)
+{
 	constexpr auto sizeOfPrelude = sizeof(MsgType) + sizeof(StringId) + 2 * sizeof(uint8_t);
 	assert(bufsize >= sizeOfPrelude);
 
@@ -462,7 +474,8 @@ static bool receiveModel(socket_t socket,
 	return true;
 }
 
-bool ClientReliableEndpoint::receiveOneTimeData() {
+bool ClientReliableEndpoint::receiveOneTimeData()
+{
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
 
 	assert(resources != nullptr);

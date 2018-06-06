@@ -6,7 +6,8 @@
 #	include <cerrno>
 #endif
 
-bool xplatSocketInit() {
+bool xplatSocketInit()
+{
 #ifdef _WIN32
 	WSADATA wsaData;
 	return WSAStartup(MAKEWORD(1, 1), &wsaData) == 0;
@@ -15,7 +16,8 @@ bool xplatSocketInit() {
 #endif
 }
 
-bool xplatSocketCleanup() {
+bool xplatSocketCleanup()
+{
 #ifdef _WIN32
 	return WSACleanup() == 0;
 #else
@@ -23,7 +25,8 @@ bool xplatSocketCleanup() {
 #endif
 }
 
-int xplatSockClose(socket_t sock) {
+int xplatSockClose(socket_t sock)
+{
 	int status = 0;
 #ifdef _WIN32
 	// This may fail if the socket is UDP, just don't care
@@ -44,11 +47,13 @@ int xplatSockClose(socket_t sock) {
 	return status;
 }
 
-const char* xplatGetErrorString() {
+const char* xplatGetErrorString()
+{
 	return std::strerror(xplatGetError());
 }
 
-int xplatGetError() {
+int xplatGetError()
+{
 #ifdef _WIN32
 	return WSAGetLastError();
 #else

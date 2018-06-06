@@ -8,7 +8,8 @@
 #	include "utils.hpp"
 #endif
 
-bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers) {
+bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers)
+{
 	uint32_t layerCount;
 	VLKCHECK(vkEnumerateInstanceLayerProperties(&layerCount, nullptr));
 
@@ -33,7 +34,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT /*flag
         int32_t /*code*/,
         const char* layerPrefix,
         const char* msg,
-        void* userData) {
+        void* userData)
+{
 	const auto data = reinterpret_cast<const Validation*>(userData);
 	std::cerr << "validation layer |" << layerPrefix << "|: " << data->addDetails(msg) << "\n" << std::endl;
 
@@ -43,7 +45,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT /*flag
 static VkResult createDebugReportCallbackEXT(VkInstance instance,
         const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,
         const VkAllocationCallbacks* pAllocator,
-        VkDebugReportCallbackEXT* pCallback) {
+        VkDebugReportCallbackEXT* pCallback)
+{
 	auto func =
 	        (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
 	if (func != nullptr)
@@ -54,14 +57,16 @@ static VkResult createDebugReportCallbackEXT(VkInstance instance,
 
 static void destroyDebugReportCallbackEXT(VkInstance instance,
         VkDebugReportCallbackEXT callback,
-        const VkAllocationCallbacks* pAllocator) {
+        const VkAllocationCallbacks* pAllocator)
+{
 	auto func =
 	        (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
 	if (func != nullptr)
 		func(instance, callback, pAllocator);
 }
 
-static VkDebugReportCallbackEXT createDebugCallback(VkInstance instance, Validation* validation) {
+static VkDebugReportCallbackEXT createDebugCallback(VkInstance instance, Validation* validation)
+{
 	VkDebugReportCallbackCreateInfoEXT createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 	createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
@@ -74,26 +79,31 @@ static VkDebugReportCallbackEXT createDebugCallback(VkInstance instance, Validat
 	return callback;
 }
 
-void Validation::requestLayers(const std::vector<const char*>& layers) {
+void Validation::requestLayers(const std::vector<const char*>& layers)
+{
 	enabledLayers = layers;
 }
 
-void Validation::init(VkInstance _instance) {
+void Validation::init(VkInstance _instance)
+{
 	instance = _instance;
 	if (enabled())
 		debugReportCallback = createDebugCallback(instance, this);
 }
 
-void Validation::cleanup() {
+void Validation::cleanup()
+{
 	if (debugReportCallback)
 		destroyDebugReportCallbackEXT(instance, debugReportCallback, nullptr);
 }
 
-bool Validation::enabled() const {
+bool Validation::enabled() const
+{
 	return enabledLayers.size() > 0;
 }
 
-void Validation::addObjectInfo(void* handle, const char* file, int line) const {
+void Validation::addObjectInfo(void* handle, const char* file, int line) const
+{
 #ifndef NDEBUG
 	std::stringstream ss;
 	ss << file << ":" << line;
@@ -103,7 +113,8 @@ void Validation::addObjectInfo(void* handle, const char* file, int line) const {
 #endif
 }
 
-std::string Validation::addDetails(const char* msg) const {
+std::string Validation::addDetails(const char* msg) const
+{
 #ifndef NDEBUG
 	std::istringstream iss{ msg };
 	std::ostringstream oss;

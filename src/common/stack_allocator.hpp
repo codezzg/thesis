@@ -19,14 +19,18 @@ public:
 
 	explicit StackAllocator(uint8_t* buffer, std::size_t bufsize)
 	        : mem{ buffer }
-	        , capacity{ bufsize } {}
+	        , capacity{ bufsize }
+	{
+	}
 
 	template <typename T>
-	T* alloc() {
+	T* alloc()
+	{
 		return static_cast<T*>(alloc(sizeof(T)));
 	}
 
-	void* alloc(std::size_t size) {
+	void* alloc(std::size_t size)
+	{
 		if (used + size > capacity) {
 			logging::err("StackAllocator: out of memory!");
 			return nullptr;
@@ -51,14 +55,16 @@ public:
 	/** Allocates all the remaining memory. If `size` is not null, it's filled with the
 	 *  size of the allocation.
 	 */
-	void* allocAll(std::size_t* size = nullptr) {
+	void* allocAll(std::size_t* size = nullptr)
+	{
 		if (size != nullptr)
 			*size = capacity - used;
 
 		return alloc(capacity - used);
 	}
 
-	void deallocLatest() {
+	void deallocLatest()
+	{
 		if (allocations.size() == 0) {
 			logging::warn("StackAllocator: deallocLatest() called but no latest alloc exists.");
 			return;
@@ -77,7 +83,8 @@ public:
 		        "%])");
 	}
 
-	void deallocAll() {
+	void deallocAll()
+	{
 		used = 0;
 		logging::debug("Deallocating all the ", allocations.size(), " allocs.");
 		allocations.clear();

@@ -37,11 +37,13 @@ struct Model {
 	std::vector<shared::Mesh> meshes;
 	std::vector<Material> materials;
 
-	std::size_t size() const {
+	std::size_t size() const
+	{
 		return nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 	}
 
-	std::string toString() const {
+	std::string toString() const
+	{
 		std::stringstream ss;
 		ss << "n vertices = " << nVertices << ", n indices = " << nIndices << "\n"
 		   << "size: " << size() << " bytes\n"

@@ -4,7 +4,8 @@
 #include "vulk_errors.hpp"
 #include <stdexcept>
 
-VkCommandPool createCommandPool(const Application& app) {
+VkCommandPool createCommandPool(const Application& app)
+{
 	auto queueFamilyIndices = findQueueFamilies(app.physicalDevice, app.surface);
 
 	VkCommandPoolCreateInfo poolInfo = {};
@@ -18,7 +19,8 @@ VkCommandPool createCommandPool(const Application& app) {
 	return commandPool;
 }
 
-VkCommandBuffer allocCommandBuffer(const Application& app, VkCommandPool commandPool) {
+VkCommandBuffer allocCommandBuffer(const Application& app, VkCommandPool commandPool)
+{
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -32,7 +34,8 @@ VkCommandBuffer allocCommandBuffer(const Application& app, VkCommandPool command
 	return commandBuffer;
 }
 
-VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool commandPool) {
+VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool commandPool)
+{
 	auto commandBuffer = allocCommandBuffer(app, commandPool);
 	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -46,7 +49,8 @@ VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool co
 void endSingleTimeCommands(VkDevice device,
         VkQueue graphicsQueue,
         VkCommandPool commandPool,
-        VkCommandBuffer commandBuffer) {
+        VkCommandBuffer commandBuffer)
+{
 	vkEndCommandBuffer(commandBuffer);
 
 	VkSubmitInfo submitInfo = {};

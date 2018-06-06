@@ -9,7 +9,8 @@ struct QueueFamilyIndices final {
 	int graphicsFamily = -1;
 	int presentFamily = -1;
 
-	constexpr bool isComplete() const {
+	constexpr bool isComplete() const
+	{
 		return graphicsFamily >= 0 && presentFamily >= 0;
 	}
 };

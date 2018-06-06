@@ -20,7 +20,8 @@ struct GBuffer final {
 
 	void createAttachments(const Application& app);
 
-	void destroyTransient(VkDevice device) {
+	void destroyTransient(VkDevice device)
+	{
 		destroyAllImages(device,
 		        {
 		                position,

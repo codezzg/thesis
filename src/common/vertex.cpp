@@ -1,6 +1,7 @@
 #include "vertex.hpp"
 
-VkVertexInputBindingDescription Vertex::getBindingDescription() {
+VkVertexInputBindingDescription Vertex::getBindingDescription()
+{
 	VkVertexInputBindingDescription bindingDescription = {};
 	bindingDescription.binding = 0;
 	bindingDescription.stride = sizeof(Vertex);
@@ -9,7 +10,8 @@ VkVertexInputBindingDescription Vertex::getBindingDescription() {
 	return bindingDescription;
 }
 
-std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescriptions() {
+std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescriptions()
+{
 	std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {};
 	attributeDescriptions[0].binding = 0;
 	attributeDescriptions[0].location = 0;
@@ -29,6 +31,7 @@ std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescription
 	return attributeDescriptions;
 }
 
-bool Vertex::operator==(const Vertex& other) const {
+bool Vertex::operator==(const Vertex& other) const
+{
 	return pos == other.pos && norm == other.norm && texCoord == other.texCoord;
 }

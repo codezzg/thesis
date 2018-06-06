@@ -24,7 +24,8 @@ public:
 	bool enabled() const;
 
 	template <typename T>
-	void enableOn(T& createInfo) const {
+	void enableOn(T& createInfo) const
+	{
 		if (!checkValidationLayerSupport(enabledLayers))
 			throw std::runtime_error("validation layers requested, but not available!");
 

@@ -35,12 +35,15 @@ public:
 	 */
 	explicit ServerActiveEndpoint(Server& server)
 	        : server{ server }
-	        , targetFrameTime{ std::chrono::milliseconds{ 33 } } {}
+	        , targetFrameTime{ std::chrono::milliseconds{ 33 } }
+	{
+	}
 
 	/*  `memory` is a pointer into a valid memory buffer, which must be large enough to contain
 	 *  the processed data (TODO: enforce this requirement).
 	 */
-	void initialize(uint8_t* mem, std::size_t size) {
+	void initialize(uint8_t* mem, std::size_t size)
+	{
 		memory = mem;
 		memsize = size;
 	}
@@ -59,7 +62,9 @@ class ServerPassiveEndpoint final : public Endpoint {
 
 public:
 	explicit ServerPassiveEndpoint(Server& server)
-	        : server{ server } {}
+	        : server{ server }
+	{
+	}
 };
 
 /** This class implements a reliable connection server endpoint which handles the server-side
@@ -96,5 +101,7 @@ public:
 	std::string serverIp;
 
 	explicit ServerReliableEndpoint(Server& server)
-	        : server{ server } {}
+	        : server{ server }
+	{
+	}
 };

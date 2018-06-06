@@ -8,16 +8,19 @@ class Clock {
 
 	using clock = std::chrono::high_resolution_clock;
 
-	static constexpr uint64_t secondsToCycles(float seconds) {
+	static constexpr uint64_t secondsToCycles(float seconds)
+	{
 		return static_cast<uint64_t>(seconds * clock::period::den);
 	}
 
-	static constexpr float cyclesToSeconds(uint64_t cycles) {
+	static constexpr float cyclesToSeconds(uint64_t cycles)
+	{
 		return static_cast<float>(cycles) / clock::period::den;
 	}
 
 public:
-	static Clock& instance() {
+	static Clock& instance()
+	{
 		static Clock _instance;
 		return _instance;
 	}
@@ -28,21 +31,26 @@ public:
 
 	explicit Clock(float startTime = 0)
 	        : timeCycles(secondsToCycles(startTime))
-	        , latestTimeCycles(timeCycles) {}
+	        , latestTimeCycles(timeCycles)
+	{
+	}
 
-	void update(float dt) {
+	void update(float dt)
+	{
 		if (!paused) {
 			latestTimeCycles = timeCycles;
 			timeCycles += secondsToCycles(dt * timeScale);
 		}
 	}
 
-	void step() {
+	void step()
+	{
 		if (paused)
 			timeCycles += secondsToCycles(targetDeltaTime * timeScale);
 	}
 
-	float deltaTime() const {
+	float deltaTime() const
+	{
 		return cyclesToSeconds(timeCycles - latestTimeCycles);
 	}
 };

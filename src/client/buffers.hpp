@@ -45,11 +45,13 @@ struct CombinedUniformBuffers : public Buffer {
 		VkDeviceSize comp;
 	} offsets;
 
-	MVPUniformBufferObject* getMVP() const {
+	MVPUniformBufferObject* getMVP() const
+	{
 		return reinterpret_cast<MVPUniformBufferObject*>(reinterpret_cast<uint8_t*>(ptr) + offsets.mvp);
 	}
 
-	CompositionUniformBufferObject* getComp() const {
+	CompositionUniformBufferObject* getComp() const
+	{
 		return reinterpret_cast<CompositionUniformBufferObject*>(
 		        reinterpret_cast<uint8_t*>(ptr) + offsets.comp);
 	}

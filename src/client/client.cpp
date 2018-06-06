@@ -68,7 +68,8 @@ bool gLimitFrameTime = true;
 
 class VulkanClient final {
 public:
-	void run(const char* ip) {
+	void run(const char* ip)
+	{
 		app.init();
 
 		glfwSetWindowUserPointer(app.window, this);
@@ -124,7 +125,8 @@ private:
 	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = megabytes(16);
 	static constexpr VkDeviceSize INDEX_BUFFER_SIZE = megabytes(16);
 
-	void initVulkan() {
+	void initVulkan()
+	{
 		// Create basic Vulkan resources
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
@@ -165,7 +167,8 @@ private:
 		prepareCamera();
 	}
 
-	void initVulkanForward() {
+	void initVulkanForward()
+	{
 		// Create basic Vulkan resources
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
@@ -198,7 +201,8 @@ private:
 		prepareCamera();
 	}
 
-	void startNetwork(const char* serverIp) {
+	void startNetwork(const char* serverIp)
+	{
 		passiveEP.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		passiveEP.runLoop();
 
@@ -207,7 +211,8 @@ private:
 		activeEP.runLoop();
 	}
 
-	void connectToServer(const char* serverIp) {
+	void connectToServer(const char* serverIp)
+	{
 		relEP.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
 		relEP.runLoop();
 		// Wait for handshake to complete
@@ -247,7 +252,8 @@ private:
 	}
 
 	/** Check we received all the resources needed by all models */
-	void checkAssets(const ClientTmpResources& resources) {
+	void checkAssets(const ClientTmpResources& resources)
+	{
 
 		// Collect textures ids into a set (so we can use set_difference later)
 		std::set<StringId> textureSet;
@@ -292,7 +298,8 @@ private:
 		}
 	}
 
-	void loadAssets(const ClientTmpResources& resources) {
+	void loadAssets(const ClientTmpResources& resources)
+	{
 		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
 
 		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
@@ -323,13 +330,19 @@ private:
 
 		// Prepare materials
 		for (const auto& pair : resources.materials) {
-			netRsrc.materials[pair.first] = createMaterial(pair.second, netRsrc);
+			auto material = createMaterial(pair.second, netRsrc);
+			material.descriptorSet = createMultipassDescriptorSet(
+			        app, uniformBuffers, material.diffuse, material.specular, texSampler);
+			app.res.descriptorSets->add(material.name, material.descriptorSet);
+
+			netRsrc.materials[pair.first] = material;
 		}
 
 		prepareBufferMemory(stagingBuffer);
 	}
 
-	void mainLoop(const char* serverIp) {
+	void mainLoop(const char* serverIp)
+	{
 		startNetwork(serverIp);
 
 		FPSCounter fps;
@@ -367,7 +380,8 @@ private:
 		VLKCHECK(vkDeviceWaitIdle(app.device));
 	}
 
-	void runFrame() {
+	void runFrame()
+	{
 		static size_t pvs = nVertices, pis = nIndices;
 
 		// Receive network data
@@ -397,7 +411,8 @@ private:
 			drawFrame();
 	}
 
-	void receiveData() {
+	void receiveData()
+	{
 		debug("receive data. curFrame = ", curFrame, ", passive.frame = ", passiveEP.getFrameId());
 
 		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame) {
@@ -440,7 +455,8 @@ private:
 		// std::endl;
 	}
 
-	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime) {
+	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime)
+	{
 		auto& clock = Clock::instance();
 		const auto endTime = std::chrono::high_resolution_clock::now();
 		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
@@ -454,7 +470,8 @@ private:
 		fps.report();
 	}
 
-	void recreateSwapChain() {
+	void recreateSwapChain()
+	{
 		int width, height;
 		glfwGetWindowSize(app.window, &width, &height);
 		if (width == 0 || height == 0)
@@ -496,14 +513,16 @@ private:
 		updateCompUniformBuffer();
 	}
 
-	void createSemaphores() {
+	void createSemaphores()
+	{
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &imageAvailableSemaphore));
 		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &renderFinishedSemaphore));
 	}
 
-	void drawFrameForward() {
+	void drawFrameForward()
+	{
 		uint32_t imageIndex;
 		if (!acquireNextSwapImage(app, imageAvailableSemaphore, imageIndex)) {
 			recreateSwapChain();
@@ -552,7 +571,8 @@ private:
 		VLKCHECK(vkQueueWaitIdle(app.queues.present));
 	}
 
-	void drawFrame() {
+	void drawFrame()
+	{
 		uint32_t imageIndex;
 		if (!acquireNextSwapImage(app, imageAvailableSemaphore, imageIndex)) {
 			info("Recreating swap chain");
@@ -564,7 +584,8 @@ private:
 		submitFrame(imageIndex);
 	}
 
-	void renderFrame(uint32_t imageIndex) {
+	void renderFrame(uint32_t imageIndex)
+	{
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -586,7 +607,8 @@ private:
 		VLKCHECK(vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE));
 	}
 
-	void submitFrame(uint32_t imageIndex) {
+	void submitFrame(uint32_t imageIndex)
+	{
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
@@ -608,7 +630,8 @@ private:
 		VLKCHECK(vkQueueWaitIdle(app.queues.graphics));
 	}
 
-	void updateMVPUniformBuffer() {
+	void updateMVPUniformBuffer()
+	{
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
 		auto ubo = uniformBuffers.getMVP();
@@ -634,7 +657,8 @@ private:
 		ubo->proj[1][1] *= -1;
 	}
 
-	void updateCompUniformBuffer() {
+	void updateCompUniformBuffer()
+	{
 		auto ubo = uniformBuffers.getComp();
 		ubo->viewPos = glm::vec4{
 			camera.position.x,
@@ -645,7 +669,8 @@ private:
 		verbose("viewPos = ", ubo->viewPos);
 	}
 
-	void prepareBufferMemory(Buffer& stagingBuffer) {
+	void prepareBufferMemory(Buffer& stagingBuffer)
+	{
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
 
 		// Find out the proper offsets for uniform buffers
@@ -702,7 +727,8 @@ private:
 		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
 	}
 
-	void prepareCamera() {
+	void prepareCamera()
+	{
 		// Prepare camera
 		camera.position = glm::vec3{ -7, 13, 12 };
 		camera.yaw = -60;
@@ -714,7 +740,8 @@ private:
 		activeEP.setCamera(&camera);
 	}
 
-	void recordAllCommandBuffers() {
+	void recordAllCommandBuffers()
+	{
 		if (gIsDebug) {
 			recordSwapChainDebugCommandBuffers(
 			        app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer);
@@ -723,7 +750,8 @@ private:
 		}
 	}
 
-	void cleanupSwapChain() {
+	void cleanupSwapChain()
+	{
 		// Destroy the gbuffer and all its attachments
 		if (!gIsDebug)
 			app.gBuffer.destroyTransient(app.device);
@@ -738,7 +766,8 @@ private:
 		        swapCommandBuffers.data());
 	}
 
-	void cleanup() {
+	void cleanup()
+	{
 		cleanupSwapChain();
 
 		unmapBuffersMemory(app.device,
@@ -772,12 +801,14 @@ private:
 		app.cleanup();
 	}
 
-	static void onWindowResized(GLFWwindow* window, int, int) {
+	static void onWindowResized(GLFWwindow* window, int, int)
+	{
 		auto appl = reinterpret_cast<VulkanClient*>(glfwGetWindowUserPointer(window));
 		appl->recreateSwapChain();
 	}
 
-	static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
+	static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
+	{
 		static constexpr double centerX = cfg::WIDTH / 2.0, centerY = cfg::HEIGHT / 2.0;
 		static bool firstTime = true;
 
@@ -793,7 +824,8 @@ private:
 		glfwSetCursorPos(window, centerX, centerY);
 	}
 
-	static void keyCallback(GLFWwindow* window, int key, int /*scancode*/, int action, int) {
+	static void keyCallback(GLFWwindow* window, int key, int /*scancode*/, int action, int)
+	{
 		if (action != GLFW_PRESS)
 			return;
 
@@ -820,7 +852,8 @@ private:
 	}
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
 	if (!Endpoint::init()) {
 		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;

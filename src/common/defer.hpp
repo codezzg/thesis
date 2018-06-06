@@ -8,14 +8,18 @@ class Deferred final {
 
 public:
 	Deferred(F&& f)
-	        : f{ f } {}
-	~Deferred() {
+	        : f{ f }
+	{
+	}
+	~Deferred()
+	{
 		f();
 	}
 };
 
 template <typename F>
-Deferred<F> defer(F&& f) {
+Deferred<F> defer(F&& f)
+{
 	return Deferred<F>(std::forward<F>(f));
 }
 

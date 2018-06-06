@@ -14,7 +14,9 @@ public:
 	float sensitivity = 0.15f;
 
 	explicit CameraController(Camera& camera)
-	        : camera{ camera } {}
+	        : camera{ camera }
+	{
+	}
 
 	void move(Direction dir);
 	virtual void turn(double xoff, double yoff) = 0;
@@ -25,7 +27,9 @@ public:
 class FPSCameraController : public CameraController {
 public:
 	explicit FPSCameraController(Camera& camera)
-	        : CameraController{ camera } {}
+	        : CameraController{ camera }
+	{
+	}
 
 	void turn(double xoff, double yoff) override;
 
@@ -36,7 +40,9 @@ public:
 class CubeCameraController : public CameraController {
 public:
 	explicit CubeCameraController(Camera& camera)
-	        : CameraController{ camera } {}
+	        : CameraController{ camera }
+	{
+	}
 
 	void turn(double xoff, double yoff) override;
 

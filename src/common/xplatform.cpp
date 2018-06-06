@@ -22,7 +22,8 @@ static signal_handler_t gHandler;
 static bool gCalledExitHandler;
 
 #ifdef _WIN32
-static BOOL wrapper(DWORD signalType) {
+static BOOL wrapper(DWORD signalType)
+{
 	if (gCalledExitHandler)
 		return false;
 
@@ -41,7 +42,8 @@ static BOOL wrapper(DWORD signalType) {
 	return false;
 }
 #else
-static void wrapper(int) {
+static void wrapper(int)
+{
 	if (gCalledExitHandler)
 		return;
 
@@ -52,12 +54,14 @@ static void wrapper(int) {
 }
 #endif
 
-void xplatSetExitHandler(signal_handler_t handler) {
+void xplatSetExitHandler(signal_handler_t handler)
+{
 	gHandler = handler;
 	std::atexit([]() { wrapper(0); });
 }
 
-bool xplatEnableExitHandler() {
+bool xplatEnableExitHandler()
+{
 #ifdef _WIN32
 	return SetConsoleCtrlHandler(wrapper, true);
 #else
@@ -68,7 +72,8 @@ bool xplatEnableExitHandler() {
 #endif
 }
 
-std::string xplatGetCwd() {
+std::string xplatGetCwd()
+{
 	constexpr auto len = 256;
 	char buf[len];
 
@@ -107,7 +112,8 @@ std::string xplatGetCwd() {
 	return std::string{ buf };
 }
 
-std::string xplatDirname(const char* path) {
+std::string xplatDirname(const char* path)
+{
 	// Copy path into a modifiable buffer
 	std::string res;
 	const auto len = strlen(path);
@@ -123,7 +129,8 @@ std::string xplatDirname(const char* path) {
 	return res;
 }
 
-std::string xplatPath(std::string&& path) {
+std::string xplatPath(std::string&& path)
+{
 #ifdef _WIN32
 	std::replace(path.begin(), path.end(), '/', '\\');
 #else

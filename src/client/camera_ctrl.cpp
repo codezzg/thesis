@@ -10,7 +10,8 @@
 
 using namespace logging;
 
-void CameraController::move(CameraController::Direction dir) {
+void CameraController::move(CameraController::Direction dir)
+{
 	const auto dt = Clock::instance().deltaTime();
 
 	switch (dir) {
@@ -38,7 +39,8 @@ void CameraController::move(CameraController::Direction dir) {
 	verbose("cam pos = ", glm::to_string(camera.position));
 }
 
-void FPSCameraController::turn(double xoff, double yoff) {
+void FPSCameraController::turn(double xoff, double yoff)
+{
 	xoff *= sensitivity;
 	yoff *= sensitivity;
 
@@ -54,7 +56,8 @@ void FPSCameraController::turn(double xoff, double yoff) {
 	camera.updateVectors();
 }
 
-void FPSCameraController::processInput(GLFWwindow* window) {
+void FPSCameraController::processInput(GLFWwindow* window)
+{
 	if (glfwGetKey(window, GLFW_KEY_W))
 		move(Direction::FWD);
 	if (glfwGetKey(window, GLFW_KEY_A))
@@ -69,7 +72,8 @@ void FPSCameraController::processInput(GLFWwindow* window) {
 
 void CubeCameraController::turn(double, double) {}
 
-void CubeCameraController::processInput(GLFWwindow* window) {
+void CubeCameraController::processInput(GLFWwindow* window)
+{
 	if (glfwGetKey(window, GLFW_KEY_W))
 		move(Direction::UP);
 	if (glfwGetKey(window, GLFW_KEY_A))

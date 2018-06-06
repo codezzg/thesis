@@ -23,7 +23,8 @@ Server* gServer;
 static void parseArgs(int argc, char** argv, std::string& ip);
 static bool loadAssets(Server& server);
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
 
 	std::string ip = "127.0.0.1";
 	parseArgs(argc, argv, ip);
@@ -65,7 +66,8 @@ int main(int argc, char** argv) {
 	server.relEP.runLoopSync();
 }
 
-void parseArgs(int argc, char** argv, std::string& ip) {
+void parseArgs(int argc, char** argv, std::string& ip)
+{
 	int i = argc - 1;
 	int posArgs = 0;
 	while (i > 0) {
@@ -101,7 +103,8 @@ void parseArgs(int argc, char** argv, std::string& ip) {
 	}
 }
 
-bool loadAssets(Server& server) {
+bool loadAssets(Server& server)
+{
 	const auto cwd = xplatGetCwd();
 	info("Starting server. cwd: ", cwd);
 

@@ -27,7 +27,8 @@ enum class MsgType : uint8_t {
 	UNKNOWN,
 };
 
-inline std::ostream& operator<<(std::ostream& s, MsgType msg) {
+inline std::ostream& operator<<(std::ostream& s, MsgType msg)
+{
 	switch (msg) {
 		using M = MsgType;
 	case M::HELO:
@@ -76,11 +77,13 @@ inline std::ostream& operator<<(std::ostream& s, MsgType msg) {
 	return s;
 }
 
-constexpr MsgType byte2msg(uint8_t byte) {
+constexpr MsgType byte2msg(uint8_t byte)
+{
 	return byte == 0 || byte > static_cast<uint8_t>(MsgType::UNKNOWN) ? MsgType::UNKNOWN
 	                                                                  : static_cast<MsgType>(byte);
 }
 
-constexpr uint8_t msg2byte(MsgType type) {
+constexpr uint8_t msg2byte(MsgType type)
+{
 	return type == MsgType::UNKNOWN ? 0 : static_cast<uint8_t>(type);
 }

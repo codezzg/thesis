@@ -14,7 +14,8 @@ namespace to = tinyobj;
 
 static Material saveMaterial(const char* modelPath, const to::material_t& mat);
 
-Model loadModel(const char* modelPath, void* buffer) {
+Model loadModel(const char* modelPath, void* buffer)
+{
 
 	Model model = {};
 
@@ -111,7 +112,8 @@ Model loadModel(const char* modelPath, void* buffer) {
 	return model;
 }
 
-Material saveMaterial(const char* modelPath, const to::material_t& mat) {
+Material saveMaterial(const char* modelPath, const to::material_t& mat)
+{
 	const std::string basePath = xplatDirname(modelPath) + DIRSEP;
 
 	debug("material base path: ", basePath);

@@ -4,7 +4,8 @@
 #include <immintrin.h>
 #include <iostream>
 
-void Camera::updateVectors() {
+void Camera::updateVectors()
+{
 	front.x = std::cos(glm::radians(yaw)) * std::cos(glm::radians(pitch));
 	front.y = std::sin(glm::radians(pitch));
 	front.z = std::sin(glm::radians(yaw)) * std::cos(glm::radians(pitch));
@@ -13,7 +14,8 @@ void Camera::updateVectors() {
 	up = glm::normalize(glm::cross(right, front));
 }
 
-glm::mat4 Camera::viewMatrix() const {
+glm::mat4 Camera::viewMatrix() const
+{
 	return glm::lookAt(position, position + front, up);
 }
 
@@ -21,7 +23,8 @@ glm::mat4 Camera::viewMatrix() const {
 // return glm::perspective(glm::radians(fov), ratio, near, far);
 //}
 
-Frustum calcFrustum(const glm::mat4& m) {
+Frustum calcFrustum(const glm::mat4& m)
+{
 	Frustum frustum;
 
 	// x = a, y = b, z = c, w = d (a, b, c, d are the plane coefficients)

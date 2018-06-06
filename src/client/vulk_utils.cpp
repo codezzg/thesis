@@ -3,7 +3,8 @@
 #include <iostream>
 #include <stdexcept>
 
-std::vector<char> readFile(const std::string& filename) {
+std::vector<char> readFile(const std::string& filename)
+{
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 	if (!file.is_open())
 		throw std::runtime_error("failed to open file " + filename + "!");
@@ -17,7 +18,8 @@ std::vector<char> readFile(const std::string& filename) {
 	return buffer;
 }
 
-void dumpPhysicalDevice(VkPhysicalDevice& physicalDevice) {
+void dumpPhysicalDevice(VkPhysicalDevice& physicalDevice)
+{
 	VkPhysicalDeviceProperties props;
 	vkGetPhysicalDeviceProperties(physicalDevice, &props);
 	std::cout << "Picked physical device: " << props.deviceName << std::endl;

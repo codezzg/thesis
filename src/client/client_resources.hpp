@@ -33,7 +33,9 @@ public:
 
 	explicit ClientTmpResources(std::size_t size)
 	        : memory(size)
-	        , allocator{ memory.data(), memory.size() } {}
+	        , allocator{ memory.data(), memory.size() }
+	{
+	}
 };
 
 /** This struct stores the "final form" of the resources received via network. */

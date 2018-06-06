@@ -4,7 +4,8 @@
 #include "vulk_errors.hpp"
 #include <array>
 
-VkRenderPass createForwardRenderPass(const Application& app) {
+VkRenderPass createForwardRenderPass(const Application& app)
+{
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = app.swapChain.imageFormat;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -74,7 +75,8 @@ VkRenderPass createForwardRenderPass(const Application& app) {
 	return renderPass;
 }
 
-VkRenderPass createMultipassRenderPass(const Application& app) {
+VkRenderPass createMultipassRenderPass(const Application& app)
+{
 
 	std::array<VkAttachmentDescription, 5> attachDesc = {};
 

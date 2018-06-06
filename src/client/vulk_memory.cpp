@@ -9,7 +9,8 @@ using namespace logging;
 #ifndef NDEBUG
 MemoryMonitor gMemMonitor;
 
-void MemoryMonitor::newAlloc(VkDeviceMemory memory, const VkMemoryAllocateInfo& aInfo) {
+void MemoryMonitor::newAlloc(VkDeviceMemory memory, const VkMemoryAllocateInfo& aInfo)
+{
 	++nAllocs;
 	totSize += aInfo.allocationSize;
 	allocInfo[memory] = aInfo;
@@ -23,7 +24,8 @@ void MemoryMonitor::newAlloc(VkDeviceMemory memory, const VkMemoryAllocateInfo& 
 	report();
 }
 
-void MemoryMonitor::newFree(VkDeviceMemory memory) {
+void MemoryMonitor::newFree(VkDeviceMemory memory)
+{
 	++nFrees;
 	const auto& aInfo = allocInfo[memory];
 	totSize -= aInfo.allocationSize;
@@ -38,7 +40,8 @@ void MemoryMonitor::newFree(VkDeviceMemory memory) {
 	report();
 }
 
-void MemoryMonitor::report() {
+void MemoryMonitor::report()
+{
 	log(LOGLV_DEBUG, true, "--------------------------");
 	log(LOGLV_DEBUG,
 	        true,

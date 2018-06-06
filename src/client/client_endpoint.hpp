@@ -30,7 +30,8 @@ public:
 	/** @return `true` if a buffer is complete available for processing, `false` otherwise.
 	 *  This method should be always called and verified to return true before calling `retreive`.
 	 */
-	bool dataAvailable() const {
+	bool dataAvailable() const
+	{
 		return bufferFilled && !terminated;
 	}
 
@@ -42,7 +43,8 @@ public:
 	void retreive(PayloadHeader& phead, Vertex* outVBuf, Index* outIBuf);
 
 	/** @return The frame number corresponding to the latest completely filled buffer. */
-	int64_t getFrameId() const {
+	int64_t getFrameId() const
+	{
 		return frameId;
 	}
 };
@@ -58,7 +60,8 @@ class ClientActiveEndpoint : public Endpoint {
 public:
 	std::chrono::milliseconds targetFrameTime = std::chrono::milliseconds{ 33 };
 
-	void setCamera(const Camera* camera) {
+	void setCamera(const Camera* camera)
+	{
 		this->camera = camera;
 	}
 };
@@ -88,11 +91,13 @@ public:
 	 *  @return true if the handshake was completed before the timeout.
 	 */
 	bool await(std::chrono::seconds timeout);
-	void proceed() {
+	void proceed()
+	{
 		cv.notify_one();
 	}
 
-	bool isConnected() const {
+	bool isConnected() const
+	{
 		return connected;
 	}
 };

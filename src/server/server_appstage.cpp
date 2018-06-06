@@ -13,7 +13,8 @@ struct Sphere {
 	float radius;
 };
 
-static void wiggle(Model& model) {
+static void wiggle(Model& model)
+{
 	static float t = 0;
 	for (unsigned i = 0; i < model.nVertices; ++i) {
 		model.vertices[i].pos += 0.1 * std::cos(t * 10 + i * 0.01);
@@ -21,7 +22,8 @@ static void wiggle(Model& model) {
 	t += Clock::instance().deltaTime();
 }
 
-static Sphere calcBoundingSphere(const Model& model) {
+static Sphere calcBoundingSphere(const Model& model)
+{
 	// Using Ritter's algorithm
 
 	// Pick a point x from the set of vertices
@@ -71,7 +73,8 @@ void transformVertices(Model& model,
         uint8_t* buffer,
         std::size_t bufsize,
         int& nVertices,
-        int& nIndices) {
+        int& nIndices)
+{
 	const auto camera = deserializeCamera(clientData);
 
 	// STUB

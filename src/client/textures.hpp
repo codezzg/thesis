@@ -24,7 +24,9 @@ class TextureLoader final {
 
 public:
 	explicit TextureLoader(Buffer& stagingBuffer)
-	        : stagingBuffer{ stagingBuffer } {}
+	        : stagingBuffer{ stagingBuffer }
+	{
+	}
 
 	/** Load a texture from raw data pointed by `texture` */
 	void addTexture(Image& image, const shared::Texture& texture);

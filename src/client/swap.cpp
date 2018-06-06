@@ -17,7 +17,8 @@
 
 using namespace std::literals::string_literals;
 
-static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+{
 	// No preferred format
 	if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
 		return { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
@@ -30,7 +31,8 @@ static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFor
 	return availableFormats[0];
 }
 
-static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
+static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
+{
 	auto bestMode = VK_PRESENT_MODE_FIFO_KHR;
 
 	for (const auto& availablePresentMode : availablePresentModes) {
@@ -43,7 +45,8 @@ static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR
 	return bestMode;
 }
 
-static VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities) {
+static VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities)
+{
 	if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
 		return capabilities.currentExtent;
 	else {
@@ -58,7 +61,8 @@ static VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabiliti
 	}
 }
 
-static VkCompositeAlphaFlagBitsKHR chooseCompositeAlphaMode(const SwapChainSupportDetails& support) {
+static VkCompositeAlphaFlagBitsKHR chooseCompositeAlphaMode(const SwapChainSupportDetails& support)
+{
 	auto cAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	const std::array<VkCompositeAlphaFlagBitsKHR, 4> flags = { VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
@@ -70,7 +74,8 @@ static VkCompositeAlphaFlagBitsKHR chooseCompositeAlphaMode(const SwapChainSuppo
 	return cAlpha;
 }
 
-void SwapChain::destroyTransient(VkDevice device) {
+void SwapChain::destroyTransient(VkDevice device)
+{
 	for (auto framebuffer : framebuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);
 
@@ -85,7 +90,8 @@ void SwapChain::destroyTransient(VkDevice device) {
 	vkDestroyPipeline(device, pipeline, nullptr);
 }
 
-SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain) {
+SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain)
+{
 	const auto swapChainSupport = querySwapChainSupport(app.physicalDevice, app.surface);
 	const auto surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
 	const auto presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -146,7 +152,8 @@ SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain) {
 	return swapChain;
 }
 
-std::vector<VkImageView> createSwapChainImageViews(const Application& app, const SwapChain& swapChain) {
+std::vector<VkImageView> createSwapChainImageViews(const Application& app, const SwapChain& swapChain)
+{
 	std::vector<VkImageView> imageViews{ swapChain.images.size() };
 
 	for (std::size_t i = 0; i < swapChain.images.size(); ++i) {
@@ -157,7 +164,8 @@ std::vector<VkImageView> createSwapChainImageViews(const Application& app, const
 	return imageViews;
 }
 
-std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app, const SwapChain& swapChain) {
+std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app, const SwapChain& swapChain)
+{
 	assert(app.renderPass != VK_NULL_HANDLE && "app.renderPass must be valid!");
 
 	std::vector<VkFramebuffer> framebuffers{ swapChain.imageViews.size() };
@@ -183,7 +191,8 @@ std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app, c
 	return framebuffers;
 }
 
-std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app, const SwapChain& swapChain) {
+std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app, const SwapChain& swapChain)
+{
 	assert(app.renderPass != VK_NULL_HANDLE && "app.renderPass must be valid!");
 
 	std::vector<VkFramebuffer> framebuffers{ swapChain.imageViews.size() };
@@ -212,7 +221,8 @@ std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Applicatio
 	return framebuffers;
 }
 
-bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore, uint32_t& index) {
+bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSemaphore, uint32_t& index)
+{
 	uint32_t imageIndex;
 	const auto result = vkAcquireNextImageKHR(app.device,
 	        app.swapChain.handle,
@@ -231,7 +241,8 @@ bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSema
 	return true;
 }
 
-std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool) {
+std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool)
+{
 	std::vector<VkCommandBuffer> commandBuffers{ app.swapChain.framebuffers.size() };
 
 	assert(commandBuffers.size() > 0 && "0 framebuffers in the swap chain??");
@@ -247,7 +258,8 @@ std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& ap
 	return commandBuffers;
 }
 
-VkPipeline createSwapChainPipeline(const Application& app) {
+VkPipeline createSwapChainPipeline(const Application& app)
+{
 	auto vertShaderModule = createShaderModule(app, "shaders/composition.vert.spv");
 	auto fragShaderModule = createShaderModule(app, "shaders/composition.frag.spv");
 
@@ -374,7 +386,8 @@ VkPipeline createSwapChainPipeline(const Application& app) {
 	return pipeline;
 }
 
-VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app) {
+VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app)
+{
 	VkDescriptorSetLayoutBinding uboBinding = {};
 	uboBinding.binding = 0;
 	uboBinding.descriptorCount = 1;
@@ -404,7 +417,8 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
         const Buffer& ubo,
         const Image& tex,
-        VkSampler texSampler) {
+        VkSampler texSampler)
+{
 	VkDescriptorBufferInfo uboInfo = {};
 	uboInfo.buffer = ubo.handle;
 	uboInfo.offset = 0;
@@ -451,7 +465,8 @@ void recordSwapChainDebugCommandBuffers(const Application& app,
         std::vector<VkCommandBuffer>& commandBuffers,
         uint32_t nIndices,
         const Buffer& vertexBuffer,
-        const Buffer& indexBuffer) {
+        const Buffer& indexBuffer)
+{
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -497,7 +512,8 @@ void recordSwapChainDebugCommandBuffers(const Application& app,
 	}
 }
 
-VkPipeline createSwapChainDebugPipeline(const Application& app) {
+VkPipeline createSwapChainDebugPipeline(const Application& app)
+{
 	auto vertShaderModule = createShaderModule(app, "shaders/3d.vert.spv");
 	auto fragShaderModule = createShaderModule(app, "shaders/3d.frag.spv");
 

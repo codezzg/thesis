@@ -13,7 +13,8 @@
 using namespace logging;
 using shared::TextureFormat;
 
-void TextureLoader::addTexture(Image& image, const shared::Texture& texture) {
+void TextureLoader::addTexture(Image& image, const shared::Texture& texture)
+{
 	int texWidth, texHeight, texChannels;
 
 	info("texture.data = ", texture.data);
@@ -45,7 +46,8 @@ void TextureLoader::addTexture(Image& image, const shared::Texture& texture) {
 	images.emplace_back(&image);
 }
 
-void TextureLoader::addTexture(Image& image, const char* texturePath, TextureFormat format) {
+void TextureLoader::addTexture(Image& image, const char* texturePath, TextureFormat format)
+{
 	int texWidth, texHeight, texChannels;
 	auto pixels = stbi_load(texturePath,
 	        &texWidth,
@@ -70,7 +72,8 @@ void TextureLoader::addTexture(Image& image, const char* texturePath, TextureFor
 	images.emplace_back(&image);
 }
 
-void TextureLoader::create(const Application& app) {
+void TextureLoader::create(const Application& app)
+{
 	// Create the needed images
 	ImageAllocator imgAlloc;
 	for (unsigned i = 0; i < imageInfos.size(); ++i) {
@@ -112,7 +115,8 @@ void TextureLoader::create(const Application& app) {
 	}
 }
 
-Image createTextureImage(const Application& app, const char* texturePath, TextureFormat format, Buffer& stagingBuffer) {
+Image createTextureImage(const Application& app, const char* texturePath, TextureFormat format, Buffer& stagingBuffer)
+{
 	int texWidth, texHeight, texChannels;
 	auto pixels = stbi_load(texturePath,
 	        &texWidth,
@@ -155,7 +159,8 @@ Image createTextureImage(const Application& app, const char* texturePath, Textur
 	return textureImage;
 }
 
-VkSampler createTextureSampler(const Application& app) {
+VkSampler createTextureSampler(const Application& app)
+{
 	VkSamplerCreateInfo samplerInfo = {};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerInfo.magFilter = VK_FILTER_LINEAR;

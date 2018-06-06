@@ -2,7 +2,8 @@
 #include "config.hpp"
 #include "validation.hpp"
 
-GLFWwindow* initWindow() {
+GLFWwindow* initWindow()
+{
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -13,12 +14,14 @@ GLFWwindow* initWindow() {
 	return window;
 }
 
-void cleanupWindow(GLFWwindow* window) {
+void cleanupWindow(GLFWwindow* window)
+{
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
 
-std::vector<const char*> getRequiredExtensions(bool validationEnabled) {
+std::vector<const char*> getRequiredExtensions(bool validationEnabled)
+{
 	uint32_t glfwExtensionCount = 0;
 	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 

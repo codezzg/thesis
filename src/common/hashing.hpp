@@ -14,9 +14,11 @@ constexpr StringId SID_NONE = 0;
 namespace hashing {
 
 #ifdef _WIN32
-inline uint32_t fnv1_hash(const char* buffer) {
+inline uint32_t fnv1_hash(const char* buffer)
+{
 #else
-constexpr uint32_t fnv1_hash(const char* buffer) {
+constexpr uint32_t fnv1_hash(const char* buffer)
+{
 #endif
 	constexpr uint32_t fnv_prime32 = 16777619;
 	uint32_t result = 2166136261;
@@ -35,7 +37,8 @@ constexpr uint32_t fnv1_hash(const char* buffer) {
 
 class StringIdMap : public std::unordered_map<StringId, std::string> {
 public:
-	void addUnique(StringId key, const std::string& value) {
+	void addUnique(StringId key, const std::string& value)
+	{
 		auto it = find(key);
 		if (it == end()) {
 			emplace(key, value);
@@ -56,31 +59,37 @@ extern StringIdMap stringDb;
 #endif
 
 #ifdef NDEBUG
-constexpr StringId sid(const char* buf) {
+constexpr StringId sid(const char* buf)
+{
 	return hashing::fnv1_hash(buf);
 }
 
-inline StringId sid(const std::string& str) {
+inline StringId sid(const std::string& str)
+{
 	return hashing::fnv1_hash(str.c_str());
 }
 
-inline std::string sidToString(StringId id) {
+inline std::string sidToString(StringId id)
+{
 	return std::to_string(static_cast<uint32_t>(id));
 }
 #else
-inline StringId sid(const char* buf) {
+inline StringId sid(const char* buf)
+{
 	const auto h = hashing::fnv1_hash(buf);
 	stringDb.addUnique(h, std::string{ buf });
 	return h;
 }
 
-inline StringId sid(const std::string& str) {
+inline StringId sid(const std::string& str)
+{
 	const auto h = hashing::fnv1_hash(str.c_str());
 	stringDb.addUnique(h, str);
 	return h;
 }
 
-inline std::string sidToString(StringId id) {
+inline std::string sidToString(StringId id)
+{
 	return stringDb[id];
 }
 #endif

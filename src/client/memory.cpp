@@ -1,7 +1,8 @@
 #include "memory.hpp"
 #include <memory>
 
-bool ApplicationMemory::reserve(std::size_t size) {
+bool ApplicationMemory::reserve(std::size_t size)
+{
 	if (memsize >= size)
 		return true;
 
@@ -15,7 +16,8 @@ bool ApplicationMemory::reserve(std::size_t size) {
 	return !!mem;
 }
 
-uint8_t* ApplicationMemory::alloc(std::size_t size) {
+uint8_t* ApplicationMemory::alloc(std::size_t size)
+{
 	if (firstFree + size > mem + memsize)
 		throw std::bad_alloc{};
 
