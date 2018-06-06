@@ -71,9 +71,9 @@ void ClientPassiveEndpoint::loopFunc()
 		nBytesReceived += payloadLen;
 		// std::cerr << "payload len = " << payloadLen << "\n";
 		verbose("Bytes received: ",
-		        nBytesReceived,
-		        " / ",
-		        nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
+			nBytesReceived,
+			" / ",
+			nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
 		bufferFilled = nBytesReceived >= (nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
 
 		if (bufferFilled && !bufferCopied) {
@@ -277,9 +277,9 @@ void ClientReliableEndpoint::onClose()
  *  Texture received is stored into `resources`.
  */
 static bool receiveTexture(socket_t socket,
-        const uint8_t* buffer,
-        std::size_t bufsize,
-        /* out */ ClientTmpResources& resources)
+	const uint8_t* buffer,
+	std::size_t bufsize,
+	/* out */ ClientTmpResources& resources)
 {
 	// Parse header
 	// [0] msgType    (1 B)
@@ -354,8 +354,8 @@ static bool receiveTexture(socket_t socket,
 
 /** Read a material out of `buffer` and store it in `resources` */
 static bool receiveMaterial(const uint8_t* buffer,
-        std::size_t bufsize,
-        /* out */ ClientTmpResources& resources)
+	std::size_t bufsize,
+	/* out */ ClientTmpResources& resources)
 {
 	assert(bufsize >= sizeof(shared::ResourcePacket<shared::Material>));
 	static_assert(sizeof(StringId) == 4, "StringId size should be 4!");
@@ -367,12 +367,12 @@ static bool receiveMaterial(const uint8_t* buffer,
 	const auto material = *reinterpret_cast<const shared::Material*>(buffer + 1);
 
 	debug("received material: { name = ",
-	        material.name,
-	        ", diff = ",
-	        material.diffuseTex,
-	        ", spec = ",
-	        material.specularTex,
-	        " }");
+		material.name,
+		", diff = ",
+		material.diffuseTex,
+		", spec = ",
+		material.specularTex,
+		" }");
 
 	if (resources.materials.count(material.name) > 0) {
 		warn("Received the same material two times: ", material.name);
@@ -385,9 +385,9 @@ static bool receiveMaterial(const uint8_t* buffer,
 }
 
 static bool receiveModel(socket_t socket,
-        const uint8_t* buffer,
-        std::size_t bufsize,
-        /* out */ ClientTmpResources& resources)
+	const uint8_t* buffer,
+	std::size_t bufsize,
+	/* out */ ClientTmpResources& resources)
 {
 	constexpr auto sizeOfPrelude = sizeof(MsgType) + sizeof(StringId) + 2 * sizeof(uint8_t);
 	assert(bufsize >= sizeOfPrelude);
@@ -442,7 +442,7 @@ static bool receiveModel(socket_t socket,
 
 	model.meshes.reserve(nMeshes);
 	const auto meshes = reinterpret_cast<const shared::Mesh*>(
-	        reinterpret_cast<uint8_t*>(payload) + nMaterials * sizeof(StringId));
+		reinterpret_cast<uint8_t*>(payload) + nMaterials * sizeof(StringId));
 	for (unsigned i = 0; i < nMeshes; ++i)
 		model.meshes.emplace_back(meshes[i]);
 
@@ -460,14 +460,14 @@ static bool receiveModel(socket_t socket,
 
 		for (const auto& mesh : model.meshes) {
 			debug("mesh { off = ",
-			        mesh.offset,
-			        ", len = ",
-			        mesh.len,
-			        ", mat = ",
-			        mesh.materialId,
-			        " (",
-			        model.materials[mesh.materialId],
-			        ") }");
+				mesh.offset,
+				", len = ",
+				mesh.len,
+				", mat = ",
+				mesh.materialId,
+				" (",
+				mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE,
+				") }");
 		}
 	}
 

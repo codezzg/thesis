@@ -65,10 +65,13 @@ void recordMultipassCommandBuffers(const Application& app,
 		std::array<VkBuffer, 1> vertexBuffers = { vBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
 		// Draw all meshes (i.e. for now, all materials)
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
+		vkCmdBindIndexBuffer(commandBuffers[i], iBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		for (const auto& modelpair : netRsrc.models) {
 			const auto& model = modelpair.second;
 			for (const auto& mesh : model.meshes) {
-				const auto& matName = model.materials[mesh.materialId];
+				const auto& matName =
+					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
 
 				vkCmdBindDescriptorSets(commandBuffers[i],
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -87,10 +90,7 @@ void recordMultipassCommandBuffers(const Application& app,
 					0,
 					nullptr);
 
-				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
-				vkCmdBindIndexBuffer(commandBuffers[i], iBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-
-				vkCmdDrawIndexed(commandBuffers[i], mesh.len, 1, 0, mesh.offset, 0);
+				vkCmdDrawIndexed(commandBuffers[i], mesh.len, 1, mesh.offset, 0, 0);
 			}
 		}
 

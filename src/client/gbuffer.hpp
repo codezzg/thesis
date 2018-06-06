@@ -23,11 +23,11 @@ struct GBuffer final {
 	void destroyTransient(VkDevice device)
 	{
 		destroyAllImages(device,
-		        {
-		                position,
-		                normal,
-		                albedoSpec,
-		        });
+			{
+				position,
+				normal,
+				albedoSpec,
+			});
 		// position.destroy(device);
 		// normal.destroy(device);
 		// albedoSpec.destroy(device);
@@ -39,3 +39,8 @@ struct GBuffer final {
 
 /** @return The pipeline for the geometry pass */
 VkPipeline createGBufferPipeline(const Application& app);
+
+/** Updates `descriptorSet` with the new G-Buffer attachments.
+ *  To be called on swapchain recreation (as the G-Buffer size changes)
+ */
+void updateGBufferDescriptors(const Application& app, VkDescriptorSet descriptorSet, VkSampler texSampler);

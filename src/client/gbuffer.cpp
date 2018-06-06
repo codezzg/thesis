@@ -14,18 +14,18 @@
 
 /*
 static Image createDepthAttachment(const Application& app) {
-        auto depthImg = createImage(app,
-                GBUF_DIM, GBUF_DIM,
-                formats::depth,
-                VK_IMAGE_TILING_OPTIMAL,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-                        | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        auto depthImgView = createImageView(app, depthImg.handle, depthImg.format, VK_IMAGE_ASPECT_DEPTH_BIT);
+	auto depthImg = createImage(app,
+		GBUF_DIM, GBUF_DIM,
+		formats::depth,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+			| VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	auto depthImgView = createImageView(app, depthImg.handle, depthImg.format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-        depthImg.view = depthImgView;
+	depthImg.view = depthImgView;
 
-        return depthImg;
+	return depthImg;
 }*/
 
 void GBuffer::createAttachments(const Application& app)
@@ -34,33 +34,33 @@ void GBuffer::createAttachments(const Application& app)
 
 	// position
 	imgAlloc.addImage(position,
-	        app.swapChain.extent.width,
-	        app.swapChain.extent.height,
-	        formats::position,
-	        VK_IMAGE_TILING_OPTIMAL,
-	        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-	                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-	        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		app.swapChain.extent.width,
+		app.swapChain.extent.height,
+		formats::position,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	// normal
 	imgAlloc.addImage(normal,
-	        app.swapChain.extent.width,
-	        app.swapChain.extent.height,
-	        formats::normal,
-	        VK_IMAGE_TILING_OPTIMAL,
-	        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-	                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-	        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		app.swapChain.extent.width,
+		app.swapChain.extent.height,
+		formats::normal,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	// albedoSpec
 	imgAlloc.addImage(albedoSpec,
-	        app.swapChain.extent.width,
-	        app.swapChain.extent.height,
-	        formats::albedoSpec,
-	        VK_IMAGE_TILING_OPTIMAL,
-	        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-	                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-	        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		app.swapChain.extent.width,
+		app.swapChain.extent.height,
+		formats::albedoSpec,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	imgAlloc.create(app);
 
@@ -140,7 +140,7 @@ VkPipeline createGBufferPipeline(const Application& app)
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-	                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+						   VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendAttachmentState.blendEnable = VK_FALSE;
 	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
 	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -197,4 +197,62 @@ VkPipeline createGBufferPipeline(const Application& app)
 	vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
 
 	return pipeline;
+}
+
+void updateGBufferDescriptors(const Application& app, VkDescriptorSet descriptorSet, VkSampler texSampler)
+{
+	std::array<VkWriteDescriptorSet, 3> descriptorWrites;
+
+	VkDescriptorImageInfo gPositionInfo = {};
+	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	gPositionInfo.imageView = app.gBuffer.position.view;
+	gPositionInfo.sampler = texSampler;
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSet;
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &gPositionInfo;
+
+		descriptorWrites[0] = descriptorWrite;
+	}
+
+	VkDescriptorImageInfo gNormalInfo = {};
+	gNormalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	gNormalInfo.imageView = app.gBuffer.normal.view;
+	gNormalInfo.sampler = texSampler;
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSet;
+		descriptorWrite.dstBinding = 1;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &gNormalInfo;
+
+		descriptorWrites[1] = descriptorWrite;
+	}
+
+	VkDescriptorImageInfo gAlbedoSpecInfo = {};
+	gAlbedoSpecInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	gAlbedoSpecInfo.imageView = app.gBuffer.albedoSpec.view;
+	gAlbedoSpecInfo.sampler = texSampler;
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSet;
+		descriptorWrite.dstBinding = 2;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &gAlbedoSpecInfo;
+
+		descriptorWrites[2] = descriptorWrite;
+	}
+
+	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 }

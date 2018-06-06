@@ -32,10 +32,9 @@ public:
 	std::unordered_map<StringId, ModelInfo> models;
 
 	explicit ClientTmpResources(std::size_t size)
-	        : memory(size)
-	        , allocator{ memory.data(), memory.size() }
-	{
-	}
+		: memory(size)
+		, allocator{ memory.data(), memory.size() }
+	{}
 };
 
 /** This struct stores the "final form" of the resources received via network. */
@@ -53,5 +52,6 @@ struct NetworkResources {
 	struct {
 		Image diffuseTex;
 		Image specularTex;
+		Material material;
 	} defaults;
 };

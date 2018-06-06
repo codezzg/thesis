@@ -109,7 +109,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 3 + netRsrc.materials.size();
+	poolInfo.maxSets = 3 + std::max(1ul, netRsrc.materials.size());
 	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
 	VkDescriptorPool descriptorPool;

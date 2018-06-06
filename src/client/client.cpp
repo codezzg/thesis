@@ -310,6 +310,10 @@ private:
 			destroyBuffer(app.device, stagingBuffer);
 		});
 
+		std::copy(resources.models.begin(),
+			resources.models.end(),
+			std::inserter(netRsrc.models, netRsrc.models.begin()));
+
 		// Load textures (TODO: use correct materials)
 		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
 
@@ -331,6 +335,10 @@ private:
 		texSampler = createTextureSampler(app);
 
 		// Prepare materials
+		{
+			shared::Material dfltMat = { SID_NONE, SID_NONE, SID_NONE };
+			netRsrc.defaults.material = createMaterial(dfltMat, netRsrc);
+		}
 		for (const auto& pair : resources.materials) {
 			netRsrc.materials[pair.first] = createMaterial(pair.second, netRsrc);
 		}
@@ -491,18 +499,7 @@ private:
 			app.gBuffer.createAttachments(app);
 			app.renderPass = createMultipassRenderPass(app);
 
-			std::vector<VkDescriptorSet> toFree;
-			toFree.reserve(3 + netRsrc.materials.size());
-			toFree.emplace_back(app.res.descriptorSets->get("view_res"));
-			toFree.emplace_back(app.res.descriptorSets->get("shader_res"));
-			for (const auto& pair : netRsrc.materials)
-				toFree.emplace_back(app.res.descriptorSets->get(pair.first));
-			toFree.emplace_back(app.res.descriptorSets->get("obj_res"));
-
-			debug("Freeing ", toFree.size(), " desc sets");
-			VLKCHECK(vkFreeDescriptorSets(app.device, app.descriptorPool, toFree.size(), toFree.data()));
-
-			createDescriptorSetsForMaterials();
+			updateGBufferDescriptors(app, app.res.descriptorSets->get("shader_res"), texSampler);
 
 			app.gBuffer.pipeline = createGBufferPipeline(app);
 			app.swapChain.pipeline = createSwapChainPipeline(app);
@@ -758,11 +755,17 @@ private:
 		// Gather materials and names into vectors
 		std::vector<Material> materials;
 		std::vector<StringId> materialNames;
-		materials.reserve(netRsrc.materials.size());
-		materialNames.reserve(netRsrc.materials.size());
-		for (const auto& pair : netRsrc.materials) {
-			materialNames.emplace_back(pair.first);
-			materials.emplace_back(pair.second);
+
+		if (netRsrc.materials.size() > 0) {
+			materials.reserve(netRsrc.materials.size());
+			materialNames.reserve(netRsrc.materials.size());
+			for (const auto& pair : netRsrc.materials) {
+				materialNames.emplace_back(pair.first);
+				materials.emplace_back(pair.second);
+			}
+		} else {
+			materials.emplace_back(netRsrc.defaults.material);
+			materialNames.emplace_back(SID_NONE);
 		}
 
 		// Create the descriptor sets
