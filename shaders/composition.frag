@@ -11,10 +11,14 @@ layout (input_attachment_index = 2, set = 1, binding = 2) uniform subpassInput g
 layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
 	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
 	// about avoiding using vec3
-	vec4 viewPos; // w is used as 'showGBufTexture'
+	vec4 viewPos;
+	// bitset
+	// 0: showGbufTex
+	// 1: useNormalMap
+	int opts;
 } ubo;
 
-#define AMBIENT_INTENSITY 0.05
+#define AMBIENT_INTENSITY 0.15
 
 void main() {
 	// For now just 1 light, hardcoded
@@ -51,7 +55,7 @@ void main() {
 
 	vec3 lighting = ambient + diffuse + specular;
 
-	bool showGBufTexs = ubo.viewPos.w != 0.0;
+	bool showGBufTexs = (ubo.opts & 1) != 0;
 	if (showGBufTexs) {
 		if (texCoords.x < 0.5) {
 			if (texCoords.y < 0.5)
@@ -60,7 +64,7 @@ void main() {
 				fragColor = vec4(albedo, 1.0);
 		} else {
 			if (texCoords.y < 0.5)
-				fragColor = vec4(normal, 1.0);
+				fragColor = vec4((1.0 + normal) * 0.5, 1.0);
 			else
 				fragColor = vec4(vec3(fragSpec), 1.0);
 		}

@@ -360,6 +360,7 @@ static bool sendMaterial(socket_t clientSocket, const Material& material)
 	packet.res.name = material.name;
 	packet.res.diffuseTex = material.diffuseTex.length() > 0 ? sid(material.diffuseTex) : SID_NONE;
 	packet.res.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
+	packet.res.normalTex = material.normalTex.length() > 0 ? sid(material.normalTex) : SID_NONE;
 
 	info("packet: { type = ",
 		packet.type,
@@ -371,6 +372,8 @@ static bool sendMaterial(socket_t clientSocket, const Material& material)
 		packet.res.diffuseTex,
 		", specular = ",
 		packet.res.specularTex,
+		", normal = ",
+		packet.res.normalTex,
 		" }");
 
 	// We want to send this in a single packet. This is reasonable, as a packet should be at least
@@ -535,7 +538,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 					return false;
 				}
 
-				texturesSent.emplace(mat.specularTex);
+				texturesSent.emplace(mat.normalTex);
 			}
 		}
 	}

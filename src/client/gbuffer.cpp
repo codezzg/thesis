@@ -92,8 +92,8 @@ VkPipeline createGBufferPipeline(const Application& app)
 	// Configure fixed pipeline
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	const auto bindingDescription = Vertex::getBindingDescription();
-	const auto attributeDescriptions = Vertex::getAttributeDescriptions();
+	const auto bindingDescription = getVertexBindingDescription();
+	const auto attributeDescriptions = getVertexAttributeDescriptions();
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
 	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
 	vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();

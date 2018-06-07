@@ -31,6 +31,24 @@ constexpr uint32_t fnv1_hash(const char* buffer)
 	return result;
 }
 
+#ifdef _WIN32
+inline uint32_t fnv1_hash(const uint8_t* buffer, std::size_t bufsize)
+{
+#else
+constexpr uint32_t fnv1_hash(const uint8_t* buffer, std::size_t bufsize)
+{
+#endif
+	constexpr uint32_t fnv_prime32 = 16777619;
+	uint32_t result = 2166136261;
+	unsigned i = 0;
+	while (i < bufsize) {
+		result *= fnv_prime32;
+		result ^= static_cast<uint32_t>(buffer[i++]);
+	}
+	assert(result != SID_NONE);
+	return result;
+}
+
 }   // end namespace hashing
 
 #ifndef NDEBUG
@@ -48,7 +66,7 @@ public:
 		// If key is already in the map, the value must be the same
 		if (it->second != value) {
 			throw std::invalid_argument("Two strings match the same StringId: '" + it->second + "'" +
-			                            " and '" + value + "' !!!");
+						    " and '" + value + "' !!!");
 		}
 	}
 };

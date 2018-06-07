@@ -19,6 +19,7 @@
 #include "phys_device.hpp"
 #include "pipelines.hpp"
 #include "renderpass.hpp"
+#include "shader_opts.hpp"
 #include "shared_resources.hpp"
 #include "swap.hpp"
 #include "textures.hpp"
@@ -121,7 +122,7 @@ private:
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
 
-	bool showGBufTex = false;
+	ShaderOpts shaderOpts;
 
 	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = megabytes(16);
 	static constexpr VkDeviceSize INDEX_BUFFER_SIZE = megabytes(16);
@@ -661,12 +662,8 @@ private:
 	void updateCompUniformBuffer()
 	{
 		auto ubo = uniformBuffers.getComp();
-		ubo->viewPos = glm::vec4{
-			camera.position.x,
-			camera.position.y,
-			camera.position.z,
-			showGBufTex,
-		};
+		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
+		ubo->opts = shaderOpts.getRepr();
 		verbose("viewPos = ", ubo->viewPos);
 	}
 
@@ -871,7 +868,10 @@ private:
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 			break;
 		case GLFW_KEY_G:
-			appl->showGBufTex = !appl->showGBufTex;
+			appl->shaderOpts.flip(ShaderOpts::SHOW_GBUF_TEX);
+			break;
+		case GLFW_KEY_N:
+			appl->shaderOpts.flip(ShaderOpts::USE_NORMAL_MAP);
 			break;
 		case GLFW_KEY_T:
 			gLimitFrameTime = !gLimitFrameTime;

@@ -17,7 +17,7 @@ constexpr auto TEX_SPECULAR_PATH = "textures/chalet_spec.jpg";
 constexpr auto MAX_TEXTURE_SIZE = 50 * 1024 * 1024;   // 50 MiB
 
 constexpr uint32_t PACKET_MAGIC = 0x14101991;
-constexpr std::size_t PACKET_SIZE_BYTES = 512;
+constexpr std::size_t PACKET_SIZE_BYTES = 480;
 
 constexpr int SERVER_TO_CLIENT_PORT = 1234;
 constexpr int CLIENT_TO_SERVER_PORT = 1235;

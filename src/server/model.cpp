@@ -4,38 +4,47 @@
 #include <chrono>
 #include <iostream>
 #include <unordered_map>
-#define TINYOBJLOADER_IMPLEMENTATION
-#include "third_party/tiny_obj_loader.h"
+
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
 
 using namespace logging;
 using shared::Mesh;
 
-namespace to = tinyobj;
+#define AICHECK(expr)                                                                                                 \
+	do {                                                                                                          \
+		const auto ret = expr;                                                                                \
+		switch (ret) {                                                                                        \
+		case aiReturn_FAILURE:                                                                                \
+			throw std::runtime_error(                                                                     \
+				std::string("Assimp failure at ") + __FILE__ + ":" + std::to_string(__LINE__));       \
+		case aiReturn_OUTOFMEMORY:                                                                            \
+			throw std::runtime_error(                                                                     \
+				std::string("Assimp out of memory at ") + __FILE__ + ":" + std::to_string(__LINE__)); \
+		default:                                                                                              \
+			break;                                                                                        \
+		}                                                                                                     \
+	} while (false)
 
-static Material saveMaterial(const char* modelPath, const to::material_t& mat);
+static Material saveMaterial(const char* modelPath, const aiMaterial* mat);
 
 Model loadModel(const char* modelPath, void* buffer)
 {
 	Model model = {};
 
-	to::attrib_t attrib;
-	std::vector<to::shape_t> shapes;
-	std::vector<to::material_t> materials;
-	std::string err;
-
 	const auto load_t_begin = std::chrono::high_resolution_clock::now();
 
-	if (!to::LoadObj(&attrib,
-		    &shapes,
-		    &materials,
-		    &err,
-		    modelPath,
-		    xplatDirname(modelPath).c_str(),   // mtl base path
-		    true))                             // triangulate
-	{
-		logging::err(err);
+	Assimp::Importer importer;
+	auto scene = importer.ReadFile(modelPath,
+		aiProcess_PreTransformVertices | aiProcess_Triangulate | aiProcess_CalcTangentSpace |
+			aiProcess_ImproveCacheLocality);
+
+	if (!scene) {
+		err(importer.GetErrorString());
 		return model;
 	}
+
 	const auto load_t_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
 	info("load time: ", load_ms.count(), " ms");
@@ -43,39 +52,61 @@ Model loadModel(const char* modelPath, void* buffer)
 	std::unordered_map<Vertex, uint32_t> uniqueVertices;
 	std::vector<Index> indices;
 
-	model.meshes.reserve(shapes.size());
+	model.meshes.reserve(scene->mNumMeshes);
 	model.nIndices = 0;
-	for (const auto& shape : shapes) {
+	for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
+
+		auto shape = scene->mMeshes[i];
+
 		Mesh mesh = {};
 
-		// Material (XXX: for now we only use the first material)
-		if (shape.mesh.material_ids.size() > 0)
-			mesh.materialId = shape.mesh.material_ids[0];
+		// Material
+		mesh.materialId = shape->mMaterialIndex;
 
 		mesh.offset = indices.size();
-		for (const auto& index : shape.mesh.indices) {
+		for (unsigned j = 0; j < shape->mNumVertices; ++j) {
 			Vertex vertex = {};
+			const auto v = shape->mVertices[j];
 			vertex.pos = {
-				attrib.vertices[3 * index.vertex_index + 0],
-				attrib.vertices[3 * index.vertex_index + 1],
-				attrib.vertices[3 * index.vertex_index + 2],
+				v.x,
+				v.y,
+				v.z,
 			};
-			if (index.normal_index >= 0) {
+			if (shape->HasNormals()) {
+				const auto n = shape->mNormals[j];
 				vertex.norm = {
-					attrib.normals[3 * index.normal_index + 0],
-					attrib.normals[3 * index.normal_index + 1],
-					attrib.normals[3 * index.normal_index + 2],
+					n.x,
+					n.y,
+					n.z,
 				};
 			} else {
 				vertex.norm = {};
 			}
-			if (index.texcoord_index >= 0) {
+			if (shape->HasTextureCoords(0)) {
+				const auto t = shape->mTextureCoords[0][j];
 				vertex.texCoord = {
-					attrib.texcoords[2 * index.texcoord_index + 0],
-					1.0f - attrib.texcoords[2 * index.texcoord_index + 1],
+					t.x,
+					1.f - t.y,
 				};
 			} else {
 				vertex.texCoord = {};
+			}
+			if (shape->HasTangentsAndBitangents()) {
+				const auto t = shape->mTangents[j];
+				const auto b = shape->mBitangents[j];
+				vertex.tangent = {
+					t.x,
+					t.y,
+					t.z,
+				};
+				vertex.bitangent = {
+					b.x,
+					b.y,
+					b.z,
+				};
+			} else {
+				vertex.tangent = {};
+				vertex.bitangent = {};
 			}
 
 			if (uniqueVertices.count(vertex) == 0) {
@@ -98,9 +129,9 @@ Model loadModel(const char* modelPath, void* buffer)
 	model.nIndices = indices.size();
 
 	// Save material info
-	model.materials.reserve(materials.size());
-	for (const auto& m : materials)
-		model.materials.emplace_back(saveMaterial(modelPath, m));
+	model.materials.reserve(scene->mNumMaterials);
+	for (unsigned i = 0; i < scene->mNumMaterials; ++i)
+		model.materials.emplace_back(saveMaterial(modelPath, scene->mMaterials[i]));
 
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
@@ -111,28 +142,33 @@ Model loadModel(const char* modelPath, void* buffer)
 	return model;
 }
 
-Material saveMaterial(const char* modelPath, const to::material_t& mat)
+Material saveMaterial(const char* modelPath, const aiMaterial* mat)
 {
 	const std::string basePath = xplatDirname(modelPath) + DIRSEP;
 
 	debug("material base path: ", basePath);
 
 	Material material;
-	material.name = sid(mat.name);
-	if (mat.diffuse_texname.length() > 0) {
-		const auto tex = basePath + mat.diffuse_texname;
-		material.diffuseTex = tex;
+	{
+		aiString name;
+		AICHECK(mat->Get(AI_MATKEY_NAME, name));
+		material.name = sid(name.C_Str());
 	}
 
-	if (mat.specular_texname.length() > 0) {
-		const auto tex = basePath + mat.specular_texname;
-		material.specularTex = tex;
+	if (mat->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
+		aiString path;
+		AICHECK(mat->GetTexture(aiTextureType_DIFFUSE, 0, &path));
+		material.diffuseTex = basePath + path.C_Str();
 	}
-
-	// XXX: why bump instead of normal?
-	if (mat.bump_texname.length() > 0) {
-		const auto tex = basePath + mat.bump_texname;
-		material.normalTex = tex;
+	if (mat->GetTextureCount(aiTextureType_SPECULAR) > 0) {
+		aiString path;
+		AICHECK(mat->GetTexture(aiTextureType_SPECULAR, 0, &path));
+		material.specularTex = basePath + path.C_Str();
+	}
+	if (mat->GetTextureCount(aiTextureType_HEIGHT) > 0) {
+		aiString path;
+		AICHECK(mat->GetTexture(aiTextureType_HEIGHT, 0, &path));
+		material.normalTex = basePath + path.C_Str();
 	}
 
 	return material;

@@ -389,7 +389,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrite.dstSet = descriptorSets[2 + i];
-			descriptorWrite.dstBinding = 1;
+			descriptorWrite.dstBinding = 2;
 			descriptorWrite.dstArrayElement = 0;
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrite.descriptorCount = 1;

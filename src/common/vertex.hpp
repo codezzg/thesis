@@ -1,23 +1,23 @@
 #pragma once
 
+#include "hashing.hpp"
 #include <array>
 #include <glm/glm.hpp>
 #include <ostream>
 #include <utility>
-#include <vulkan/vulkan.h>
-#define GLM_ENABLE_EXPERIMENTAL   // for hash function
-#include <glm/gtx/hash.hpp>
 
 struct Vertex final {
 	glm::vec3 pos;
 	glm::vec3 norm;
 	glm::vec2 texCoord;
+	glm::vec3 tangent;
+	glm::vec3 bitangent;
 
-	static VkVertexInputBindingDescription getBindingDescription();
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
-
-	bool operator==(const Vertex& other) const;
+	bool operator==(const Vertex& other) const
+	{
+		return pos == other.pos && norm == other.norm && texCoord == other.texCoord &&
+		       tangent == other.tangent && bitangent == other.bitangent;
+	}
 };
 
 using Index = uint32_t;
@@ -27,8 +27,9 @@ template <>
 struct hash<Vertex> {
 	std::size_t operator()(const Vertex& vertex) const
 	{
-		return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.norm) << 1)) >> 1) ^
-		       (hash<glm::vec2>()(vertex.texCoord) << 1);
+		// XXX: is this a good approach?
+		return static_cast<std::size_t>(
+			hashing::fnv1_hash(reinterpret_cast<const uint8_t*>(&vertex), sizeof(Vertex)));
 	}
 };
 }   // namespace std

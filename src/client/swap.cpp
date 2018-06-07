@@ -1,6 +1,7 @@
 #include "swap.hpp"
 #include "application.hpp"
 #include "buffers.hpp"
+#include "formats.hpp"
 #include "images.hpp"
 #include "logging.hpp"
 #include "phys_device.hpp"
@@ -26,7 +27,7 @@ static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFor
 		return { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
 	for (const auto& availableFormat : availableFormats) {
 		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
-		        availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+			availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 			return availableFormat;
 	}
 
@@ -56,9 +57,9 @@ static VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabiliti
 		glfwGetWindowSize(window, &width, &height);
 		VkExtent2D actualExtent = { uint32_t(width), uint32_t(height) };
 		actualExtent.width = std::max(capabilities.minImageExtent.width,
-		        std::min(capabilities.maxImageExtent.width, actualExtent.width));
+			std::min(capabilities.maxImageExtent.width, actualExtent.width));
 		actualExtent.height = std::max(capabilities.minImageExtent.height,
-		        std::min(capabilities.maxImageExtent.height, actualExtent.height));
+			std::min(capabilities.maxImageExtent.height, actualExtent.height));
 		return actualExtent;
 	}
 }
@@ -101,7 +102,7 @@ SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain)
 
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 	if (swapChainSupport.capabilities.maxImageCount > 0 &&
-	        swapChainSupport.capabilities.maxImageCount < imageCount) {
+		swapChainSupport.capabilities.maxImageCount < imageCount) {
 		imageCount = swapChainSupport.capabilities.maxImageCount;
 	}
 
@@ -160,7 +161,7 @@ std::vector<VkImageView> createSwapChainImageViews(const Application& app, const
 
 	for (std::size_t i = 0; i < swapChain.images.size(); ++i) {
 		imageViews[i] =
-		        createImageView(app, swapChain.images[i], swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+			createImageView(app, swapChain.images[i], swapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
 
 	return imageViews;
@@ -227,11 +228,11 @@ bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSema
 {
 	uint32_t imageIndex;
 	const auto result = vkAcquireNextImageKHR(app.device,
-	        app.swapChain.handle,
-	        std::numeric_limits<uint64_t>::max(),
-	        imageAvailableSemaphore,
-	        VK_NULL_HANDLE,
-	        &imageIndex);
+		app.swapChain.handle,
+		std::numeric_limits<uint64_t>::max(),
+		imageAvailableSemaphore,
+		VK_NULL_HANDLE,
+		&imageIndex);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 		return false;
@@ -283,8 +284,8 @@ VkPipeline createSwapChainPipeline(const Application& app)
 	// Configure fixed pipeline
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	const auto bindingDescription = Vertex::getBindingDescription();
-	const auto attributeDescriptions = Vertex::getAttributeDescriptions();
+	const auto bindingDescription = getVertexBindingDescription();
+	const auto attributeDescriptions = getVertexAttributeDescriptions();
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
 	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
 	vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
@@ -331,7 +332,7 @@ VkPipeline createSwapChainPipeline(const Application& app)
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-	                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+						   VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendAttachmentState.blendEnable = VK_FALSE;
 	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
 	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -417,9 +418,9 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 }
 
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
-        const Buffer& ubo,
-        const Image& tex,
-        VkSampler texSampler)
+	const Buffer& ubo,
+	const Image& tex,
+	VkSampler texSampler)
 {
 	VkDescriptorBufferInfo uboInfo = {};
 	uboInfo.buffer = ubo.handle;
@@ -465,10 +466,10 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 }
 
 void recordSwapChainDebugCommandBuffers(const Application& app,
-        std::vector<VkCommandBuffer>& commandBuffers,
-        uint32_t nIndices,
-        const Buffer& vertexBuffer,
-        const Buffer& indexBuffer)
+	std::vector<VkCommandBuffer>& commandBuffers,
+	uint32_t nIndices,
+	const Buffer& vertexBuffer,
+	const Buffer& indexBuffer)
 {
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
 		VkCommandBufferBeginInfo beginInfo = {};
@@ -495,18 +496,18 @@ void recordSwapChainDebugCommandBuffers(const Application& app,
 		const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
 		static_assert(
-		        vertexBuffers.size() == offsets.size(), "offsets should be the same amount of vertexBuffers!");
+			vertexBuffers.size() == offsets.size(), "offsets should be the same amount of vertexBuffers!");
 		vkCmdBindVertexBuffers(
-		        commandBuffers[i], 0, vertexBuffers.size(), vertexBuffers.data(), offsets.data());
+			commandBuffers[i], 0, vertexBuffers.size(), vertexBuffers.data(), offsets.data());
 		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffers[i],
-		        VK_PIPELINE_BIND_POINT_GRAPHICS,
-		        app.res.pipelineLayouts->get("swap"),
-		        0,
-		        1,
-		        &app.res.descriptorSets->get("swap"),
-		        0,
-		        nullptr);
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			app.res.pipelineLayouts->get("swap"),
+			0,
+			1,
+			&app.res.descriptorSets->get("swap"),
+			0,
+			nullptr);
 		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);
@@ -538,8 +539,8 @@ VkPipeline createSwapChainDebugPipeline(const Application& app)
 	// Configure fixed pipeline
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	const auto bindingDescription = Vertex::getBindingDescription();
-	const auto attributeDescriptions = Vertex::getAttributeDescriptions();
+	const auto bindingDescription = getVertexBindingDescription();
+	const auto attributeDescriptions = getVertexAttributeDescriptions();
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
 	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
 	vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
@@ -586,7 +587,7 @@ VkPipeline createSwapChainDebugPipeline(const Application& app)
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-	                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+						   VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendAttachmentState.blendEnable = VK_FALSE;
 	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
 	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;

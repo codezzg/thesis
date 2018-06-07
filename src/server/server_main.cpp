@@ -114,6 +114,7 @@ bool loadAssets(Server& server)
 			  xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
 			 //xplatPath("/models/tiny/Tiny.obj")) .c_str());
 			 //xplatPath("/models/cube/silver.obj")) .c_str());
+	 //xplatPath("/models/wall/wall2.obj")) .c_str());
 	// xplatPath("/models/mill.obj")) .c_str());
 	 //xplatPath("/models/cat/cat.obj")) .c_str());
 	// xplatPath("/models/car/Avent.obj")) .c_str());

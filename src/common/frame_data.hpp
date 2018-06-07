@@ -36,5 +36,5 @@ struct FrameData final {
 static_assert(sizeof(FrameHeader) == 32, "FrameHeader should be 32 bytes!");
 static_assert(sizeof(FrameData) == cfg::PACKET_SIZE_BYTES, "Unexpected FrameData size!");
 static_assert((cfg::PACKET_SIZE_BYTES - sizeof(FrameHeader)) % sizeof(Vertex) == 0,
-        "Payload size is not a multiple of sizeof(Vertex)!");
+	"Payload size is not a multiple of sizeof(Vertex)!");
 static_assert(sizeof(Vertex) % sizeof(Index) == 0, "sizeof(Vertex) is not a multiple of sizeof(Index)!");

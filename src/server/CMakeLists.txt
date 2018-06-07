@@ -38,6 +38,11 @@ include_directories(${GLM_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GLM_LIBRARIES})
 add_definitions(-DGLM_FORCE_CXX14)
 
+find_package(Assimp REQUIRED)
+include_directories(${ASSIMP_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${ASSIMP_LIBRARIES})
+
+
 
 #####################
 
