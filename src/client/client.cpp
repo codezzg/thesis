@@ -30,6 +30,7 @@
 #include "vulk_utils.hpp"
 #include "window.hpp"
 #include "xplatform.hpp"
+#include "profile.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -85,7 +86,7 @@ public:
 		connectToServer(ip);
 
 		if (!gIsDebug)
-			initVulkan();   // deferred rendering
+			measure_ms("Init Vulkan", LOGLV_INFO, [this] () { initVulkan(); });   // deferred rendering
 		else
 			initVulkanForward();   // forward rendering
 
@@ -231,14 +232,16 @@ private:
 
 			// Tell TCP thread to receive the data
 			relEP.proceed();
-			if (!relEP.await(std::chrono::seconds{ 10 })) {
-				throw std::runtime_error("Failed to receive the one-time data!");
-			}
+			measure_ms("Recv Assets", LOGLV_INFO, [this] () {
+				if (!relEP.await(std::chrono::seconds{ 10 })) {
+					throw std::runtime_error("Failed to receive the one-time data!");
+				}
+			});
 
-			checkAssets(resources);
+			measure_ms("Check Assets", LOGLV_INFO, [this, &resources] () { checkAssets(resources); });
 
 			// Process the received data
-			loadAssets(resources);
+			measure_ms("Load Assets", LOGLV_INFO, [this, &resources] () { loadAssets(resources); });
 
 			relEP.resources = nullptr;
 			// Drop the memory used for staging the resources as it's not needed anymore.
@@ -315,27 +318,31 @@ private:
 			resources.models.end(),
 			std::inserter(netRsrc.models, netRsrc.models.begin()));
 
-		// Load textures (TODO: use correct materials)
-		auto tex = const_cast<std::unordered_map<StringId, shared::Texture>&>(resources.textures);
+		{
+			/// Load textures
+			TextureLoader texLoader{ stagingBuffer };
+			std::vector<std::future<bool>> texLoadTasks;
+			texLoadTasks.reserve(3 + resources.textures.size());
 
-		TextureLoader texLoader{ stagingBuffer };
-		// Create default textures
-		texLoader.addTexture(netRsrc.defaults.diffuseTex, "textures/default.jpg", shared::TextureFormat::RGBA);
-		texLoader.addTexture(
-			netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY);
-		texLoader.addTexture(
-			netRsrc.defaults.normalTex, "textures/default_norm.jpg", shared::TextureFormat::RGBA);
-		if (tex.size() == 0) {
-			warn("Received no textures: using default ones.");
-		} else {
+			// Create default textures
+			texLoadTasks.emplace_back(texLoader.addTextureAsync(
+				netRsrc.defaults.diffuseTex, "textures/default.jpg", shared::TextureFormat::RGBA));
+			texLoadTasks.emplace_back(texLoader.addTextureAsync(
+				netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY));
+			texLoadTasks.emplace_back(texLoader.addTextureAsync(
+				netRsrc.defaults.normalTex, "textures/default_norm.jpg", shared::TextureFormat::RGBA));
+			// Create textures received from server
 			for (const auto& pair : resources.textures) {
 				if (pair.first == SID_NONE)
 					continue;
-				texLoader.addTexture(netRsrc.textures[pair.first], pair.second);
+				texLoadTasks.emplace_back(texLoader.addTextureAsync(netRsrc.textures[pair.first], pair.second));
 			}
+			for (auto& res : texLoadTasks)
+				if (!res.get())
+					throw std::runtime_error("Failed to load texture image! Latest error: "s + texLoader.getLatestError());
+			texLoader.create(app);
+			texSampler = createTextureSampler(app);
 		}
-		texLoader.create(app);
-		texSampler = createTextureSampler(app);
 
 		// Prepare materials
 		{

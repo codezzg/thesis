@@ -5,6 +5,8 @@
 #include "shared_resources.hpp"
 #include <vector>
 #include <vulkan/vulkan.h>
+#include <future>
+#include <mutex>
 
 struct Application;
 
@@ -19,21 +21,40 @@ class TextureLoader final {
 	Buffer& stagingBuffer;
 	std::size_t stagingBufferOffset = 0;
 
+	/** Used by `addTextureAsync` */
+	std::mutex mtx;
+
 	std::vector<ImageInfo> imageInfos;
 	std::vector<Image*> images;
 
+	/** Holds the latest error message */
+	char latestErrorBuf[128];
+
 public:
 	explicit TextureLoader(Buffer& stagingBuffer)
-	        : stagingBuffer{ stagingBuffer }
+		: stagingBuffer{ stagingBuffer }
 	{
+		latestErrorBuf[0] = '\0';
 	}
 
 	/** Load a texture from raw data pointed by `texture` */
-	void addTexture(Image& image, const shared::Texture& texture);
+	bool addTexture(Image& image, const shared::Texture& texture);
 	/** Load a texture from file with given format */
-	void addTexture(Image& image, const char* texturePath, shared::TextureFormat format);
+	bool addTexture(Image& image, const std::string& texturePath, shared::TextureFormat format);
+
+	/** Like `addTexture`, but asynchronous. Returns a `future` which must be waited for
+	 *  before calling `create`. It is the caller's responsibility to wait it.
+	 *  @return a Future which will contain `true` in case of success, `false` otherwise.
+	 */
+	std::future<bool> addTextureAsync(Image& image, const shared::Texture& texture);
+	/** @see addTextureAsync */
+	std::future<bool> addTextureAsync(Image& image, const std::string& texturePath, shared::TextureFormat format);
 
 	void create(const Application& app);
+
+	const char* getLatestError() const {
+		return latestErrorBuf;
+	}
 };
 
 /** Load a texture from `texturePath` into an Image and return it (with its view already filled).

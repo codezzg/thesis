@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
+#include <fstream>
 #include <unordered_map>
 
 using namespace logging;
@@ -132,6 +133,22 @@ bool loadAssets(Server& server)
 		"Tot size = ",
 		(model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024,
 		" KiB");
+
+	// Ensure all needed textures exist
+	for (const auto& mat : model.materials) {
+		if (mat.diffuseTex.length() > 0 && !std::ifstream(mat.diffuseTex)) {
+			err("required texture ", mat.diffuseTex, " does not exist.");
+			return false;
+		}
+		if (mat.specularTex.length() > 0 && !std::ifstream(mat.specularTex)) {
+			err("required texture ", mat.specularTex, " does not exist.");
+			return false;
+		}
+		if (mat.normalTex.length() > 0 && !std::ifstream(mat.normalTex)) {
+			err("required texture ", mat.normalTex, " does not exist.");
+			return false;
+		}
+	}
 
 	return true;
 }

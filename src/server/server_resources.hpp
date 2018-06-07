@@ -42,8 +42,7 @@ public:
 	        : memory{ memory }
 	        , memsize{ memsize }
 	        , allocator{ memory, memsize }
-	{
-	}
+	{}
 
 	/** Loads a model from `file` into `memory` and stores its info in `models`.
 	 *  @return The loaded Model information.
