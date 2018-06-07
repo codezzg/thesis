@@ -18,4 +18,7 @@ void main() {
 	outNorm = normalize(inNorm);
 	outAlbedoSpec.rgb = texture(texDiffuse, inTexCoords).rgb;
 	outAlbedoSpec.a = texture(texSpecular, inTexCoords).r;
+
+	/*outAlbedoSpec.rg = inTexCoords;*/
+	/*outAlbedoSpec.b = 0.0;*/
 }

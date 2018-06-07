@@ -27,12 +27,12 @@ Model loadModel(const char* modelPath, void* buffer)
 	const auto load_t_begin = std::chrono::high_resolution_clock::now();
 
 	if (!to::LoadObj(&attrib,
-	            &shapes,
-	            &materials,
-	            &err,
-	            modelPath,
-	            xplatDirname(modelPath).c_str(),   // mtl base path
-	            true))                             // triangulate
+		    &shapes,
+		    &materials,
+		    &err,
+		    modelPath,
+		    xplatDirname(modelPath).c_str(),   // mtl base path
+		    true))                             // triangulate
 	{
 		logging::err(err);
 		return model;

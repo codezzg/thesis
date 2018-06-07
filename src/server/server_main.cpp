@@ -109,10 +109,15 @@ bool loadAssets(Server& server)
 	info("Starting server. cwd: ", cwd);
 
 	// Load the models first: they'll remain at the bottom of our stack allocator
-	auto model = server.resources.loadModel((cwd + xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
+	// clang-format off
+	auto model = server.resources.loadModel((cwd +
+			  xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
+			 //xplatPath("/models/tiny/Tiny.obj")) .c_str());
+			 //xplatPath("/models/cube/silver.obj")) .c_str());
 	// xplatPath("/models/mill.obj")) .c_str());
-	// xplatPath("/models/cat/cat.obj")) .c_str());
+	 //xplatPath("/models/cat/cat.obj")) .c_str());
 	// xplatPath("/models/car/Avent.obj")) .c_str());
+	// clang-format on
 
 	if (model.vertices == nullptr) {
 		err("Failed to load model.");
