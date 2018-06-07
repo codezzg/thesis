@@ -197,8 +197,16 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 		specLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		specLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		const std::array<VkDescriptorSetLayoutBinding, 2> bindings = { diffuseLayoutBinding,
-			specLayoutBinding };
+		// TexNormal
+		VkDescriptorSetLayoutBinding normLayoutBinding = {};
+		normLayoutBinding.binding = 2;
+		normLayoutBinding.descriptorCount = 1;
+		normLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		normLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		const std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+			diffuseLayoutBinding, specLayoutBinding, normLayoutBinding
+		};
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -339,6 +347,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	//// Set #2: material resources
 	std::vector<VkDescriptorImageInfo> diffuseInfos(materials.size());
 	std::vector<VkDescriptorImageInfo> specularInfos(materials.size());
+	std::vector<VkDescriptorImageInfo> normalInfos(materials.size());
 
 	for (unsigned i = 0; i < materials.size(); ++i) {
 		diffuseInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -369,6 +378,22 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrite.descriptorCount = 1;
 			descriptorWrite.pImageInfo = &specularInfos[i];
+
+			descriptorWrites.emplace_back(descriptorWrite);
+		}
+
+		normalInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		normalInfos[i].sampler = texSampler;
+		normalInfos[i].imageView = materials[i].normal;
+		{
+			VkWriteDescriptorSet descriptorWrite = {};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = descriptorSets[2 + i];
+			descriptorWrite.dstBinding = 1;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pImageInfo = &normalInfos[i];
 
 			descriptorWrites.emplace_back(descriptorWrite);
 		}

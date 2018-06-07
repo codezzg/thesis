@@ -86,7 +86,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	/* We have 4 DescriptorSets, each updated at a different frequency:
 	 * #0: view resources (CompUbo)
 	 * #1: shader resources (G-pos, G-norm, G-albedoSpec)
-	 * #2: material resources (texDiffuse, texSpecular)
+	 * #2: material resources (texDiffuse, texSpecular, texNormal)
 	 * #3: object resources (MVPUbo)
 	 * @see https://developer.nvidia.com/vulkan-shader-resource-binding
 	 */
@@ -95,7 +95,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolSizes[0].descriptorCount = 2;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	// FIXME: use a less wasteful approach for image allocation than 2 per material
-	poolSizes[1].descriptorCount = 2 * netRsrc.materials.size() + 2;   // diff/spec + 2 for default ones
+	poolSizes[1].descriptorCount = 3 * (netRsrc.materials.size() + 1);   // diff/spec/normal + default ones
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 	poolSizes[2].descriptorCount = 3;   // one per G-buffer attachment
 

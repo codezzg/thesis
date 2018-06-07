@@ -36,10 +36,10 @@ using shared::ResourcePacket;
  */
 template <std::size_t N>
 static int writeAllPossible(std::array<uint8_t, N>& dst,
-        const uint8_t* src,
-        int nVertices,
-        int nIndices,
-        std::size_t offset)
+	const uint8_t* src,
+	int nVertices,
+	int nIndices,
+	std::size_t offset)
 {
 	const auto srcSize = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
 	auto srcIdx = offset;
@@ -53,7 +53,7 @@ static int writeAllPossible(std::array<uint8_t, N>& dst,
 				return srcIdx;
 			}
 			*(reinterpret_cast<Vertex*>(dst.data() + dstIdx)) =
-			        *(reinterpret_cast<const Vertex*>(src + srcIdx));
+				*(reinterpret_cast<const Vertex*>(src + srcIdx));
 			dstIdx += sizeof(Vertex);
 			srcIdx += sizeof(Vertex);
 		} else {
@@ -63,7 +63,7 @@ static int writeAllPossible(std::array<uint8_t, N>& dst,
 				return srcIdx;
 			}
 			*(reinterpret_cast<Index*>(dst.data() + dstIdx)) =
-			        *(reinterpret_cast<const Index*>(src + srcIdx));
+				*(reinterpret_cast<const Index*>(src + srcIdx));
 			dstIdx += sizeof(Index);
 			srcIdx += sizeof(Index);
 		}
@@ -246,8 +246,8 @@ void ServerReliableEndpoint::loopFunc()
 
 /** This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
 static void keepaliveTask(socket_t clientSocket,
-        std::condition_variable& cv,
-        std::chrono::time_point<std::chrono::system_clock>& latestPing)
+	std::condition_variable& cv,
+	std::chrono::time_point<std::chrono::system_clock>& latestPing)
 {
 	std::array<uint8_t, 1> buffer = {};
 
@@ -362,16 +362,16 @@ static bool sendMaterial(socket_t clientSocket, const Material& material)
 	packet.res.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
 
 	info("packet: { type = ",
-	        packet.type,
-	        ", name = ",
-	        packet.res.name,
-	        " (",
-	        sidToString(packet.res.name),
-	        "), diffuse = ",
-	        packet.res.diffuseTex,
-	        ", specular = ",
-	        packet.res.specularTex,
-	        " }");
+		packet.type,
+		", name = ",
+		packet.res.name,
+		" (",
+		sidToString(packet.res.name),
+		"), diffuse = ",
+		packet.res.diffuseTex,
+		", specular = ",
+		packet.res.specularTex,
+		" }");
 
 	// We want to send this in a single packet. This is reasonable, as a packet should be at least
 	// ~400 bytes of size and a material only takes some 10s.
@@ -396,14 +396,14 @@ static bool sendModel(socket_t clientSocket, const Model& model)
 
 	// Put header into packet
 	info("header: { type = ",
-	        header.type,
-	        ", name = ",
-	        header.res.name,
-	        ", nMaterials = ",
-	        int(header.res.nMaterials),
-	        ", nMeshes = ",
-	        int(header.res.nMeshes),
-	        " }");
+		header.type,
+		", name = ",
+		header.res.name,
+		", nMaterials = ",
+		int(header.res.nMaterials),
+		", nMeshes = ",
+		int(header.res.nMeshes),
+		" }");
 	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
 
 	const auto matSize = header.res.nMaterials * sizeof(StringId);
@@ -519,6 +519,24 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 
 				texturesSent.emplace(mat.specularTex);
 			}
+
+			if (shouldSendTexture(mat.normalTex)) {
+				info("* sending normal texture");
+
+				ok = sendTexture(clientSocket, mat.normalTex, shared::TextureFormat::RGBA);
+				if (!ok) {
+					err("sendOneTimeData: failed");
+					return false;
+				}
+
+				ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+				if (!ok) {
+					warn("Not received RSRC_EXCHANGE_ACK!");
+					return false;
+				}
+
+				texturesSent.emplace(mat.specularTex);
+			}
 		}
 	}
 
@@ -528,8 +546,8 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 }
 
 bool ServerReliableEndpoint::sendTexture(socket_t clientSocket,
-        const std::string& texName,
-        shared::TextureFormat format)
+	const std::string& texName,
+	shared::TextureFormat format)
 {
 	using shared::TextureInfo;
 
@@ -555,14 +573,14 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket,
 
 	// Put header into packet
 	info("texheader: { type = ",
-	        header.type,
-	        ", size = ",
-	        header.res.size,
-	        ", name = ",
-	        header.res.name,
-	        ", format = ",
-	        int(header.res.format),
-	        " }");
+		header.type,
+		", size = ",
+		header.res.size,
+		", name = ",
+		header.res.name,
+		", format = ",
+		int(header.res.format),
+		" }");
 	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
 
 	// Fill remaining space with payload

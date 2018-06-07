@@ -25,5 +25,14 @@ Material createMaterial(const shared::Material& mat, const NetworkResources& net
 			finalMat.specular = it->second.view;
 		}
 	}
+	{
+		auto it = netRsrc.textures.find(mat.normalTex);
+		if (it == netRsrc.textures.end()) {
+			warn("Warning: normal texture ", mat.normalTex, " not found for material ", mat.name);
+			finalMat.normal = netRsrc.defaults.normalTex.view;
+		} else {
+			finalMat.normal = it->second.view;
+		}
+	}
 	return finalMat;
 }

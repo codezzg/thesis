@@ -12,6 +12,7 @@ struct Material {
 
 	std::string diffuseTex;
 	std::string specularTex;
+	std::string normalTex;
 };
 
 /* Model information.
@@ -37,10 +38,7 @@ struct Model {
 	std::vector<shared::Mesh> meshes;
 	std::vector<Material> materials;
 
-	std::size_t size() const
-	{
-		return nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
-	}
+	std::size_t size() const { return nVertices * sizeof(Vertex) + nIndices * sizeof(Index); }
 
 	std::string toString() const
 	{
@@ -50,7 +48,7 @@ struct Model {
 		   << "# materials: " << materials.size() << "\n";
 		for (const auto& mat : materials) {
 			ss << "mat { name = " << mat.name << ", diff = " << mat.diffuseTex
-			   << ", spec = " << mat.specularTex << " }\n";
+			   << ", spec = " << mat.specularTex << ", norm = " << mat.normalTex << " }\n";
 		}
 		ss << "# meshes: " << meshes.size() << "\n";
 		for (const auto& mesh : meshes) {
@@ -68,4 +66,4 @@ struct Model {
  *  @return a valid model, or one with nullptr `vertices` and `indices` if there were errors.
  */
 Model loadModel(const char* modelPath,
-        /* inout */ void* buffer);
+	/* inout */ void* buffer);

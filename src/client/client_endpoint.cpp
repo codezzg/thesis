@@ -364,6 +364,7 @@ static bool receiveMaterial(const uint8_t* buffer,
 	// [1] material.name     (4 B)
 	// [5] material.diffuse  (4 B)
 	// [9] material.specular (4 B)
+	// [13] material.normal  (4 B)
 	const auto material = *reinterpret_cast<const shared::Material*>(buffer + 1);
 
 	debug("received material: { name = ",
@@ -372,6 +373,8 @@ static bool receiveMaterial(const uint8_t* buffer,
 		material.diffuseTex,
 		", spec = ",
 		material.specularTex,
+		", norm = ",
+		material.normalTex,
 		" }");
 
 	if (resources.materials.count(material.name) > 0) {

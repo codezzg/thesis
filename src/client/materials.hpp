@@ -9,6 +9,7 @@ struct Material {
 	// All these handles are unowned.
 	VkImageView diffuse;
 	VkImageView specular;
+	VkImageView normal;
 	VkDescriptorSet descriptorSet;
 };
 

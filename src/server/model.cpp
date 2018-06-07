@@ -16,7 +16,6 @@ static Material saveMaterial(const char* modelPath, const to::material_t& mat);
 
 Model loadModel(const char* modelPath, void* buffer)
 {
-
 	Model model = {};
 
 	to::attrib_t attrib;
@@ -128,6 +127,12 @@ Material saveMaterial(const char* modelPath, const to::material_t& mat)
 	if (mat.specular_texname.length() > 0) {
 		const auto tex = basePath + mat.specular_texname;
 		material.specularTex = tex;
+	}
+
+	// XXX: why bump instead of normal?
+	if (mat.bump_texname.length() > 0) {
+		const auto tex = basePath + mat.bump_texname;
+		material.normalTex = tex;
 	}
 
 	return material;

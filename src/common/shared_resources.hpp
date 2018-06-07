@@ -42,6 +42,7 @@ struct Material {
 	StringId name;
 	StringId diffuseTex;
 	StringId specularTex;
+	StringId normalTex;
 };
 
 /** A Mesh represents a group of indices into the parent model.

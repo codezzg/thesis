@@ -322,6 +322,8 @@ private:
 		texLoader.addTexture(netRsrc.defaults.diffuseTex, "textures/default.jpg", shared::TextureFormat::RGBA);
 		texLoader.addTexture(
 			netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY);
+		texLoader.addTexture(
+			netRsrc.defaults.normalTex, "textures/default_norm.jpg", shared::TextureFormat::RGBA);
 		if (tex.size() == 0) {
 			warn("Received no textures: using default ones.");
 		} else {
@@ -336,7 +338,7 @@ private:
 
 		// Prepare materials
 		{
-			shared::Material dfltMat = { SID_NONE, SID_NONE, SID_NONE };
+			shared::Material dfltMat = { SID_NONE, SID_NONE, SID_NONE, SID_NONE };
 			netRsrc.defaults.material = createMaterial(dfltMat, netRsrc);
 		}
 		for (const auto& pair : resources.materials) {
@@ -816,6 +818,7 @@ private:
 			imagesToDestroy.reserve(2 + netRsrc.textures.size());
 			imagesToDestroy.emplace_back(netRsrc.defaults.diffuseTex);
 			imagesToDestroy.emplace_back(netRsrc.defaults.specularTex);
+			imagesToDestroy.emplace_back(netRsrc.defaults.normalTex);
 			for (const auto& tex : netRsrc.textures)
 				imagesToDestroy.emplace_back(tex.second);
 			destroyAllImages(app.device, imagesToDestroy);

@@ -52,6 +52,7 @@ struct NetworkResources {
 	struct {
 		Image diffuseTex;
 		Image specularTex;
+		Image normalTex;
 		Material material;
 	} defaults;
 };
