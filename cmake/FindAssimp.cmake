@@ -21,16 +21,18 @@ if (WIN32)
 		NAMES assimp/scene.h
 		PATHS
 			$ENV{PROGRAMFILES}/include
+			$ENV{ASSIMP_ROOT_DIR}/include
 			${ASSIMP_ROOT_DIR}/include
 		DOC "The directory where assimp/scene.h resides")
 
 	# Find library files
 	find_library(
 		ASSIMP_LIBRARY
-		NAMES assimp
+		NAMES assimp assimp-vc140-mt
 		PATHS
-			$ENV{PROGRAMFILES}/lib
-			${ASSIMP_ROOT_DIR}/lib)
+			$ENV{PROGRAMFILES}/lib/x64
+			$ENV{ASSIMP_ROOT_DIR}/lib/x64
+			${ASSIMP_ROOT_DIR}/lib/x64)
 else()
 	# Find include files
 	find_path(
