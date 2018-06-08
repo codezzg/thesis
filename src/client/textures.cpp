@@ -5,12 +5,12 @@
 #include "buffers.hpp"
 #include "formats.hpp"
 #include "logging.hpp"
+#include "profile.hpp"
 #include "third_party/stb_image.h"
 #include "utils.hpp"
-#include "profile.hpp"
 #include "vulk_errors.hpp"
-#include <vulkan/vulkan.h>
 #include <chrono>
+#include <vulkan/vulkan.h>
 
 using namespace logging;
 using shared::TextureFormat;
@@ -19,11 +19,11 @@ bool TextureLoader::addTexture(Image& image, const shared::Texture& texture)
 {
 	int texWidth, texHeight, texChannels;
 
-	debug("texture.data = ", texture.data);
-	dumpBytes(texture.data, texture.size, 50, LOGLV_DEBUG);
+	verbose("texture.data = ", texture.data);
+	dumpBytes(texture.data, texture.size, 50, LOGLV_VERBOSE);
 
 	stbi_uc* pixels = nullptr;
-	measure_ms("Load Texture", LOGLV_DEBUG, [&] () {
+	measure_ms("Load Texture", LOGLV_DEBUG, [&]() {
 		pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(texture.data),
 			texture.size,
 			&texWidth,
@@ -33,17 +33,15 @@ bool TextureLoader::addTexture(Image& image, const shared::Texture& texture)
 	});
 
 	if (!pixels) {
-		std::string err = "Failed to load image at offset " + stagingBufferOffset;
-		strcpy(latestErrorBuf, err.c_str());
+		std::lock_guard<std::mutex> lock{ mtx };
+		latestError = "Failed to load image at offset " + stagingBufferOffset;
 		return false;
 	}
 
 	debug("Loaded texture with width = ", texWidth, ", height = ", texHeight, " chans = ", texChannels);
 
-	// Save pixel data in the staging buffer
 	const auto imageSize = texWidth * texHeight * (texture.format == TextureFormat::RGBA ? 4 : 1);
-	memcpy(reinterpret_cast<uint8_t*>(stagingBuffer.ptr) + stagingBufferOffset, pixels, imageSize);
-	stbi_image_free(pixels);
+	assert(imageSize > 0);
 
 	ImageInfo info;
 	info.format = texture.format == TextureFormat::RGBA ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8_UNORM;
@@ -51,6 +49,11 @@ bool TextureLoader::addTexture(Image& image, const shared::Texture& texture)
 	info.height = texHeight;
 	{
 		std::lock_guard<std::mutex> lock{ mtx };
+
+		// Save pixel data in the staging buffer
+		memcpy(reinterpret_cast<uint8_t*>(stagingBuffer.ptr) + stagingBufferOffset, pixels, imageSize);
+		stbi_image_free(pixels);
+
 		stagingBufferOffset += imageSize;
 		imageInfos.emplace_back(info);
 		images.emplace_back(&image);
@@ -60,7 +63,7 @@ bool TextureLoader::addTexture(Image& image, const shared::Texture& texture)
 
 std::future<bool> TextureLoader::addTextureAsync(Image& image, const shared::Texture& texture)
 {
-	return std::async(std::launch::async, [&] () { return addTexture(image, texture); });
+	return std::async(std::launch::async, [&]() { return addTexture(image, texture); });
 }
 
 bool TextureLoader::addTexture(Image& image, const std::string& texturePath, TextureFormat format)
@@ -68,25 +71,24 @@ bool TextureLoader::addTexture(Image& image, const std::string& texturePath, Tex
 	int texWidth, texHeight, texChannels;
 
 	stbi_uc* pixels = nullptr;
-	measure_ms("Load Texture", LOGLV_DEBUG, [&] () {
+	measure_ms("Load Texture", LOGLV_DEBUG, [&]() {
 		pixels = stbi_load(texturePath.c_str(),
 			&texWidth,
 			&texHeight,
 			&texChannels,
 			format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
 	});
-	
+
 	if (!pixels) {
+		std::lock_guard<std::mutex> lock{ mtx };
 		std::stringstream err;
 		err << "Failed to load texture " << texturePath;
-		strcpy(latestErrorBuf, err.str().c_str());
+		latestError = err.str();
 		return false;
 	}
 
-	// Save pixel data in the staging buffer
 	const auto imageSize = texWidth * texHeight * (format == TextureFormat::RGBA ? 4 : 1);
-	memcpy(reinterpret_cast<uint8_t*>(stagingBuffer.ptr) + stagingBufferOffset, pixels, imageSize);
-	stbi_image_free(pixels);
+	assert(imageSize > 0);
 
 	ImageInfo info;
 	info.format = format == TextureFormat::RGBA ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8_UNORM;
@@ -94,6 +96,11 @@ bool TextureLoader::addTexture(Image& image, const std::string& texturePath, Tex
 	info.height = texHeight;
 	{
 		std::lock_guard<std::mutex> lock{ mtx };
+
+		// Save pixel data in the staging buffer
+		memcpy(reinterpret_cast<uint8_t*>(stagingBuffer.ptr) + stagingBufferOffset, pixels, imageSize);
+		stbi_image_free(pixels);
+
 		stagingBufferOffset += imageSize;
 		imageInfos.emplace_back(info);
 		images.emplace_back(&image);
@@ -104,10 +111,9 @@ bool TextureLoader::addTexture(Image& image, const std::string& texturePath, Tex
 
 std::future<bool> TextureLoader::addTextureAsync(Image& image, const std::string& texturePath, TextureFormat format)
 {
-	// NOTE: capturing `texturePath` by copy, as it gets destroyed when captured by ref 
-	return std::async(std::launch::async, [this, &image, texturePath, format] () {
-		return addTexture(image, texturePath, format); 
-	});
+	// NOTE: capturing `texturePath` by copy, as it gets destroyed when captured by ref
+	return std::async(std::launch::async,
+		[this, &image, texturePath, format]() { return addTexture(image, texturePath, format); });
 }
 
 void TextureLoader::create(const Application& app)

@@ -3,10 +3,11 @@
 #include "buffers.hpp"
 #include "images.hpp"
 #include "shared_resources.hpp"
-#include <vector>
-#include <vulkan/vulkan.h>
 #include <future>
 #include <mutex>
+#include <string>
+#include <vector>
+#include <vulkan/vulkan.h>
 
 struct Application;
 
@@ -28,14 +29,12 @@ class TextureLoader final {
 	std::vector<Image*> images;
 
 	/** Holds the latest error message */
-	char latestErrorBuf[128];
+	std::string latestError = "";
 
 public:
 	explicit TextureLoader(Buffer& stagingBuffer)
 		: stagingBuffer{ stagingBuffer }
-	{
-		latestErrorBuf[0] = '\0';
-	}
+	{}
 
 	/** Load a texture from raw data pointed by `texture` */
 	bool addTexture(Image& image, const shared::Texture& texture);
@@ -52,18 +51,16 @@ public:
 
 	void create(const Application& app);
 
-	const char* getLatestError() const {
-		return latestErrorBuf;
-	}
+	std::string getLatestError() const { return latestError; }
 };
 
 /** Load a texture from `texturePath` into an Image and return it (with its view already filled).
  *  `stagingBuffer` must be a valid buffer to use as a staging buffer.
  */
 Image createTextureImage(const Application& app,
-        const char* texturePath,
-        shared::TextureFormat format,
-        Buffer& stagingBuffer);
+	const char* texturePath,
+	shared::TextureFormat format,
+	Buffer& stagingBuffer);
 
 /** Create a sampler appropriate for sampling a texture and return it. */
 VkSampler createTextureSampler(const Application& app);
