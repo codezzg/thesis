@@ -5,7 +5,9 @@
 #include <vector>
 
 struct ModelInfo {
-	StringId name;
 	std::vector<StringId> materials;
 	std::vector<shared::Mesh> meshes;
+	StringId name;
+	uint32_t nVertices;
+	uint32_t nIndices;
 };

@@ -2,6 +2,7 @@
 #include "application.hpp"
 #include "buffers.hpp"
 #include "formats.hpp"
+#include "geometry.hpp"
 #include "images.hpp"
 #include "logging.hpp"
 #include "phys_device.hpp"
@@ -468,8 +469,7 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 void recordSwapChainDebugCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& commandBuffers,
 	uint32_t nIndices,
-	const Buffer& vertexBuffer,
-	const Buffer& indexBuffer)
+	const Geometry& geometry)
 {
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
 		VkCommandBufferBeginInfo beginInfo = {};
@@ -493,13 +493,13 @@ void recordSwapChainDebugCommandBuffers(const Application& app,
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
-		const std::array<VkBuffer, 1> vertexBuffers = { vertexBuffer.handle };
+		const std::array<VkBuffer, 1> vertexBuffers = { geometry.vertexBuffer.handle };
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
 		static_assert(
 			vertexBuffers.size() == offsets.size(), "offsets should be the same amount of vertexBuffers!");
 		vkCmdBindVertexBuffers(
 			commandBuffers[i], 0, vertexBuffers.size(), vertexBuffers.data(), offsets.data());
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(commandBuffers[i], geometry.indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(commandBuffers[i],
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			app.res.pipelineLayouts->get("swap"),

@@ -392,18 +392,19 @@ static bool receiveModel(socket_t socket,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources)
 {
-	constexpr auto sizeOfPrelude = sizeof(MsgType) + sizeof(StringId) + 2 * sizeof(uint8_t);
-	assert(bufsize >= sizeOfPrelude);
+	using shared::ResourcePacket;
+
+	assert(bufsize >= sizeof(ResourcePacket<shared::Model>));
 
 	// Parse header
-	// [0] MsgType    (1 B)
-	// [1] name       (4 B)
-	// [5] nMaterials (1 B)
-	// [6] nMeshes    (1 B)
-	const auto name = *reinterpret_cast<const StringId*>(buffer + 1);
-	const auto nMaterials = buffer[5];
-	const auto nMeshes = buffer[6];
-	const auto expectedSize = nMaterials * sizeof(StringId) + nMeshes * sizeof(shared::Mesh);
+	// [0]  MsgType    (1 B)
+	// [1]  name       (4 B)
+	// [5]  nVertices  (4 B)
+	// [9]  nIndices   (4 B)
+	// [13] nMaterials (1 B)
+	// [14] nMeshes    (1 B)
+	const auto header = *reinterpret_cast<const ResourcePacket<shared::Model>*>(buffer);
+	const auto expectedSize = header.res.nMaterials * sizeof(StringId) + header.res.nMeshes * sizeof(shared::Mesh);
 
 	// Retreive payload [materials | meshes]
 
@@ -412,8 +413,8 @@ static bool receiveModel(socket_t socket,
 		return false;
 
 	// Copy the first texture data embedded in the header packet into the texture memory area
-	auto len = std::min(bufsize - sizeOfPrelude, expectedSize);
-	memcpy(payload, buffer + sizeOfPrelude, len);
+	auto len = std::min(bufsize - sizeof(header), expectedSize);
+	memcpy(payload, buffer + sizeof(header), len);
 
 	// Receive remaining model information as raw data packets (if needed)
 	auto processedSize = len;
@@ -436,17 +437,19 @@ static bool receiveModel(socket_t socket,
 	}
 
 	ModelInfo model;
-	model.name = name;
+	model.name = header.res.name;
+	model.nVertices = header.res.nVertices;
+	model.nIndices = header.res.nIndices;
 
-	model.materials.reserve(nMaterials);
+	model.materials.reserve(header.res.nMaterials);
 	const auto materials = reinterpret_cast<const StringId*>(payload);
-	for (unsigned i = 0; i < nMaterials; ++i)
+	for (unsigned i = 0; i < header.res.nMaterials; ++i)
 		model.materials.emplace_back(materials[i]);
 
-	model.meshes.reserve(nMeshes);
+	model.meshes.reserve(header.res.nMeshes);
 	const auto meshes = reinterpret_cast<const shared::Mesh*>(
-		reinterpret_cast<uint8_t*>(payload) + nMaterials * sizeof(StringId));
-	for (unsigned i = 0; i < nMeshes; ++i)
+		reinterpret_cast<uint8_t*>(payload) + header.res.nMaterials * sizeof(StringId));
+	for (unsigned i = 0; i < header.res.nMeshes; ++i)
 		model.meshes.emplace_back(meshes[i]);
 
 	if (resources.models.count(model.name) != 0) {
@@ -456,7 +459,7 @@ static bool receiveModel(socket_t socket,
 		info("Stored model ", model.name);
 	}
 
-	debug("received model ", model.name, ":");
+	debug("received model ", model.name, " (v=", model.nVertices, ", i=", model.nIndices, "):");
 	if (gDebugLv >= LOGLV_DEBUG) {
 		for (const auto& mat : model.materials)
 			debug("material ", mat);

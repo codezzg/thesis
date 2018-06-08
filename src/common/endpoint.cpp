@@ -138,8 +138,8 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len)
 		return false;
 	}
 
-	verbose("Received ", count, " bytes");
-	if (gDebugLv >= LOGLV_VERBOSE)
+	uberverbose("Received ", count, " bytes");
+	if (gDebugLv >= LOGLV_UBER_VERBOSE)
 		dumpBytes(buffer, count);
 
 	return true;
@@ -181,8 +181,8 @@ bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 		warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
 	}
-	verbose("Sent ", len, " bytes");
-	if (gDebugLv >= LOGLV_VERBOSE)
+	uberverbose("Sent ", len, " bytes");
+	if (gDebugLv >= LOGLV_UBER_VERBOSE)
 		dumpBytes(data, len);
 
 	return true;

@@ -9,6 +9,7 @@ enum LogLevel {
 	LOGLV_INFO = 3,
 	LOGLV_DEBUG = 4,
 	LOGLV_VERBOSE = 5,
+	LOGLV_UBER_VERBOSE = 6,
 };
 
 extern LogLevel gDebugLv;
@@ -43,24 +44,24 @@ template <typename... Args>
 inline void err(Args&&... args)
 {
 	log(LOGLV_ERR,
-	        true,
+		true,
 #ifdef COLORED_LOGS
-	        C_RED,
+		C_RED,
 #endif
-	        "[E] ",
-	        std::forward<Args>(args)...);
+		"[E] ",
+		std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warn(Args&&... args)
 {
 	log(LOGLV_WARN,
-	        true,
+		true,
 #ifdef COLORED_LOGS
-	        C_YELLOW,
+		C_YELLOW,
 #endif
-	        "[W] ",
-	        std::forward<Args>(args)...);
+		"[W] ",
+		std::forward<Args>(args)...);
 }
 
 template <typename... Args>
@@ -79,6 +80,12 @@ template <typename... Args>
 inline void verbose(Args&&... args)
 {
 	log(LOGLV_VERBOSE, true, "[V] ", std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+inline void uberverbose(Args&&... args)
+{
+	log(LOGLV_UBER_VERBOSE, true, "[U] ", std::forward<Args>(args)...);
 }
 
 }   // end namespace logging

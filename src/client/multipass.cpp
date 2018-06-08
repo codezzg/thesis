@@ -2,6 +2,7 @@
 #include "application.hpp"
 #include "buffers.hpp"
 #include "client_resources.hpp"
+#include "geometry.hpp"
 #include "logging.hpp"
 #include "materials.hpp"
 #include "utils.hpp"
@@ -12,8 +13,7 @@ using namespace logging;
 void recordMultipassCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& commandBuffers,
 	uint32_t nIndices,
-	const Buffer& vBuffer,
-	const Buffer& iBuffer,
+	const Geometry& geometry,
 	const NetworkResources& netRsrc)
 {
 	std::array<VkClearValue, 5> clearValues = {};
@@ -62,13 +62,46 @@ void recordMultipassCommandBuffers(const Application& app,
 			nullptr);
 
 		// TODO: reorganize material / meshes hierarchy so that materials are higher
-		std::array<VkBuffer, 1> vertexBuffers = { vBuffer.handle };
-		const std::array<VkDeviceSize, 1> offsets = { 0 };
-		// Draw all meshes (i.e. for now, all materials)
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
-		vkCmdBindIndexBuffer(commandBuffers[i], iBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-		for (const auto& modelpair : netRsrc.models) {
-			const auto& model = modelpair.second;
+
+		// Draw all models
+		assert(geometry.locations.size() == netRsrc.models.size() &&
+			"Geometry locations should be the same number as models!");
+
+		std::array<VkBuffer, 1> vertexBuffers = { geometry.vertexBuffer.handle };
+		std::vector<VkDeviceSize> offsets(geometry.locations.size());
+
+		// TODO: consider saving models in an array rather than a map, as it's often inconvenient
+		std::vector<ModelInfo> models(netRsrc.models.size());
+
+		// Use the same vertex buffer for all models, but with a different offset for each model.
+		// The offsets to use are saved in geometry.locations.
+		{
+			unsigned j = 0;
+			for (const auto& modelpair : netRsrc.models) {
+				// We need to save these in an ordered array to ensure consistent ordering later.
+				models[j] = modelpair.second;
+				auto it = geometry.locations.find(modelpair.first);
+				assert(it != geometry.locations.end());
+				offsets[j] = it->second.vertexOff;
+				++j;
+			}
+		}
+
+		for (unsigned j = 0; j < models.size(); ++j) {
+
+			const auto& model = models[j];
+
+			// Bind the vertex buffer at the proper offset
+			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), &offsets[j]);
+
+			// Bind the index buffer at the proper offset
+			const auto loc_it = geometry.locations.find(model.name);
+			assert(loc_it != geometry.locations.end());
+			vkCmdBindIndexBuffer(commandBuffers[i],
+				geometry.indexBuffer.handle,
+				loc_it->second.indexOff,
+				VK_INDEX_TYPE_UINT32);
+
 			for (const auto& mesh : model.meshes) {
 				const auto& matName =
 					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;

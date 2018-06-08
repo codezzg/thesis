@@ -7,15 +7,15 @@
 struct Application;
 struct Buffer;
 struct CombinedUniformBuffers;
+struct Geometry;
 struct Material;
 struct NetworkResources;
 
 void recordMultipassCommandBuffers(const Application& app,
-        std::vector<VkCommandBuffer>& commandBuffers,
-        uint32_t nIndices,
-        const Buffer& vBuffer,
-        const Buffer& iBuffer,
-        const NetworkResources& netRsrc);
+	std::vector<VkCommandBuffer>& commandBuffers,
+	uint32_t nIndices,
+	const Geometry& geometry,
+	const NetworkResources& netRsrc);
 
 std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const Application& app);
 
@@ -23,6 +23,6 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
  *  @return A vector where each descriptorset correspond to the i-th material in input.
  */
 std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
-        const CombinedUniformBuffers& uniformBuffers,
-        const std::vector<Material>& materials,
-        VkSampler texSampler);
+	const CombinedUniformBuffers& uniformBuffers,
+	const std::vector<Material>& materials,
+	VkSampler texSampler);

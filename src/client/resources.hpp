@@ -11,10 +11,11 @@ class ResourceMap {
 protected:
 	std::unordered_map<StringId, T> resources;
 	VkDevice device;
+	std::string resourceType = "resource";
 
 public:
 	explicit ResourceMap(VkDevice device)
-	        : device(device)
+		: device(device)
 	{}
 	virtual ~ResourceMap() {}
 
@@ -25,7 +26,7 @@ public:
 	{
 		auto it = resources.find(name);
 		if (it == resources.end())
-			throw std::runtime_error("Couldn't find resource: " + sidToString(name));
+			throw std::runtime_error("Couldn't find " + resourceType + ": " + sidToString(name));
 		return it->second;
 	}
 	T& get(const char* name) { return get(sid(name)); }
@@ -33,7 +34,7 @@ public:
 	void add(const StringId& name, T rsrc)
 	{
 		if (resources.count(name) > 0)
-			logging::warn("Warning: overwriting resource ", name);
+			logging::warn("Warning: overwriting " + resourceType + " ", name);
 		resources[name] = rsrc;
 	}
 	void add(const char* name, T rsrc) { add(sid(name), rsrc); }
@@ -41,11 +42,13 @@ public:
 	std::size_t size() const { return resources.size(); }
 };
 
-class PipelineLayoutMap : public ResourceMap<VkPipelineLayout> {
+class PipelineLayoutMap final : public ResourceMap<VkPipelineLayout> {
 public:
 	explicit PipelineLayoutMap(VkDevice device)
-	        : ResourceMap(device)
-	{}
+		: ResourceMap{ device }
+	{
+		resourceType = "pipelineLayout";
+	}
 
 	~PipelineLayoutMap()
 	{
@@ -66,11 +69,13 @@ public:
 	}
 };
 
-class DescriptorSetLayoutMap : public ResourceMap<VkDescriptorSetLayout> {
+class DescriptorSetLayoutMap final : public ResourceMap<VkDescriptorSetLayout> {
 public:
 	explicit DescriptorSetLayoutMap(VkDevice device)
-	        : ResourceMap(device)
-	{}
+		: ResourceMap{ device }
+	{
+		resourceType = "descriptorSetLayout";
+	}
 	~DescriptorSetLayoutMap()
 	{
 		for (auto& pair : resources)
@@ -90,11 +95,13 @@ public:
 	}
 };
 
-class PipelineMap : public ResourceMap<VkPipeline> {
+class PipelineMap final : public ResourceMap<VkPipeline> {
 public:
 	explicit PipelineMap(VkDevice device)
-	        : ResourceMap(device)
-	{}
+		: ResourceMap{ device }
+	{
+		resourceType = "pipeline";
+	}
 	~PipelineMap()
 	{
 		for (auto& pair : resources)
@@ -114,14 +121,16 @@ public:
 	}
 };
 
-class DescriptorSetMap : public ResourceMap<VkDescriptorSet> {
+class DescriptorSetMap final : public ResourceMap<VkDescriptorSet> {
 	const VkDescriptorPool& descriptorPool;
 
 public:
 	explicit DescriptorSetMap(VkDevice device, VkDescriptorPool& pool)
-	        : ResourceMap(device)
-	        , descriptorPool(pool)
-	{}
+		: ResourceMap{ device }
+		, descriptorPool{ pool }
+	{
+		resourceType = "descriptorSet";
+	}
 
 	~DescriptorSetMap()
 	{
@@ -135,7 +144,7 @@ public:
 		VkDescriptorSet descriptorSet;
 		VLKCHECK(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
 		logging::info(
-		        __FILE__, ":", __LINE__, ": Allocated ", allocInfo.descriptorSetCount, " descriptor sets");
+			__FILE__, ":", __LINE__, ": Allocated ", allocInfo.descriptorSetCount, " descriptor sets");
 
 		resources[name] = descriptorSet;
 		return descriptorSet;

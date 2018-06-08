@@ -8,6 +8,7 @@
 #include <vulkan/vulkan.h>
 
 struct Application;
+struct Geometry;
 
 struct SwapChain final {
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
@@ -58,16 +59,15 @@ VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application&
 
 /** @return a descriptorSet suited for forward rendering */
 VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
-        const Buffer& uniformBuffer,
-        const Image& tex,
-        VkSampler texSampler);
+	const Buffer& uniformBuffer,
+	const Image& tex,
+	VkSampler texSampler);
 
 /** records a vector of commandBuffers that perform forward rendering */
 void recordSwapChainDebugCommandBuffers(const Application& app,
-        std::vector<VkCommandBuffer>& buffers,
-        uint32_t nIndices,
-        const Buffer& vertexBuffer,
-        const Buffer& indexBuffer);
+	std::vector<VkCommandBuffer>& buffers,
+	uint32_t nIndices,
+	const Geometry& geometry);
 
 /** @return a pipeline suited for forward rendering */
 VkPipeline createSwapChainDebugPipeline(const Application& app);

@@ -385,7 +385,6 @@ static bool sendMaterial(socket_t clientSocket, const Material& material)
 
 static bool sendModel(socket_t clientSocket, const Model& model)
 {
-
 	info("Sending model ", model.name, " (", sidToString(model.name), ")");
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
@@ -394,6 +393,8 @@ static bool sendModel(socket_t clientSocket, const Model& model)
 	ResourcePacket<shared::Model> header;
 	header.type = MsgType::RSRC_TYPE_MODEL;
 	header.res.name = model.name;
+	header.res.nVertices = model.nVertices;
+	header.res.nIndices = model.nIndices;
 	header.res.nMaterials = model.materials.size();
 	header.res.nMeshes = model.meshes.size();
 
@@ -402,6 +403,10 @@ static bool sendModel(socket_t clientSocket, const Model& model)
 		header.type,
 		", name = ",
 		header.res.name,
+		", nVertices = ",
+		header.res.nVertices,
+		", nIndices = ",
+		header.res.nIndices,
 		", nMaterials = ",
 		int(header.res.nMaterials),
 		", nMeshes = ",

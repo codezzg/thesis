@@ -13,11 +13,13 @@
 #include "frame_data.hpp"
 #include "frame_utils.hpp"
 #include "gbuffer.hpp"
+#include "geometry.hpp"
 #include "images.hpp"
 #include "logging.hpp"
 #include "multipass.hpp"
 #include "phys_device.hpp"
 #include "pipelines.hpp"
+#include "profile.hpp"
 #include "renderpass.hpp"
 #include "shader_opts.hpp"
 #include "shared_resources.hpp"
@@ -30,7 +32,6 @@
 #include "vulk_utils.hpp"
 #include "window.hpp"
 #include "xplatform.hpp"
-#include "profile.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -86,7 +87,7 @@ public:
 		connectToServer(ip);
 
 		if (!gIsDebug)
-			measure_ms("Init Vulkan", LOGLV_INFO, [this] () { initVulkan(); });   // deferred rendering
+			measure_ms("Init Vulkan", LOGLV_INFO, [this]() { initVulkan(); });   // deferred rendering
 		else
 			initVulkanForward();   // forward rendering
 
@@ -110,9 +111,10 @@ private:
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 
-	Buffer vertexBuffer;
-	Buffer indexBuffer;
-	// Single buffer to contain all uniform buffer objects needed
+	/** Struct containing geometry data (vertex/index buffers + metadata) */
+	Geometry geometry;
+
+	/** Single buffer containing all uniform buffer objects needed */
 	CombinedUniformBuffers uniformBuffers;
 
 	NetworkResources netRsrc;
@@ -232,16 +234,16 @@ private:
 
 			// Tell TCP thread to receive the data
 			relEP.proceed();
-			measure_ms("Recv Assets", LOGLV_INFO, [this] () {
+			measure_ms("Recv Assets", LOGLV_INFO, [this]() {
 				if (!relEP.await(std::chrono::seconds{ 10 })) {
 					throw std::runtime_error("Failed to receive the one-time data!");
 				}
 			});
 
-			measure_ms("Check Assets", LOGLV_INFO, [this, &resources] () { checkAssets(resources); });
+			measure_ms("Check Assets", LOGLV_INFO, [this, &resources]() { checkAssets(resources); });
 
 			// Process the received data
-			measure_ms("Load Assets", LOGLV_INFO, [this, &resources] () { loadAssets(resources); });
+			measure_ms("Load Assets", LOGLV_INFO, [this, &resources]() { loadAssets(resources); });
 
 			relEP.resources = nullptr;
 			// Drop the memory used for staging the resources as it's not needed anymore.
@@ -314,6 +316,7 @@ private:
 			destroyBuffer(app.device, stagingBuffer);
 		});
 
+		// Save models into permanent storage
 		std::copy(resources.models.begin(),
 			resources.models.end(),
 			std::inserter(netRsrc.models, netRsrc.models.begin()));
@@ -327,19 +330,22 @@ private:
 			// Create default textures
 			texLoadTasks.emplace_back(texLoader.addTextureAsync(
 				netRsrc.defaults.diffuseTex, "textures/default.jpg", shared::TextureFormat::RGBA));
-			texLoadTasks.emplace_back(texLoader.addTextureAsync(
-				netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY));
+			texLoadTasks.emplace_back(texLoader.addTextureAsync(netRsrc.defaults.specularTex,
+				"textures/default_spec.jpg",
+				shared::TextureFormat::GREY));
 			texLoadTasks.emplace_back(texLoader.addTextureAsync(
 				netRsrc.defaults.normalTex, "textures/default_norm.jpg", shared::TextureFormat::RGBA));
 			// Create textures received from server
 			for (const auto& pair : resources.textures) {
 				if (pair.first == SID_NONE)
 					continue;
-				texLoadTasks.emplace_back(texLoader.addTextureAsync(netRsrc.textures[pair.first], pair.second));
+				texLoadTasks.emplace_back(
+					texLoader.addTextureAsync(netRsrc.textures[pair.first], pair.second));
 			}
 			for (auto& res : texLoadTasks)
 				if (!res.get())
-					throw std::runtime_error("Failed to load texture image! Latest error: "s + texLoader.getLatestError());
+					throw std::runtime_error("Failed to load texture image! Latest error: "s +
+								 texLoader.getLatestError());
 			texLoader.create(app);
 			texSampler = createTextureSampler(app);
 		}
@@ -445,8 +451,9 @@ private:
 
 		// Copy received data into the streaming buffer
 		PayloadHeader phead;
-		passiveEP.retreive(
-			phead, reinterpret_cast<Vertex*>(vertexBuffer.ptr), reinterpret_cast<Index*>(indexBuffer.ptr));
+		passiveEP.retreive(phead,
+			reinterpret_cast<Vertex*>(geometry.vertexBuffer.ptr),
+			reinterpret_cast<Index*>(geometry.indexBuffer.ptr));
 
 		// streamingBufferData now contains [vertices|indices]
 		nVertices = phead.nVertices;
@@ -678,9 +685,10 @@ private:
 	{
 		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
 
-		// Find out the proper offsets for uniform buffers
+		// Find out the optimal offsets for uniform buffers, accounting for minimum align
 		VkDeviceSize uboSize = 0;
 		const auto uboAlign = findMinUboAlign(app.physicalDevice);
+		// FIXME: this approach is only feasible for at most 2 UBOs, as it grows combinatorily
 		if (sizeof(MVPUniformBufferObject) <= uboAlign) {
 			uniformBuffers.offsets.mvp = 0;
 			uboSize += sizeof(MVPUniformBufferObject);
@@ -697,19 +705,12 @@ private:
 			uboSize += sizeof(MVPUniformBufferObject);
 		}
 
-		// These buffers are all created una-tantum.
+		// Create vertex, index and uniform buffers. These buffers are all created una-tantum.
 		BufferAllocator bufAllocator;
 
-		// vertex buffer
-		bufAllocator.addBuffer(vertexBuffer,
-			VERTEX_BUFFER_SIZE,
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		// index buffer
-		bufAllocator.addBuffer(indexBuffer,
-			INDEX_BUFFER_SIZE,
-			VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		geometry.locations = addVertexAndIndexBuffers(
+			bufAllocator, geometry.vertexBuffer, geometry.indexBuffer, netRsrc.models);
+
 		// uniform buffers
 		bufAllocator.addBuffer(uniformBuffers,
 			uboSize,
@@ -724,8 +725,8 @@ private:
 		// Map device memory to host
 		mapBuffersMemory(app.device,
 			{
-				&vertexBuffer,
-				&indexBuffer,
+				&geometry.vertexBuffer,
+				&geometry.indexBuffer,
 				&uniformBuffers,
 			});
 
@@ -748,11 +749,9 @@ private:
 	void recordAllCommandBuffers()
 	{
 		if (gIsDebug) {
-			recordSwapChainDebugCommandBuffers(
-				app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer);
+			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, nIndices, geometry);
 		} else {
-			recordMultipassCommandBuffers(
-				app, swapCommandBuffers, nIndices, vertexBuffer, indexBuffer, netRsrc);
+			recordMultipassCommandBuffers(app, swapCommandBuffers, nIndices, geometry, netRsrc);
 		}
 	}
 
@@ -811,8 +810,8 @@ private:
 
 		unmapBuffersMemory(app.device,
 			{
-				vertexBuffer,
-				indexBuffer,
+				geometry.vertexBuffer,
+				geometry.indexBuffer,
 				uniformBuffers,
 			});
 
@@ -828,7 +827,8 @@ private:
 			destroyAllImages(app.device, imagesToDestroy);
 		}
 
-		destroyAllBuffers(app.device, { uniformBuffers, indexBuffer, vertexBuffer, app.screenQuadBuffer });
+		destroyAllBuffers(app.device,
+			{ uniformBuffers, geometry.indexBuffer, geometry.vertexBuffer, app.screenQuadBuffer });
 
 		vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
 

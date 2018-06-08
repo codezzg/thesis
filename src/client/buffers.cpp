@@ -27,9 +27,9 @@ void BufferAllocator::addBuffer(Buffer& buffer, const BufferAllocator::BufferCre
 }
 
 void BufferAllocator::addBuffer(Buffer& buffer,
-        VkDeviceSize size,
-        VkBufferUsageFlags usage,
-        VkMemoryPropertyFlags properties)
+	VkDeviceSize size,
+	VkBufferUsageFlags usage,
+	VkMemoryPropertyFlags properties)
 {
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -101,9 +101,9 @@ void BufferAllocator::create(const Application& app)
 }
 
 Buffer createBuffer(const Application& app,
-        VkDeviceSize size,
-        VkBufferUsageFlags usage,
-        VkMemoryPropertyFlags properties)
+	VkDeviceSize size,
+	VkBufferUsageFlags usage,
+	VkMemoryPropertyFlags properties)
 {
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -154,11 +154,11 @@ void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, 
 }
 
 void copyBufferToImage(const Application& app,
-        VkBuffer buffer,
-        VkImage image,
-        uint32_t width,
-        uint32_t height,
-        VkDeviceSize bufOffset)
+	VkBuffer buffer,
+	VkImage image,
+	uint32_t width,
+	uint32_t height,
+	VkDeviceSize bufOffset)
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
@@ -181,9 +181,9 @@ void copyBufferToImage(const Application& app,
 Buffer createStagingBuffer(const Application& app, VkDeviceSize size)
 {
 	auto buf = createBuffer(app,
-	        size,
-	        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-	        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		size,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	VLKCHECK(vkMapMemory(app.device, buf.memory, 0, buf.size, 0, &buf.ptr));
 
@@ -244,18 +244,30 @@ void unmapBuffersMemory(VkDevice device, const std::vector<Buffer>& buffers)
 BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties()
 {
 	return std::make_tuple(sizeof(Vertex) * 4,
-	        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-	        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 }
 
 void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf)
 {
-	const std::array<Vertex, 4> quadVertices = {
+	constexpr std::array<Vertex, 4> quadVertices = {
 		// position, normal, texCoords
-		Vertex{ glm::vec3{ -1.0f, 1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 1.0f } },
-		Vertex{ glm::vec3{ -1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 0.0f, 0.0f } },
-		Vertex{ glm::vec3{ 1.0f, 1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f } },
-		Vertex{ glm::vec3{ 1.0f, -1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 0.0f } },
+		Vertex{ glm::vec3{ -1.0f, 1.0f, 0.0f },
+			glm::vec3{},
+			glm::vec2{ 0.0f, 1.0f },
+			glm::vec3{},
+			glm::vec3{} },
+		Vertex{ glm::vec3{ -1.0f, -1.0f, 0.0f },
+			glm::vec3{},
+			glm::vec2{ 0.0f, 0.0f },
+			glm::vec3{},
+			glm::vec3{} },
+		Vertex{ glm::vec3{ 1.0f, 1.0f, 0.0f }, glm::vec3{}, glm::vec2{ 1.0f, 1.0f }, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 1.0f, -1.0f, 0.0f },
+			glm::vec3{},
+			glm::vec2{ 1.0f, 0.0f },
+			glm::vec3{},
+			glm::vec3{} },
 	};
 
 	memcpy(stagingBuf.ptr, quadVertices.data(), quadVertices.size() * sizeof(Vertex));
