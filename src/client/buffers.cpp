@@ -250,7 +250,7 @@ BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties()
 
 void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf)
 {
-	constexpr std::array<Vertex, 4> quadVertices = {
+	const std::array<Vertex, 4> quadVertices = {
 		// position, normal, texCoords
 		Vertex{ glm::vec3{ -1.0f, 1.0f, 0.0f },
 			glm::vec3{},
