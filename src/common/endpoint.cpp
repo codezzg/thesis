@@ -1,6 +1,7 @@
 #include "endpoint.hpp"
 #include "frame_data.hpp"
 #include "logging.hpp"
+#include "udp_messages.hpp"
 #include "utils.hpp"
 #include <cstdlib>
 #include <cstring>
@@ -145,14 +146,14 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len)
 	return true;
 }
 
-bool validateUDPPacket(uint8_t* packetBuf, int64_t frameId)
+bool validateUDPPacket(uint8_t* packetBuf, uint64_t packetGen)
 {
-	const auto packet = reinterpret_cast<FrameData*>(packetBuf);
+	const auto packet = reinterpret_cast<udp::UpdatePacket*>(packetBuf);
 	if (packet->header.magic != cfg::PACKET_MAGIC) {
 		info("Packet has invalid magic: dropping.");
 		return false;
 	}
-	if (packet->header.frameId < frameId) {
+	if (packet->header.packetGen < packetGen) {
 		info("Packet is old: dropping");
 		return false;
 	}

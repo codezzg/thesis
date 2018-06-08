@@ -12,6 +12,7 @@
 #include "server.hpp"
 #include "server_appstage.hpp"
 #include "tcp_messages.hpp"
+#include "udp_messages.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -73,72 +74,107 @@ static int writeAllPossible(std::array<uint8_t, N>& dst,
 	return srcIdx;
 }
 
-// TODO
-// const std::vector<Vertex> vertices = {
-////{ {0, 1, 2}, {3, 4, 5}, {6, 7} },
-//{{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0, 1}},
-//{{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1, 1}},
-//{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0, 0}}
-//};
-// const std::vector<Index> indices = {
-////8
-// 0, 1, 2, 2, 3, 0
-//};
+static void writeGeomUpdateHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen)
+{
+	assert(bufsize >= sizeof(udp::Header));
+
+	udp::Header header;
+	header.magic = cfg::PACKET_MAGIC;
+	header.packetGen = packetGen;
+	header.size = 0;
+
+	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(header));
+}
+
+/** Writes a geometry update chunk into `buffer`, starting at `offset`.
+ *  @return the number of bytes written, or 0 if the buffer hadn't enough room.
+ */
+static std::size_t addGeomUpdate(uint8_t* buffer,
+	std::size_t bufsize,
+	std::size_t offset,
+	const udp::ChunkHeader& geomUpdate,
+	const ServerResources& resources)
+{
+	using namespace udp;
+
+	assert(offset < bufsize);
+	assert(geomUpdate.modelId != SID_NONE);
+	assert(geomUpdate.dataType < DataType::INVALID);
+
+	// Retreive data from the model
+	const auto& model_it = resources.models.find(geomUpdate.modelId);
+	assert(model_it != resources.models.end());
+
+	void* dataPtr;
+	std::size_t dataSize;
+	switch (geomUpdate.dataType) {
+	case DataType::VERTEX:
+		dataPtr = model_it->second.vertices;
+		dataSize = sizeof(Vertex);
+		break;
+	case DataType::INDEX:
+		dataPtr = model_it->second.indices;
+		dataSize = sizeof(Index);
+		break;
+	default:
+		assert(false);
+	}
+
+	const auto payloadSize = dataSize * geomUpdate.len;
+	if (offset + payloadSize > bufsize) {
+		// Not enough room
+		return 0;
+	}
+
+	uint32_t written = 0;
+
+	// Write chunk header
+	memcpy(buffer + offset, &geomUpdate, sizeof(ChunkHeader));
+	written += sizeof(ChunkHeader);
+
+	// Write chunk payload
+	memcpy(buffer + offset + sizeof(ChunkHeader), dataPtr, payloadSize);
+	written += payloadSize;
+
+	// Update size in header
+	reinterpret_cast<udp::Header*>(buffer)->size += written;
+
+	return written;
+}
+
 void ServerActiveEndpoint::loopFunc()
 {
-
-	auto delay = 0ms;
-	auto& shared = server.sharedData;
-
 	std::mutex loopMtx;
+	uint64_t packetGen = 0;
 
-	FPSCounter fps;
-	fps.start();
+	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer = {};
 
-	auto& clock = Clock::instance();
-
-	info("Active Endpoint targetFrameTime = ", targetFrameTime.count(), " ms");
-
-	uint64_t frameId = 0;
-
-	// Send frame datagrams to the client
+	// Send geometry datagrams to the client
 	while (!terminated) {
-		const LimitFrameTime lft{ targetFrameTime - delay };
-		verbose("Frametime = ", asSeconds(targetFrameTime - delay) * 1000, " ms");
 
-		++frameId;
-
-		// Wait for the new frame data from the client
-		debug("Waiting for client data...");
-		/*std::unique_lock<std::mutex> loopUlk{ loopMtx };
-		shared.loopCv.wait(loopUlk);*/
-		// shared.loopCv.wait_for(loopMtx, 0.033s);
-
-		debug("Received data from frame ", shared.clientFrame);
-
-		// int64_t frameId = -1;
-		std::array<uint8_t, FrameData().payload.size()> clientData;
-		{
-			std::lock_guard<std::mutex> lock{ shared.clientDataMtx };
-			debug("Server frame = ", frameId, ", client frame = ", shared.clientFrame);
-			// frameId = shared.clientFrame;
-			std::copy(shared.clientData.begin(), shared.clientData.end(), clientData.begin());
+		if (server.geomUpdate.size() == 0) {
+			// Wait for dirty models
+			std::unique_lock<std::mutex> ulk{ loopMtx };
+			server.sharedData.geomUpdateCv.wait(ulk);
 		}
 
-		// TODO: multiple models
-		auto& model = server.resources.models.begin()->second;
-		int nVertices = model.nVertices, nIndices = model.nIndices;
-		log(LOGLV_DEBUG, false, "v/i: ", nVertices, ", ", nIndices, " ---> ");
-		transformVertices(model, clientData, memory, memsize, nVertices, nIndices);
-		debug(nVertices, ", ", nIndices);
+		std::size_t offset = 0;
+		writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
+		for (auto it = server.geomUpdate.begin(); it != server.geomUpdate.end();) {
 
-		if (frameId >= 0)
-			sendFrameData(frameId, memory, nVertices, nIndices);
+			const auto written = addGeomUpdate(buffer.data(), buffer.size(), offset, *it, server.resources);
+			if (written > 0) {
+				it = server.geomUpdate.erase(it);
+				offset += written;
+			} else {
+				// Not enough room: send the packet and go on
+				sendPacket(socket, buffer.data(), buffer.size());
+				writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
+				offset = 0;
+			}
+		}
 
-		fps.addFrame();
-		fps.report();
-		clock.update(asSeconds(lft.getFrameDuration()));
-		delay = lft.getFrameDelay();
+		++packetGen;
 	}
 }
 
@@ -265,7 +301,6 @@ static void keepaliveTask(socket_t clientSocket,
 
 void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientAddr)
 {
-
 	const auto readableAddr = inet_ntoa(clientAddr.sin_addr);
 
 	{
@@ -291,8 +326,6 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		if (!sendOneTimeData(clientSocket))
 			goto dropclient;
 
-		// std::exit(0);
-
 		if (!sendTCPMsg(clientSocket, MsgType::END_RSRC_EXCHANGE))
 			goto dropclient;
 
@@ -301,10 +334,10 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 			goto dropclient;
 
 		// Starts UDP loops and send ready to client
-		server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
 		server.activeEP.startActive(readableAddr, cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
-		server.passiveEP.runLoop();
 		server.activeEP.runLoop();
+		// server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
+		// server.passiveEP.runLoop();
 
 		if (!sendTCPMsg(clientSocket, MsgType::READY))
 			goto dropclient;

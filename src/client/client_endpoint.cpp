@@ -7,6 +7,7 @@
 #include "serialization.hpp"
 #include "shared_resources.hpp"
 #include "tcp_messages.hpp"
+#include "udp_messages.hpp"
 #include "units.hpp"
 #include "utils.hpp"
 #include "vertex.hpp"
@@ -23,81 +24,66 @@ static constexpr auto BUFSIZE = megabytes(16);
 
 void ClientPassiveEndpoint::loopFunc()
 {
-
 	// This will be filled like this:
-	// [vertices|indices]
+	// [size0|chunk0.header|chunk0.payload|chunk1.header|chunk1.payload|...|size1|...]
+	// where `sizeN` is the total chunk size of the N-th packet stored in the buffer
 	buffer = new uint8_t[BUFSIZE];
-	auto backBuffer = new uint8_t[BUFSIZE];
+	usedBufSize = 0;
 
-	uint64_t nBytesReceived = 0;
-	bool bufferCopied = false;
+	uint64_t packetGen = 0;
 
-	// Receive datagrams
+	// Receive datagrams and copy them into `buffer`.
 	while (!terminated) {
-		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
+		std::array<uint8_t, sizeof(udp::UpdatePacket)> packetBuf = {};
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
-		if (!validateUDPPacket(packetBuf.data(), frameId))
+		if (!validateUDPPacket(packetBuf.data(), packetGen))
 			continue;
 
-		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
+		const auto packet = reinterpret_cast<const udp::UpdatePacket*>(packetBuf.data());
+		packetGen = packet->header.packetGen;
 
-		// Update frame if necessary
-		if (packet->header.frameId > frameId) {
-			frameId = packet->header.frameId;
-			// Clear current buffer, start receiving new data
-			memset(backBuffer, -1, BUFSIZE);
-			bufferFilled = false;
-			bufferCopied = false;
-			nBytesReceived = 0;
-
-			// Update n vertices and indices
-			nVertices = packet->header.phead.nVertices;
-			nIndices = packet->header.phead.nIndices;
-		}
-
-		uint8_t* payload = packet->payload.data();
-		auto payloadLen = packet->payload.size();
-
-		// dumpPacket("client.dump", *packet);
-
-		// Compute the offset to insert data at
-		const size_t offset = packet->header.packetId * packet->payload.size();
-
-		// Insert data into the buffer
-		memcpy(backBuffer + offset, payload, payloadLen);
-
-		nBytesReceived += payloadLen;
-		// std::cerr << "payload len = " << payloadLen << "\n";
-		verbose("Bytes received: ",
-			nBytesReceived,
-			" / ",
-			nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
-		bufferFilled = nBytesReceived >= (nVertices * sizeof(Vertex) + nIndices * sizeof(Index));
-
-		if (bufferFilled && !bufferCopied) {
-			// May need to wait to finish retreiving the previously acquired buffer.
+		const auto size = packet->header.size;
+		assert(size <= packet->payload.size());
+		// Just copy all the payload into `buffer` and let the main thread process it.
+		{
 			std::lock_guard<std::mutex> lock{ bufMtx };
 
-			memcpy(buffer, backBuffer, BUFSIZE);
-			bufferCopied = true;
+			assert(usedBufSize + sizeof(uint32_t) + size < BUFSIZE);
+
+			// Write packet size
+			*reinterpret_cast<uint32_t*>(buffer + usedBufSize) = size;
+			usedBufSize += sizeof(uint32_t);
+
+			// Write packet data
+			memcpy(buffer + usedBufSize, packet->payload.data(), size);
+			usedBufSize += size;
+		}
+
+		if (usedBufSize >= BUFSIZE) {
+			warn("Warning: buffer is being filled faster than it's consumed! Some data is being lost!");
+			usedBufSize = 0;
 		}
 	}
 
-	delete[] backBuffer;
 	delete[] buffer;
 }
 
-void ClientPassiveEndpoint::retreive(PayloadHeader& phead, Vertex* outVBuf, Index* outIBuf)
+std::size_t ClientPassiveEndpoint::retreive(uint8_t* outBuf, std::size_t outBufSize)
 {
-	phead.nVertices = nVertices;
-	phead.nIndices = nIndices;
-	{
-		std::lock_guard<std::mutex> lock{ bufMtx };
-		memcpy(outVBuf, buffer, nVertices * sizeof(Vertex));
-		memcpy(outIBuf, buffer + nVertices * sizeof(Vertex), nIndices * sizeof(Index));
-	}
+	if (outBufSize < usedBufSize)
+		throw std::invalid_argument("Buffer given to `retreive` is too small!");
+
+	std::lock_guard<std::mutex> lock{ bufMtx };
+	memcpy(outBuf, buffer, usedBufSize);
+
+	const auto written = usedBufSize;
+
+	// Reset the buffer
+	usedBufSize = 0;
+
+	return written;
 }
 
 /////////////////////// Active EP

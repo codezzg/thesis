@@ -25,6 +25,7 @@
 #include "shared_resources.hpp"
 #include "swap.hpp"
 #include "textures.hpp"
+#include "udp_messages.hpp"
 #include "units.hpp"
 #include "validation.hpp"
 #include "vertex.hpp"
@@ -41,7 +42,9 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -120,8 +123,8 @@ private:
 	NetworkResources netRsrc;
 	VkSampler texSampler;
 
-	/** Pointer to the memory area staging vertices and indices coming from the server */
-	uint8_t* streamingBufferData = nullptr;
+	/** Memory area staging vertices and indices coming from the server */
+	std::vector<uint8_t> streamingBuffer;
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
 
@@ -212,9 +215,9 @@ private:
 		passiveEP.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		passiveEP.runLoop();
 
-		activeEP.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
-		activeEP.targetFrameTime = SERVER_UPDATE_TIME;
-		activeEP.runLoop();
+		// activeEP.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
+		// activeEP.targetFrameTime = SERVER_UPDATE_TIME;
+		// activeEP.runLoop();
 	}
 
 	void connectToServer(const char* serverIp)
@@ -434,47 +437,58 @@ private:
 
 	void receiveData()
 	{
-		debug("receive data. curFrame = ", curFrame, ", passive.frame = ", passiveEP.getFrameId());
-
-		if (curFrame >= 0 && passiveEP.getFrameId() == curFrame) {
-			debug("Rejecting old frame data");
+		if (!passiveEP.dataAvailable())
 			return;
+
+		passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
+
+		// streamingBuffer now contains [size0|chunk0|chunk1|...|size1|chunk0|...]
+
+		const auto processChunk = [this](uint8_t* ptr) {
+			const auto header = reinterpret_cast<const udp::ChunkHeader*>(ptr);
+
+			std::size_t dataSize;
+			void* dataPtr;
+			switch (header->dataType) {
+			case udp::DataType::VERTEX:
+				dataSize = sizeof(Vertex);
+				dataPtr = geometry.vertexBuffer.ptr;
+				break;
+			case udp::DataType::INDEX:
+				dataSize = sizeof(Index);
+				dataPtr = geometry.indexBuffer.ptr;
+				break;
+			default: {
+				std::stringstream ss;
+				ss << "Invalid data type " << int(header->dataType) << " in Update Chunk!";
+				throw std::runtime_error(ss.str());
+			}
+			}
+
+			const auto chunkSize = sizeof(header) + sizeof(dataSize * header->len);
+
+			auto it = geometry.locations.find(header->modelId);
+			if (it == geometry.locations.end()) {
+				warn("Received an Update Chunk for inexistent model ", header->modelId, "!");
+				return chunkSize;
+			}
+
+			//// Update the model
+
+			auto& loc = it->second;
+			// Use the correct offset into the vertex/index buffer
+			const auto offset = header->dataType == udp::DataType::VERTEX ? loc.vertexOff : loc.indexOff;
+			dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + offset;
+
+			memcpy(dataPtr, ptr + sizeof(header), dataSize * header->len);
+
+			return chunkSize;
+		};
+
+		unsigned i = 0;
+		while (i < streamingBuffer.size()) {
+			i += processChunk(streamingBuffer.data() + i);
 		}
-
-		if (!passiveEP.dataAvailable()) {
-			debug("data unavailable");
-			return;
-		}
-
-		// Update frame Id
-		curFrame = passiveEP.getFrameId();
-
-		// Copy received data into the streaming buffer
-		PayloadHeader phead;
-		passiveEP.retreive(phead,
-			reinterpret_cast<Vertex*>(geometry.vertexBuffer.ptr),
-			reinterpret_cast<Index*>(geometry.indexBuffer.ptr));
-
-		// streamingBufferData now contains [vertices|indices]
-		nVertices = phead.nVertices;
-		nIndices = phead.nIndices;
-		debug("\nn vertices: ", nVertices, ", n indices: ", nIndices);
-
-		// constexpr auto HEADER_SIZE = 2 * sizeof(uint64_t);
-		// memcpy(streamingBufferData, data + HEADER_SIZE, nVertices * sizeof(Vertex));
-		// memcpy(streamingBufferData + VERTEX_BUFFER_SIZE, data + HEADER_SIZE + nVertices * sizeof(Vertex),
-		// nIndices * sizeof(Index));
-
-		// if (curFrame == 1) {
-		// std::ofstream of("sb.data", std::ios::binary);
-		// for (int i = 0; i < nVertices * sizeof(Vertex) + nIndices * sizeof(Index); ++i)
-		// of << ((uint8_t*)streamingBufferData)[i];
-		//}
-
-		// std::cerr << "vertex[0] = " << *((Vertex*)streamingBufferData) << std::endl;
-		// std::cerr << "vertex[100] = " << *(((Vertex*)streamingBufferData)+100) << std::endl;
-		// std::cerr << "index[0] = " << (Index)*(streamingBufferData + nVertices * sizeof(Vertex)) <<
-		// std::endl;
 	}
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime)
@@ -683,8 +697,6 @@ private:
 
 	void prepareBufferMemory(Buffer& stagingBuffer)
 	{
-		streamingBufferData = new uint8_t[VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE];
-
 		// Find out the optimal offsets for uniform buffers, accounting for minimum align
 		VkDeviceSize uboSize = 0;
 		const auto uboAlign = findMinUboAlign(app.physicalDevice);
@@ -729,6 +741,12 @@ private:
 				&geometry.indexBuffer,
 				&uniformBuffers,
 			});
+
+		// Allocate enough memory to contain all vertices and indices
+		streamingBuffer.reserve(std::accumulate(
+			netRsrc.models.begin(), netRsrc.models.end(), 0, [](auto acc, const auto& pair) {
+				return acc + pair.second.nVertices + pair.second.nIndices;
+			}));
 
 		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
 	}
@@ -834,8 +852,6 @@ private:
 
 		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
-
-		delete[] streamingBufferData;
 
 		app.res.cleanup();
 		app.cleanup();

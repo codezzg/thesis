@@ -2,6 +2,7 @@
 
 #include "server_endpoint.hpp"
 #include "server_resources.hpp"
+#include "udp_messages.hpp"
 #include <array>
 #include <condition_variable>
 #include <mutex>
@@ -20,6 +21,9 @@ struct ServerSharedData final {
 
 	/** Payload received from the client goes here*/
 	std::array<uint8_t, FrameData().payload.size()> clientData;
+
+	/** Notified whenever there are geometry updates to send to the client*/
+	std::condition_variable geomUpdateCv;
 };
 
 /** The Server wraps the endpoints and provides a mean to sharing data between the server threads.
@@ -34,6 +38,7 @@ struct Server final {
 	ServerReliableEndpoint relEP;
 
 	ServerResources resources;
+	std::vector<udp::ChunkHeader> geomUpdate;
 
 	explicit Server(std::size_t memsize);
 	~Server();

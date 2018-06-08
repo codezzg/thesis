@@ -53,8 +53,6 @@ struct Mesh {
 	uint32_t offset;
 	/** Amount of indices */
 	uint32_t len;
-
-	// TODO material per face?
 	/** Index into parent model's materials. */
 	int16_t materialId = -1;
 };

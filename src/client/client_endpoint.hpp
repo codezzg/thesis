@@ -6,6 +6,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <vector>
 
 struct Camera;
 struct PayloadHeader;
@@ -16,37 +17,22 @@ struct PayloadHeader;
  *  method.
  */
 class ClientPassiveEndpoint : public Endpoint {
+
 	uint8_t* buffer = nullptr;
-	uint64_t nVertices = 0;
-	uint32_t nIndices = 0;
-	volatile bool bufferFilled = false;
-	volatile int64_t frameId = -1;
+	std::size_t usedBufSize = 0;
 
 	std::mutex bufMtx;
 
 	void loopFunc() override;
 
 public:
-	/** @return `true` if a buffer is complete available for processing, `false` otherwise.
-	 *  This method should be always called and verified to return true before calling `retreive`.
-	 */
-	bool dataAvailable() const
-	{
-		return bufferFilled && !terminated;
-	}
+	/* This method should be always called and verified to return true before calling `retreive`. */
+	bool dataAvailable() const { return !terminated; }
 
-	/** Copies the current vertex data into `outVBuf`, the current index data into `outIBuf`
-	 *  and the payload header into `phead` in a thread-safe way.
-	 *  Results are undefined if dataAvailable() == false or either outVBuf or outIBuf's size
-	 *  are less than BUFSIZE.
+	/** Copies the current `buffer` into `outBuf` in a thread-safe way.
+	 *  @return the number of bytes copied.
 	 */
-	void retreive(PayloadHeader& phead, Vertex* outVBuf, Index* outIBuf);
-
-	/** @return The frame number corresponding to the latest completely filled buffer. */
-	int64_t getFrameId() const
-	{
-		return frameId;
-	}
+	std::size_t retreive(uint8_t* outBuf, std::size_t outBufSize);
 };
 
 /** This class implements the client's active thread which sends miscellaneous per-frame data
@@ -60,10 +46,7 @@ class ClientActiveEndpoint : public Endpoint {
 public:
 	std::chrono::milliseconds targetFrameTime = std::chrono::milliseconds{ 33 };
 
-	void setCamera(const Camera* camera)
-	{
-		this->camera = camera;
-	}
+	void setCamera(const Camera* camera) { this->camera = camera; }
 };
 
 /** This class implements the client side of the reliable communication channel, used
@@ -91,13 +74,7 @@ public:
 	 *  @return true if the handshake was completed before the timeout.
 	 */
 	bool await(std::chrono::seconds timeout);
-	void proceed()
-	{
-		cv.notify_one();
-	}
+	void proceed() { cv.notify_one(); }
 
-	bool isConnected() const
-	{
-		return connected;
-	}
+	bool isConnected() const { return connected; }
 };

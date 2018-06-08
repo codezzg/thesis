@@ -17,7 +17,7 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len);
 /** Checks whether the data contained in `packetBuf` conforms to our
  *  UDP protocol or not (i.e. has the proper header)
  */
-bool validateUDPPacket(uint8_t* packetBuf, int64_t frameId);
+bool validateUDPPacket(uint8_t* packetBuf, uint64_t packetGen);
 
 /** Dumps the content of `packet` into file `fname` */
 void dumpPacket(const char* fname, const FrameData& packet);
