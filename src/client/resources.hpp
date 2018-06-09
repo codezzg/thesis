@@ -177,7 +177,7 @@ struct Resources {
 		descriptorSets = new (mem + s1 + s2 + s3) DescriptorSetMap(device, descriptorPool);
 	}
 
-	void cleanup() { delete mem; }
+	void cleanup() { delete[] mem; }
 
 private:
 	uint8_t* mem;
