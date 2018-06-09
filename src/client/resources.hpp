@@ -164,17 +164,21 @@ struct Resources {
 
 	void init(VkDevice device, VkDescriptorPool descriptorPool)
 	{
-		pipelineLayouts = new PipelineLayoutMap(device);
-		pipelines = new PipelineMap(device);
-		descriptorSetLayouts = new DescriptorSetLayoutMap(device);
-		descriptorSets = new DescriptorSetMap(device, descriptorPool);
+		constexpr auto s0 = sizeof(PipelineLayoutMap);
+		constexpr auto s1 = sizeof(PipelineMap);
+		constexpr auto s2 = sizeof(DescriptorSetLayoutMap);
+		constexpr auto s3 = sizeof(DescriptorSetMap);
+
+		// Use a single allocation for the backing memory
+		mem = new uint8_t[s0 + s1 + s2 + s3];
+		pipelineLayouts = new (mem) PipelineLayoutMap(device);
+		pipelines = new (mem + s1) PipelineMap(device);
+		descriptorSetLayouts = new (mem + s1 + s2) DescriptorSetLayoutMap(device);
+		descriptorSets = new (mem + s1 + s2 + s3) DescriptorSetMap(device, descriptorPool);
 	}
 
-	void cleanup()
-	{
-		delete pipelines;
-		delete pipelineLayouts;
-		delete descriptorSets;
-		delete descriptorSetLayouts;
-	}
+	void cleanup() { delete mem; }
+
+private:
+	uint8_t* mem;
 };
