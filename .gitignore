@@ -28,3 +28,5 @@ Debug/
 *.db
 x64/
 compile.bat
+cov-int
+cov-token

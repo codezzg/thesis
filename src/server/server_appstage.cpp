@@ -69,11 +69,11 @@ static Sphere calcBoundingSphere(const Model& model)
 }
 
 void transformVertices(Model& model,
-        const std::array<uint8_t, FrameData().payload.size()>& clientData,
-        uint8_t* buffer,
-        std::size_t bufsize,
-        int& nVertices,
-        int& nIndices)
+	const std::array<uint8_t, FrameData().payload.size()>& clientData,
+	uint8_t* buffer,
+	std::size_t bufsize,
+	int& nVertices,
+	int& nIndices)
 {
 	const auto camera = deserializeCamera(clientData);
 
@@ -95,9 +95,9 @@ void transformVertices(Model& model,
 		for (unsigned i = 0; i < model.nVertices; ++i) {
 			const auto& v = model.vertices[i];
 			const auto vv = camera.viewMatrix() * glm::vec4{ v.pos.x, v.pos.y, v.pos.z, 1.0 };
-			if (/* FIXME */ true || sphereInFrustum(vv, sphere.radius * 2, frustum)) {
+			if (/* FIXME */ true /*|| sphereInFrustum(glm::vec3{ vv }, sphere.radius * 2, frustum)*/) {
 				assert(sizeof(Vertex) * vertexIdx < bufsize &&
-				        "transformVertices: writing in unowned memory area!");
+					"transformVertices: writing in unowned memory area!");
 				verticesBuffer[vertexIdx] = v;
 				indexRemap[i] = vertexIdx;
 				// if (!sphereInFrustum(vv, sphere.radius, frustum))
@@ -120,7 +120,7 @@ void transformVertices(Model& model,
 				continue;
 			}
 			assert(nVertices * sizeof(Vertex) + sizeof(Index) * indexIdx < bufsize &&
-			        "transformVertices: writing in unowned memory area!");
+				"transformVertices: writing in unowned memory area!");
 			indicesBuffer[indexIdx] = it->second;
 			++indexIdx;
 		}

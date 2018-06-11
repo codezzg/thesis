@@ -1,0 +1,57 @@
+language: cpp
+env:
+  global:
+   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+   #   via the "travis encrypt" command using the project repo's public key
+   - secure: "krrSLY9FQMiHk/Yh4gS5KInoRQc62VJ9mgU7Nz6RERBB5W/ARSgNjRXdkvPJUWD8L++/GLfdr0cyQn/CgixZEgKHD4NW058E39ETl8VI4wrssCFP8vbTsqjH924x+Y/CuZ8eHHjcF7MHUzU0eQwqz69hvStbsBIHvY9Vrfu6hI+KSkpbR+jI0OwdCAGq05VbQzEu/SPEnWJ9r7p/aJoA+1AAi6p8PqG1KmYQ/Wn3wNDDdJPgNk9kS8oTK+XwFukGqd5tDWyqN/56UXAcArk9UGOJD2k6U1gKLDu0sC68Mo+WOUwwQJFxpUMo4UKOJc0Lcuxidd7s2b3Jxjecm8I/NRzNumrnXD9Z0ongT45AnZz2C48+bht7OY1uAf1lITFh2aXo261t4ZzOpue+F5TdI2h2npH019xO+3ZnGsTL/aN3Fuk9UahwVv8AcBdvBvj/9IqSR0JEwOS14LCn7Sr3dmt2Fdr80VkZt1+tDi+PqFfhUEiD1e2XkTztNTVhB8jULqKvZHUfayU5U97cXR8ppww/eGj1n/nB7yq62CfF4RrPoOMC7bHyUGo6HQiT3bptLCgCmnxT+bWTZKwOb+8k252y/4G8acQ7NDEbkk7nkVF81XcICPD/QBgFXK6NM8WFVHbc8oHCiWPdP4MXwJkmbkxXe4kBwWeqGqGJUxJnicI="
+
+matrix:
+  include:
+    - compiler: clang
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-precise-3.7
+          packages:
+            - clang-3.7
+      env: COMPILER="cov-translate --dir=~/thesis/cov-int --run-compile clang++-3.7"
+
+before_install:
+  - echo "deb-src http://ppa.launchpad.net/keithw/glfw3/ubuntu trusty main" | sudo tee -a /etc/apt/sources.list
+  - sudo add-apt-repository -y ppa:xorg-edgers/ppa
+  - sudo apt-get update --allow-unauthenticated
+  - sudo apt-get install -q -y libglm-dev libassimp-dev xorg-dev graphviz libxcb-dri3-0 libxcb-present0 libpciaccess0 cmake libpng-dev libxcb-dri3-dev libx11-dev libx11-xcb-dev libmirclient-dev libwayland-dev libxrandr-dev
+  - wget -O vulkansdk-linux-x86_64-1.1.73.0.run https://vulkan.lunarg.com/sdk/download/1.1.73.0/linux/vulkansdk-linux-x86_64-1.1.73.0.run
+  - chmod +x ./vulkansdk-linux-x86_64-1.1.73.0.run
+  - ./vulkansdk-linux-x86_64-1.1.73.0.run
+  - export VULKAN_SDK=$TRAVIS_BUILD_DIR/VulkanSDK/1.1.73.0/x86_64
+  - wget https://github.com/glfw/glfw/releases/download/3.2.1/glfw-3.2.1.zip
+  - unzip glfw-3.2.1.zip
+  - cd glfw-3.2.1
+  - cmake -DBUILD_SHARED_LIBS=ON
+  - make -j4
+  - mkdir lib
+  - cp src/*.so* lib
+  - export GLFW_LOCATION=$TRAVIS_BUILD_DIR/glfw-3.2.1
+  - cd $TRAVIS_BUILD_DIR
+  - mkdir -p cov-int
+
+after_success:
+  - pwd
+  - ls
+  - cat cov-int/build-log.txt
+
+addons:
+  coverity_scan:
+    project:
+      name: "silverweed/thesis"
+      description: "<Your project description here>"
+    notification_email: silverweed1991@gmail.com
+    build_command_prepend:
+            - cov-configure --comptype clangcxx --compiler $(which clang++)
+    build_command: "if [ \"${COVERITY_SCAN_BRANCH}\" != 1 ]; then cmake . && make -j4; fi"
+    branch_pattern: coverity_scan
+
+
+script: "if [ \"${COVERITY_SCAN_BRANCH}\" != 1 ]; then cmake . && make -j4; fi"

@@ -714,7 +714,7 @@ private:
 		auto ubo = uniformBuffers.getComp();
 		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
 		ubo->opts = shaderOpts.getRepr();
-		verbose("viewPos = ", ubo->viewPos);
+		verbose("viewPos = ", glm::to_string(ubo->viewPos));
 	}
 
 	void prepareBufferMemory(Buffer& stagingBuffer)
