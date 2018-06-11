@@ -106,11 +106,11 @@ private:
 	ClientReliableEndpoint relEP;
 	int64_t curFrame = -1;
 
-	Camera camera;
-	std::unique_ptr<CameraController> cameraCtrl;
-
 	std::vector<VkCommandBuffer> swapCommandBuffers;
 
+	/** The semaphores are owned by `app.res`. We save their handles rather than querying them
+	 *  each frame for performance reasons.
+	 */
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 
@@ -127,6 +127,9 @@ private:
 	std::vector<uint8_t> streamingBuffer;
 	uint64_t nVertices = 0;
 	uint64_t nIndices = 0;
+
+	Camera camera;
+	std::unique_ptr<CameraController> cameraCtrl;
 
 	ShaderOpts shaderOpts;
 
@@ -444,52 +447,73 @@ private:
 
 		// streamingBuffer now contains [size0|chunk0|chunk1|...|size1|chunk0|...]
 
-		const auto processChunk = [this](uint8_t* ptr) {
-			const auto header = reinterpret_cast<const udp::ChunkHeader*>(ptr);
-
-			std::size_t dataSize;
-			void* dataPtr;
-			switch (header->dataType) {
-			case udp::DataType::VERTEX:
-				dataSize = sizeof(Vertex);
-				dataPtr = geometry.vertexBuffer.ptr;
-				break;
-			case udp::DataType::INDEX:
-				dataSize = sizeof(Index);
-				dataPtr = geometry.indexBuffer.ptr;
-				break;
-			default: {
-				std::stringstream ss;
-				ss << "Invalid data type " << int(header->dataType) << " in Update Chunk!";
-				throw std::runtime_error(ss.str());
-			}
-			}
-
-			const auto chunkSize = sizeof(header) + sizeof(dataSize * header->len);
-
-			auto it = geometry.locations.find(header->modelId);
-			if (it == geometry.locations.end()) {
-				warn("Received an Update Chunk for inexistent model ", header->modelId, "!");
-				return chunkSize;
-			}
-
-			//// Update the model
-
-			auto& loc = it->second;
-			// Use the correct offset into the vertex/index buffer
-			const auto offset = header->dataType == udp::DataType::VERTEX ? loc.vertexOff : loc.indexOff;
-			dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + offset;
-
-			memcpy(dataPtr, ptr + sizeof(header), dataSize * header->len);
-
-			return chunkSize;
-		};
-
 		unsigned i = 0;
 		while (i < streamingBuffer.size()) {
-			i += processChunk(streamingBuffer.data() + i);
+			i += processChunk(streamingBuffer.data() + i, streamingBuffer.size() - i);
 		}
 	}
+
+	/** Receives a pointer to a byte buffer and tries to read an UpdatePacket chunk from it.
+	 *  Will not try to read more than `maxBytesToRead` bytes from the buffer.
+	 *  An UpdatePacket chunk consists of a ChunkHeader followed by a payload.
+	 *  If a chunk is correctly read from the buffer, its content is interpreted and used to
+	 *  update the proper vertices or indices of a model.
+	 *  @return The number of bytes read, (aka the offset of the next chunk if there are more chunks after this)
+	 */
+	std::size_t processChunk(uint8_t* ptr, std::size_t maxBytesToRead)
+	{
+		if (maxBytesToRead <= sizeof(udp::ChunkHeader)) {
+			err("Buffer given to processChunk has not enough room for a Header + Payload!");
+			return maxBytesToRead;
+		}
+
+		//// Read the header
+		const auto header = reinterpret_cast<const udp::ChunkHeader*>(ptr);
+
+		std::size_t dataSize = 0;
+		void* dataPtr = nullptr;
+		switch (header->dataType) {
+		case udp::DataType::VERTEX:
+			dataSize = sizeof(Vertex);
+			dataPtr = geometry.vertexBuffer.ptr;
+			break;
+		case udp::DataType::INDEX:
+			dataSize = sizeof(Index);
+			dataPtr = geometry.indexBuffer.ptr;
+			break;
+		default: {
+			std::stringstream ss;
+			ss << "Invalid data type " << int(header->dataType) << " in Update Chunk!";
+			throw std::runtime_error(ss.str());
+		}
+		}
+
+		assert(dataSize != 0 && dataPtr != nullptr);
+
+		const auto chunkSize = sizeof(header) + sizeof(dataSize * header->len);
+
+		if (chunkSize > maxBytesToRead) {
+			err("processChunk would read past the allowed memory area!");
+			return maxBytesToRead;
+		}
+
+		auto it = geometry.locations.find(header->modelId);
+		if (it == geometry.locations.end()) {
+			warn("Received an Update Chunk for inexistent model ", header->modelId, "!");
+			return chunkSize;
+		}
+
+		//// Update the model
+
+		auto& loc = it->second;
+		// Use the correct offset into the vertex/index buffer
+		const auto offset = header->dataType == udp::DataType::VERTEX ? loc.vertexOff : loc.indexOff;
+		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + offset;
+
+		memcpy(dataPtr, ptr + sizeof(header), dataSize * header->len);
+
+		return chunkSize;
+	};
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime)
 	{
@@ -545,10 +569,8 @@ private:
 
 	void createSemaphores()
 	{
-		VkSemaphoreCreateInfo semaphoreInfo = {};
-		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &imageAvailableSemaphore));
-		VLKCHECK(vkCreateSemaphore(app.device, &semaphoreInfo, nullptr, &renderFinishedSemaphore));
+		imageAvailableSemaphore = app.res.semaphores->create("image_available");
+		renderFinishedSemaphore = app.res.semaphores->create("render_finished");
 	}
 
 	void drawFrameForward()
@@ -849,9 +871,6 @@ private:
 			{ uniformBuffers, geometry.indexBuffer, geometry.vertexBuffer, app.screenQuadBuffer });
 
 		vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
-
-		vkDestroySemaphore(app.device, renderFinishedSemaphore, nullptr);
-		vkDestroySemaphore(app.device, imageAvailableSemaphore, nullptr);
 
 		app.res.cleanup();
 		app.cleanup();

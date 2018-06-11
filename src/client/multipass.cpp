@@ -127,15 +127,13 @@ void recordMultipassCommandBuffers(const Application& app,
 			}
 		}
 
-		//// Second subpass
+		//// Second subpass: draw combined gbuffer images into a fullscreen quad
 		vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
 
 		vertexBuffers[0] = app.screenQuadBuffer.handle;
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
-		// vkCmdBindDescriptorSets(commandBuffers[i], app.res.pipelineLayouts->get("swap"),
-		// 0, 1,
 		vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);

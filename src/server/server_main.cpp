@@ -1,4 +1,5 @@
 #include "config.hpp"
+#include "geom_update.hpp"
 #include "hashing.hpp"
 #include "logging.hpp"
 #include "model.hpp"
@@ -8,9 +9,9 @@
 #include "xplatform.hpp"
 #include <chrono>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <thread>
-#include <fstream>
 #include <unordered_map>
 
 using namespace logging;
@@ -60,6 +61,11 @@ int main(int argc, char** argv)
 	if (!loadAssets(server)) {
 		err("Failed loading assets!");
 		return EXIT_FAILURE;
+	}
+
+	{
+		const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
+		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
 	}
 
 	/// Start TCP socket and wait for connections

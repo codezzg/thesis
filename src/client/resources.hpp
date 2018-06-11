@@ -156,11 +156,37 @@ public:
 	}
 };
 
+class SemaphoreMap final : public ResourceMap<VkSemaphore> {
+public:
+	explicit SemaphoreMap(VkDevice device)
+		: ResourceMap{ device }
+	{
+		resourceType = "semaphore";
+	}
+	~SemaphoreMap()
+	{
+		for (auto& pair : resources)
+			vkDestroySemaphore(device, pair.second, nullptr);
+	}
+
+	VkSemaphore create(const StringId& name)
+	{
+		VkSemaphoreCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		VkSemaphore semaphore;
+		VLKCHECK(vkCreateSemaphore(device, &createInfo, nullptr, &semaphore));
+		resources[name] = semaphore;
+		return semaphore;
+	}
+	VkSemaphore create(const char* name) { return create(sid(name)); }
+};
+
 struct Resources {
 	PipelineLayoutMap* pipelineLayouts;
 	PipelineMap* pipelines;
 	DescriptorSetLayoutMap* descriptorSetLayouts;
 	DescriptorSetMap* descriptorSets;
+	SemaphoreMap* semaphores;
 
 	void init(VkDevice device, VkDescriptorPool descriptorPool)
 	{
@@ -168,21 +194,24 @@ struct Resources {
 		constexpr auto s1 = sizeof(PipelineMap);
 		constexpr auto s2 = sizeof(DescriptorSetLayoutMap);
 		constexpr auto s3 = sizeof(DescriptorSetMap);
+		constexpr auto s4 = sizeof(SemaphoreMap);
 
 		// Use a single allocation for the backing memory
-		mem = new uint8_t[s0 + s1 + s2 + s3];
+		mem = new uint8_t[s0 + s1 + s2 + s3 + s4];
 		pipelineLayouts = new (mem) PipelineLayoutMap(device);
-		pipelines = new (mem + s1) PipelineMap(device);
-		descriptorSetLayouts = new (mem + s1 + s2) DescriptorSetLayoutMap(device);
-		descriptorSets = new (mem + s1 + s2 + s3) DescriptorSetMap(device, descriptorPool);
+		pipelines = new (mem + s0) PipelineMap(device);
+		descriptorSetLayouts = new (mem + s0 + s1) DescriptorSetLayoutMap(device);
+		descriptorSets = new (mem + s0 + s1 + s2) DescriptorSetMap(device, descriptorPool);
+		semaphores = new (mem + s0 + s1 + s2 + s3) SemaphoreMap(device);
 	}
 
 	void cleanup()
 	{
-		pipelineLayouts->~PipelineLayoutMap();
-		pipelines->~PipelineMap();
-		descriptorSetLayouts->~DescriptorSetLayoutMap();
+		semaphores->~SemaphoreMap();
 		descriptorSets->~DescriptorSetMap();
+		descriptorSetLayouts->~DescriptorSetLayoutMap();
+		pipelines->~PipelineMap();
+		pipelineLayouts->~PipelineLayoutMap();
 		delete[] mem;
 	}
 

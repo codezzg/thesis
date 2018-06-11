@@ -1,0 +1,25 @@
+The UDP geometry data is sent by the server in packets of cfg::PACKET_SIZE_BYTES bytes.
+
+This data contains information on how to update the current client-local data, hence they're
+also referred to as "Update Packets".
+
+An Update Packet has the following format:
+
+[header|chunk0.header|chunk0.payload|chunk1.header|chunk1.payload|...]
+
+There may be unused bytes at the end of the packet depending on the combined size of the chunks.
+Detailed content of the individual sections (Header and ChunkHeader) can be found in common/udp_messages.hpp
+
+An Update Packet is therefore a list of individual updates, each represented by a Chunk.
+A ChunkHeader contains the following information:
+	- the ID of the model this chunk refers to
+	- the type of update (vertex / index)
+	- the starting vertex/index to be updated
+	- the amount of vertices/indices to update
+
+So, a ChunkHeader like:
+	[A | Vertex | 42 | 367]
+
+will mean that model A's vertices from 42 to (367+42 = 409) must be updated with the ones contained
+in the payload.
+This chunk's payload will have a size of [ sizeof(Vertex) * 367 ] bytes.
