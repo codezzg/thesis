@@ -117,8 +117,8 @@ std::string xplatDirname(const char* path)
 	// Copy path into a modifiable buffer
 	std::string res;
 	const auto len = strlen(path);
-	char* buf = new char[len];
-	strncpy(buf, path, len);
+	char* buf = new char[len + 1];
+	strncpy(buf, path, len + 1);
 #ifdef _WIN32
 	PathRemoveFileSpec(buf);
 	res = std::string{ buf };

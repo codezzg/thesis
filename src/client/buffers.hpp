@@ -21,7 +21,7 @@ struct Buffer {
 	VkDeviceMemory memory;
 	VkDeviceSize size;
 	/** Offset in the underlying memory */
-	VkDeviceSize offset;
+	VkDeviceSize offset = 0;
 	/** Host-mapped pointer, if any */
 	void* ptr = nullptr;
 };

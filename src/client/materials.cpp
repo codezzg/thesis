@@ -6,7 +6,7 @@ using namespace logging;
 
 Material createMaterial(const shared::Material& mat, const NetworkResources& netRsrc)
 {
-	Material finalMat;
+	Material finalMat = {};
 	{
 		auto it = netRsrc.textures.find(mat.diffuseTex);
 		if (it == netRsrc.textures.end()) {

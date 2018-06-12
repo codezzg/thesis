@@ -392,6 +392,11 @@ static bool receiveModel(socket_t socket,
 	const auto header = *reinterpret_cast<const ResourcePacket<shared::Model>*>(buffer);
 	const auto expectedSize = header.res.nMaterials * sizeof(StringId) + header.res.nMeshes * sizeof(shared::Mesh);
 
+	if (expectedSize > cfg::MAX_MODEL_SIZE) {
+		err("Model server sent is too big! (", expectedSize / 1024 / 1024., " MiB)");
+		return false;
+	}
+
 	// Retreive payload [materials | meshes]
 
 	void* payload = resources.allocator.alloc(expectedSize);

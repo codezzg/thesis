@@ -21,8 +21,8 @@ class ServerActiveEndpoint final : public Endpoint {
 	Server& server;
 
 	/** This memory is owned externally */
-	uint8_t* memory;
-	std::size_t memsize;
+	uint8_t* memory = nullptr;
+	std::size_t memsize = 0;
 
 	void loopFunc() override;
 	/** Sends vertices and indices, stored at `buffer`, to client */
@@ -34,10 +34,9 @@ public:
 	/** Constructs a ServerActiveEndpoint owned by `server`.
 	 */
 	explicit ServerActiveEndpoint(Server& server)
-	        : server{ server }
-	        , targetFrameTime{ std::chrono::milliseconds{ 33 } }
-	{
-	}
+		: server{ server }
+		, targetFrameTime{ std::chrono::milliseconds{ 33 } }
+	{}
 
 	/*  `memory` is a pointer into a valid memory buffer, which must be large enough to contain
 	 *  the processed data (TODO: enforce this requirement).
@@ -62,9 +61,8 @@ class ServerPassiveEndpoint final : public Endpoint {
 
 public:
 	explicit ServerPassiveEndpoint(Server& server)
-	        : server{ server }
-	{
-	}
+		: server{ server }
+	{}
 };
 
 /** This class implements a reliable connection server endpoint which handles the server-side
@@ -101,7 +99,6 @@ public:
 	std::string serverIp;
 
 	explicit ServerReliableEndpoint(Server& server)
-	        : server{ server }
-	{
-	}
+		: server{ server }
+	{}
 };

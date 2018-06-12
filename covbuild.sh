@@ -70,7 +70,7 @@ if [[ $? == 0 ]]; then
 					--form file=@./${PROJECT_NAME}.tgz \
 					--form version="${VERSION}" \
 					--form description="${PROJECT_NAME} build rev.$(getbuild)" \
-					https://scan.coverity.com/builds?project=${PROJECT_NAME}
+					https://scan.coverity.com/builds?project=silverweed%2F${PROJECT_NAME}
 				set +x
 				echo Done. >&2
 				exit 0

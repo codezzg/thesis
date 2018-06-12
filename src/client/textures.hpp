@@ -54,13 +54,5 @@ public:
 	std::string getLatestError() const { return latestError; }
 };
 
-/** Load a texture from `texturePath` into an Image and return it (with its view already filled).
- *  `stagingBuffer` must be a valid buffer to use as a staging buffer.
- */
-Image createTextureImage(const Application& app,
-	const char* texturePath,
-	shared::TextureFormat format,
-	Buffer& stagingBuffer);
-
 /** Create a sampler appropriate for sampling a texture and return it. */
 VkSampler createTextureSampler(const Application& app);

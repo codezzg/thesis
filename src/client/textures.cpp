@@ -40,7 +40,8 @@ bool TextureLoader::addTexture(Image& image, const shared::Texture& texture)
 
 	debug("Loaded texture with width = ", texWidth, ", height = ", texHeight, " chans = ", texChannels);
 
-	const auto imageSize = texWidth * texHeight * (texture.format == TextureFormat::RGBA ? 4 : 1);
+	const auto imageSize =
+		static_cast<VkDeviceSize>(texWidth) * texHeight * (texture.format == TextureFormat::RGBA ? 4 : 1);
 	assert(imageSize > 0);
 
 	ImageInfo info;
@@ -87,7 +88,8 @@ bool TextureLoader::addTexture(Image& image, const std::string& texturePath, Tex
 		return false;
 	}
 
-	const auto imageSize = texWidth * texHeight * (format == TextureFormat::RGBA ? 4 : 1);
+	const auto imageSize =
+		static_cast<VkDeviceSize>(texWidth) * texHeight * (format == TextureFormat::RGBA ? 4 : 1);
 	assert(imageSize > 0);
 
 	ImageInfo info;
@@ -157,50 +159,6 @@ void TextureLoader::create(const Application& app)
 		textureImage->view =
 			createImageView(app, textureImage->handle, textureImage->format, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
-}
-
-Image createTextureImage(const Application& app, const char* texturePath, TextureFormat format, Buffer& stagingBuffer)
-{
-	int texWidth, texHeight, texChannels;
-	auto pixels = stbi_load(texturePath,
-		&texWidth,
-		&texHeight,
-		&texChannels,
-		format == TextureFormat::RGBA ? STBI_rgb_alpha : STBI_grey);
-
-	if (!pixels)
-		throw std::runtime_error("failed to load texture image!");
-
-	VkDeviceSize imageSize = texWidth * texHeight * (format == TextureFormat::RGBA ? 4 : 1);
-
-	// Load the texture into the staging buffer
-	memcpy(stagingBuffer.ptr, pixels, static_cast<size_t>(imageSize));
-
-	// Free the host memory
-	stbi_image_free(pixels);
-
-	const auto vkFormat = format == TextureFormat::RGBA ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8_UNORM;
-
-	auto textureImage = createImage(app,
-		texWidth,
-		texHeight,
-		vkFormat,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	textureImage.view = createImageView(app, textureImage.handle, textureImage.format, VK_IMAGE_ASPECT_COLOR_BIT);
-
-	// Transfer the loaded buffer into the image
-	transitionImageLayout(
-		app, textureImage.handle, vkFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(app, stagingBuffer.handle, textureImage.handle, texWidth, texHeight);
-	transitionImageLayout(app,
-		textureImage.handle,
-		vkFormat,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	return textureImage;
 }
 
 VkSampler createTextureSampler(const Application& app)

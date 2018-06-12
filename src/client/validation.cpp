@@ -18,9 +18,9 @@ bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers
 
 	for (const auto layerName : requestedLayers) {
 		if (std::none_of(
-		            availableLayers.begin(), availableLayers.end(), [layerName](const auto& layerProperties) {
-			            return strcmp(layerProperties.layerName, layerName) == 0;
-		            })) {
+			    availableLayers.begin(), availableLayers.end(), [layerName](const auto& layerProperties) {
+				    return strcmp(layerProperties.layerName, layerName) == 0;
+			    })) {
 			return false;
 		}
 	}
@@ -28,13 +28,13 @@ bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT /*flags*/,
-        VkDebugReportObjectTypeEXT /*objType*/,
-        uint64_t /*obj*/,
-        std::size_t /*location*/,
-        int32_t /*code*/,
-        const char* layerPrefix,
-        const char* msg,
-        void* userData)
+	VkDebugReportObjectTypeEXT /*objType*/,
+	uint64_t /*obj*/,
+	std::size_t /*location*/,
+	int32_t /*code*/,
+	const char* layerPrefix,
+	const char* msg,
+	void* userData)
 {
 	const auto data = reinterpret_cast<const Validation*>(userData);
 	std::cerr << "validation layer |" << layerPrefix << "|: " << data->addDetails(msg) << "\n" << std::endl;
@@ -43,12 +43,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT /*flag
 }
 
 static VkResult createDebugReportCallbackEXT(VkInstance instance,
-        const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
-        VkDebugReportCallbackEXT* pCallback)
+	const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,
+	const VkAllocationCallbacks* pAllocator,
+	VkDebugReportCallbackEXT* pCallback)
 {
 	auto func =
-	        (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
+		(PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
 	if (func != nullptr)
 		return func(instance, pCreateInfo, pAllocator, pCallback);
 	else
@@ -56,11 +56,11 @@ static VkResult createDebugReportCallbackEXT(VkInstance instance,
 }
 
 static void destroyDebugReportCallbackEXT(VkInstance instance,
-        VkDebugReportCallbackEXT callback,
-        const VkAllocationCallbacks* pAllocator)
+	VkDebugReportCallbackEXT callback,
+	const VkAllocationCallbacks* pAllocator)
 {
 	auto func =
-	        (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
+		(PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
 	if (func != nullptr)
 		func(instance, callback, pAllocator);
 }
@@ -137,6 +137,7 @@ std::string Validation::addDetails(const char* msg) const
 	}
 
 	return oss.str();
-#endif
+#else
 	return std::string{ msg };
+#endif
 }

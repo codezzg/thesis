@@ -111,8 +111,8 @@ private:
 	/** The semaphores are owned by `app.res`. We save their handles rather than querying them
 	 *  each frame for performance reasons.
 	 */
-	VkSemaphore imageAvailableSemaphore;
-	VkSemaphore renderFinishedSemaphore;
+	VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
+	VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
 
 	/** Struct containing geometry data (vertex/index buffers + metadata) */
 	Geometry geometry;
@@ -121,7 +121,7 @@ private:
 	CombinedUniformBuffers uniformBuffers;
 
 	NetworkResources netRsrc;
-	VkSampler texSampler;
+	VkSampler texSampler = VK_NULL_HANDLE;
 
 	/** Memory area staging vertices and indices coming from the server */
 	std::vector<uint8_t> streamingBuffer;
@@ -490,7 +490,7 @@ private:
 
 		assert(dataSize != 0 && dataPtr != nullptr);
 
-		const auto chunkSize = sizeof(header) + sizeof(dataSize * header->len);
+		const auto chunkSize = sizeof(header) + dataSize * header->len;
 
 		if (chunkSize > maxBytesToRead) {
 			err("processChunk would read past the allowed memory area!");

@@ -15,6 +15,7 @@ constexpr auto TEX_SPECULAR_PATH = "textures/chalet_spec.jpg";
 
 /** Maximum size of a texture sent via network */
 constexpr auto MAX_TEXTURE_SIZE = 50 * 1024 * 1024;   // 50 MiB
+constexpr auto MAX_MODEL_SIZE = 5 * 1024 * 1024;      // 5 MiB
 
 constexpr uint32_t PACKET_MAGIC = 0x14101991;
 constexpr std::size_t PACKET_SIZE_BYTES = 480;
