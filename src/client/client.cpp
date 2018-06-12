@@ -27,6 +27,7 @@
 #include "textures.hpp"
 #include "udp_messages.hpp"
 #include "units.hpp"
+#include "utils.hpp"
 #include "validation.hpp"
 #include "vertex.hpp"
 #include "vulk_errors.hpp"
@@ -451,13 +452,29 @@ private:
 		if (!passiveEP.dataAvailable())
 			return;
 
-		auto bytesRead = passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
+		auto totBytes = passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
+
+		verbose("BYTES READ = ");
+		dumpBytes(streamingBuffer.data(), streamingBuffer.size(), 50, LOGLV_VERBOSE);
 
 		// streamingBuffer now contains [size0|chunk0|chunk1|...|size1|chunk0|...]
 
-		unsigned i = 0;
-		while (i < bytesRead) {
-			i += processChunk(streamingBuffer.data() + i, streamingBuffer.size() - i);
+		// Read the size of the first packet
+		uint32_t packetSize = *reinterpret_cast<const uint32_t*>(streamingBuffer.data());
+		unsigned bytesProcessed = 0;
+		auto bytesLeft = std::min(static_cast<std::size_t>(packetSize), streamingBuffer.size());
+		while (bytesProcessed < totBytes) {
+			// TODO: take packetSize into account
+			debug("Processing chunk at offset ", bytesProcessed);
+			bytesProcessed += processChunk(streamingBuffer.data() + bytesProcessed, bytesLeft);
+			bytesLeft -= bytesProcessed;
+			assert(bytesLeft >= 0);
+			if (bytesLeft == 0) {
+				// read new packet size
+				packetSize =
+					*reinterpret_cast<const uint32_t*>(streamingBuffer.data() + bytesProcessed);
+				bytesLeft = std::min(static_cast<std::size_t>(packetSize), streamingBuffer.size());
+			}
 		}
 	}
 

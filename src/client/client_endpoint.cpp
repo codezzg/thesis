@@ -25,8 +25,10 @@ static constexpr auto BUFSIZE = megabytes(16);
 void ClientPassiveEndpoint::loopFunc()
 {
 	// This will be filled like this:
-	// [size0|chunk0.header|chunk0.payload|chunk1.header|chunk1.payload|...|size1|...]
-	// where `sizeN` is the total chunk size of the N-th packet stored in the buffer
+	// [size0|chunk0.header|chunk0.payload|chunk1.header|chunk1.payload|...garbage0|size1|...]
+	// where `sizeN` is the total chunk size of the N-th packet stored in the buffer.
+	// Saving the actual packet size is needed because we just copy all the payload,
+	// trailing garbage included.
 	buffer = new uint8_t[BUFSIZE];
 	usedBufSize = 0;
 

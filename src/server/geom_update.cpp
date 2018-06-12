@@ -28,13 +28,12 @@ std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
 			static_cast<decltype(maxVerticesPerPayload)>(model.nVertices - i), maxVerticesPerPayload);
 		updates.emplace_back(header);
 
-		debug("Chunk size = ", sizeof(udp::ChunkHeader) + header.len * sizeof(Vertex));
 		i += header.len;
 	}
 
 	header.dataType = udp::DataType::INDEX;
 	// We're likely to have spare space in the last packet: fill it with indices if we can
-	const auto spareBytes = i - i / maxVerticesPerPayload;
+	const auto spareBytes = maxVerticesPerPayload - i + maxVerticesPerPayload * (i / maxVerticesPerPayload);
 	if (spareBytes >= sizeof(udp::ChunkHeader) + sizeof(Index)) {
 		header.start = 0;
 		header.len = (spareBytes - sizeof(udp::ChunkHeader)) / sizeof(Index);

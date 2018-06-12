@@ -16,7 +16,7 @@ enum class DataType : uint8_t {
 /* Description of the UDP data sent by the server to update geometry.
  * Update packets have this format:
  * [0] header.magic (4)
- * [4] header.packetId (8)
+ * [4] header.packetGen (8)
  * [12] prelude.size (4)
  * [16] chunk0.modelId (4)
  * [20] chunk0.dataType (1)

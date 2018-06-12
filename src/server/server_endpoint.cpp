@@ -166,31 +166,33 @@ void ServerActiveEndpoint::loopFunc()
 			server.sharedData.geomUpdateCv.wait(ulk);
 		}
 
-		std::size_t offset = 0;
+		std::size_t offset = sizeof(udp::Header);
 		writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
-		info("geomUpdate.size now = ", server.geomUpdate.size());
+		verbose("geomUpdate.size now = ", server.geomUpdate.size());
 
 		auto write = server.geomUpdate.begin();
-		for (auto read = write; read != server.geomUpdate.end(); ++read) {
-			verbose("update: ", read->start, " / ", read->len);
+		unsigned i = 0;
+		for (auto read = write; read != server.geomUpdate.end();) {
+			verbose("update: ", i++, ": ", read->start, " / ", read->len);
 
 			const auto written =
 				addGeomUpdate(buffer.data(), buffer.size(), offset, *read, server.resources);
 			if (written > 0) {
 				offset += written;
+				read = server.geomUpdate.erase(read);
 			} else {
 				// Not enough room: send the packet and go on
 				dumpBytes(buffer.data(), buffer.size(), 50, LOGLV_VERBOSE);
 				sendPacket(socket, buffer.data(), buffer.size());
 				writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
-				offset = 0;
-				if (read != write)
-					*write = std::move(*read);
-				++write;
+				offset = sizeof(udp::Header);
+				// if (read != write)
+				//*write = std::move(*read);
+				//++write;
 			}
 		}
 
-		server.geomUpdate.erase(write, server.geomUpdate.end());
+		// server.geomUpdate.erase(write, server.geomUpdate.end());
 
 		++packetGen;
 	}
