@@ -30,10 +30,9 @@ public:
 	float targetDeltaTime = 1.f / 30.f;
 
 	explicit Clock(float startTime = 0)
-	        : timeCycles(secondsToCycles(startTime))
-	        , latestTimeCycles(timeCycles)
-	{
-	}
+		: timeCycles(secondsToCycles(startTime))
+		, latestTimeCycles(timeCycles)
+	{}
 
 	void update(float dt)
 	{
@@ -49,8 +48,5 @@ public:
 			timeCycles += secondsToCycles(targetDeltaTime * timeScale);
 	}
 
-	float deltaTime() const
-	{
-		return cyclesToSeconds(timeCycles - latestTimeCycles);
-	}
+	float deltaTime() const { return cyclesToSeconds(timeCycles - latestTimeCycles); }
 };

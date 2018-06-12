@@ -18,10 +18,9 @@ public:
 	const std::size_t capacity;
 
 	explicit StackAllocator(uint8_t* buffer, std::size_t bufsize)
-	        : mem{ buffer }
-	        , capacity{ bufsize }
-	{
-	}
+		: mem{ buffer }
+		, capacity{ bufsize }
+	{}
 
 	template <typename T>
 	T* alloc()
@@ -40,14 +39,14 @@ public:
 		used += size;
 		allocations.emplace_back(size);
 		logging::debug("Allocating. # allocs so far: ",
-		        allocations.size(),
-		        " (used: ",
-		        used,
-		        " / ",
-		        capacity,
-		        " [",
-		        float(used) / capacity * 100,
-		        "%])");
+			allocations.size(),
+			" (used: ",
+			used,
+			" / ",
+			capacity,
+			" [",
+			float(used) / capacity * 100,
+			"%])");
 
 		return ptr;
 	}
@@ -73,14 +72,14 @@ public:
 		used -= allocations.back();
 		allocations.pop_back();
 		logging::debug("Deallocating. # allocs so far: ",
-		        allocations.size(),
-		        " (used: ",
-		        used,
-		        " / ",
-		        capacity,
-		        " [",
-		        float(used) / capacity * 100,
-		        "%])");
+			allocations.size(),
+			" (used: ",
+			used,
+			" / ",
+			capacity,
+			" [",
+			float(used) / capacity * 100,
+			"%])");
 	}
 
 	void deallocAll()

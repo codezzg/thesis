@@ -16,11 +16,11 @@
 // `buffer` is the pointer to the memory where to store temporary frame data
 // `nVertices` and `nIndices` get updated by this function
 void transformVertices(Model& model,
-        const std::array<uint8_t, FrameData().payload.size()>& clientData,
-        /* inout */ uint8_t* buffer,
-        std::size_t bufsize,
-        /* inout */ int& nVertices,
-        /* inout */ int& nIndices);
+	const std::array<uint8_t, FrameData().payload.size()>& clientData,
+	/* inout */ uint8_t* buffer,
+	std::size_t bufsize,
+	/* inout */ int& nVertices,
+	/* inout */ int& nIndices);
 
 #ifdef _WIN32
 inline bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum)

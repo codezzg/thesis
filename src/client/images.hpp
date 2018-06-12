@@ -26,12 +26,12 @@ class ImageAllocator final {
 public:
 	/** Schedules a new image to be created and binds it to `image`. */
 	void addImage(Image& image,
-	        uint32_t width,
-	        uint32_t height,
-	        VkFormat format,
-	        VkImageTiling tiling,
-	        VkImageUsageFlags usage,
-	        VkMemoryPropertyFlags properties);
+		uint32_t width,
+		uint32_t height,
+		VkFormat format,
+		VkImageTiling tiling,
+		VkImageUsageFlags usage,
+		VkMemoryPropertyFlags properties);
 
 	/** Creates the scheduled buffers and allocates their memory. */
 	void create(const Application& app);
@@ -43,18 +43,18 @@ VkImageView createImageView(const Application& app, VkImage image, VkFormat form
  *  Note: prefer allocating many images at once using ImageAllocator.
  */
 Image createImage(const Application& app,
-        uint32_t width,
-        uint32_t height,
-        VkFormat format,
-        VkImageTiling tiling,
-        VkImageUsageFlags usage,
-        VkMemoryPropertyFlags properties);
+	uint32_t width,
+	uint32_t height,
+	VkFormat format,
+	VkImageTiling tiling,
+	VkImageUsageFlags usage,
+	VkMemoryPropertyFlags properties);
 
 void transitionImageLayout(const Application& app,
-        VkImage image,
-        VkFormat format,
-        VkImageLayout oldLayout,
-        VkImageLayout newLayout);
+	VkImage image,
+	VkFormat format,
+	VkImageLayout oldLayout,
+	VkImageLayout newLayout);
 
 Image createDepthImage(const Application& app);
 

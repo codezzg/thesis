@@ -39,9 +39,9 @@ public:
 	 *  The buffer is freed externally, not by this class.
 	 */
 	explicit ServerResources(uint8_t* memory, std::size_t memsize)
-	        : memory{ memory }
-	        , memsize{ memsize }
-	        , allocator{ memory, memsize }
+		: memory{ memory }
+		, memsize{ memsize }
+		, allocator{ memory, memsize }
 	{}
 
 	/** Loads a model from `file` into `memory` and stores its info in `models`.

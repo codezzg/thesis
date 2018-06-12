@@ -84,7 +84,7 @@ constexpr const char* vlkResultStr(VkResult res)
 			const auto res = expr;                                                                 \
 			if (res != VK_SUCCESS)                                                                 \
 				throw std::runtime_error(std::string("Failure at ") + __FILE__ + ":" +         \
-				                         std::to_string(__LINE__) + ": " + vlkResultStr(res)); \
+							 std::to_string(__LINE__) + ": " + vlkResultStr(res)); \
 		} while (false)
 #else
 #	define VLKCHECK(x) x

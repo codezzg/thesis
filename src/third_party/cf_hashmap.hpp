@@ -9,8 +9,8 @@
 #ifndef CF_HASHMAP_HPP
 #define CF_HASHMAP_HPP
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 namespace cf {
 
@@ -33,13 +33,13 @@ private:
 
 	size_t m_capacity;
 
-	uint8_t *m_buffer;
+	uint8_t* m_buffer;
 
 	static constexpr uint32_t EMPTY_HASH = 0;
 	static constexpr uint32_t DELETED_HASH_BIT = 1 << 31;
 
 	template <typename T>
-	static void _swap(T &a, T &b)
+	static void _swap(T& a, T& b)
 	{
 		T tmp = a;
 		a = b;
@@ -67,13 +67,13 @@ private:
 		return pos - ((hash & ~DELETED_HASH_BIT) % m_capacity);
 	}
 
-	bool _lookup_pos(uint32_t hash, const TKey &key, uint32_t &pos) const
+	bool _lookup_pos(uint32_t hash, const TKey& key, uint32_t& pos) const
 	{
 		pos = hash % m_capacity;
 		uint32_t distance = 0;
 
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		TKey *keys = (TKey *) (m_buffer + m_capacity * sizeof(uint32_t));
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		TKey* keys = (TKey*)(m_buffer + m_capacity * sizeof(uint32_t));
 
 		while (distance < m_capacity) {
 			if (hashes[pos] == EMPTY_HASH) {
@@ -95,7 +95,7 @@ private:
 		return false;
 	}
 
-	void insert(uint32_t hash, const TKey &key, const TValue &value)
+	void insert(uint32_t hash, const TKey& key, const TValue& value)
 	{
 
 		if (m_num_elements == m_capacity) {
@@ -110,9 +110,9 @@ private:
 		TKey _key = key;
 		TValue _value = value;
 
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		TKey *keys = (TKey *) (m_buffer + sizeof(uint32_t) * m_capacity);
-		TValue *values = (TValue *) (m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		TKey* keys = (TKey*)(m_buffer + sizeof(uint32_t) * m_capacity);
+		TValue* values = (TValue*)(m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
 
 		while (distance < m_capacity) {
 
@@ -150,11 +150,9 @@ private:
 			pos = (pos + 1) % m_capacity;
 			distance++;
 		}
-
 	}
 
 public:
-
 	/// An iterator for iterating over key-value pairs. Use `iter_start()` to acquire
 	/// such an iterator. Use `iter_next()` to advance the iteration.
 	struct iter {
@@ -165,17 +163,17 @@ public:
 	/// The buffer is a chunk of memory that will be used as the storage. It should probably be
 	/// created by using the `CF_HASHMAP_GET_BUFFER_SIZE` macro.
 	/// Don't modify the contents of the buffer after handing it to a hashmap.
-	static hashmap create(size_t buffer_size, void *buffer)
+	static hashmap create(size_t buffer_size, void* buffer)
 	{
 		hashmap<TKey, TValue> map = {};
 
-		map.m_buffer = (uint8_t *) buffer;
+		map.m_buffer = (uint8_t*)buffer;
 		map.m_num_elements = 0;
 		map.m_capacity = (size_t)(buffer_size / (sizeof(TKey) + sizeof(TValue) + sizeof(uint32_t)));
 
 		size_t capacity = map.m_capacity;
 
-		uint32_t *hashes = (uint32_t *) map.m_buffer;
+		uint32_t* hashes = (uint32_t*)map.m_buffer;
 
 		for (size_t i = 0; i < capacity; i++) {
 			hashes[i] = EMPTY_HASH;
@@ -187,13 +185,13 @@ public:
 	/// Associate a key with a value. The hash is the hash value of the key. This hashmap doesn't
 	/// perform any hashing itself, so the caller has to provide the hash.
 	/// For collision resolution, the key itself has to be provided as well.
-	void set(uint32_t hash, const TKey &key, const TValue &value)
+	void set(uint32_t hash, const TKey& key, const TValue& value)
 	{
 		hash = _hash(hash);
 		uint32_t pos = 0;
 		bool exists = _lookup_pos(hash, key, pos);
 
-		TValue *values = (TValue *) (m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
+		TValue* values = (TValue*)(m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
 
 		if (exists) {
 			values[pos] = value;
@@ -206,12 +204,12 @@ public:
 	/// has to be provided in case a collision occurs.
 	/// If an entry is found, the value will be written to the out-parameter `value`.
 	/// Returns true if an entry was found, false otherwise.
-	bool lookup(uint32_t hash, const TKey &key, TValue &value) const
+	bool lookup(uint32_t hash, const TKey& key, TValue& value) const
 	{
 		uint32_t pos = 0;
 		bool exists = _lookup_pos(_hash(hash), key, pos);
 
-		TValue *values = (TValue *) (m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
+		TValue* values = (TValue*)(m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
 
 		if (exists) {
 			value = values[pos];
@@ -225,7 +223,7 @@ public:
 	/// This uses `lookup()` internally, but discards the bool return value
 	/// and returns the value instead of having it as an out parameter.
 	/// WARNING: If the entry was not found then the return value is **undefined**.
-	inline TValue get(uint32_t hash, const TKey &key) const
+	inline TValue get(uint32_t hash, const TKey& key) const
 	{
 		TValue value;
 		lookup(_hash(hash), key, value);
@@ -234,11 +232,11 @@ public:
 
 	/// Remove an entry from the hashtable by proving the hash and the key value, in case a
 	/// collision occurs.
-	void remove(uint32_t hash, const TKey &key)
+	void remove(uint32_t hash, const TKey& key)
 	{
 		uint32_t pos = 0;
 		bool exists = _lookup_pos(_hash(hash), key, pos);
-		uint32_t *hashes = (uint32_t *) m_buffer;
+		uint32_t* hashes = (uint32_t*)m_buffer;
 
 		if (!exists) {
 			return;
@@ -260,11 +258,11 @@ public:
 	/// out parameters `key` and `value` in case a next iteration was possible.
 	/// In that case the function will return true.
 	/// The function will return false when the end was reached.
-	bool iter_next(iter &iter, TKey &key, TValue &value) const
+	bool iter_next(iter& iter, TKey& key, TValue& value) const
 	{
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		TKey *keys = (TKey *) (m_buffer + sizeof(uint32_t) * m_capacity);
-		TValue *values = (TValue *) (m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		TKey* keys = (TKey*)(m_buffer + sizeof(uint32_t) * m_capacity);
+		TValue* values = (TValue*)(m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
 
 		for (size_t i = iter.offset; i < m_capacity; i++) {
 			if (hashes[i] == EMPTY_HASH) {
@@ -284,20 +282,17 @@ public:
 
 	/// Calculates the load factor of the map. When the load factor is greater than 0.95
 	/// then `copy()` should be used to relocate the hashmap for better performance.
-	constexpr float load_factor() const
-	{
-		return m_num_elements / (float) m_capacity;
-	}
+	constexpr float load_factor() const { return m_num_elements / (float)m_capacity; }
 
 	/// Creates a new hashmap using a different buffer. All the entries of the
 	/// current map will be inserted into the new map.
-	hashmap<TKey, TValue> copy(size_t buffer_size, void *buffer) const
+	hashmap<TKey, TValue> copy(size_t buffer_size, void* buffer) const
 	{
 		hashmap<TKey, TValue> new_hashmap = hashmap::create(buffer_size, buffer);
 
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		TKey *keys = (TKey *) (m_buffer + sizeof(uint32_t) * m_capacity);
-		TValue *values = (TValue *) (m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		TKey* keys = (TKey*)(m_buffer + sizeof(uint32_t) * m_capacity);
+		TValue* values = (TValue*)(m_buffer + (sizeof(uint32_t) + sizeof(TKey)) * m_capacity);
 
 		for (size_t i = 0; i < m_capacity; i++) {
 			if (hashes[i] == EMPTY_HASH) {
@@ -311,22 +306,15 @@ public:
 		}
 
 		return new_hashmap;
-
 	}
 
 	/// The number of elements in this hash map.
-	constexpr size_t num_elements() const
-	{
-		return m_num_elements;
-	}
+	constexpr size_t num_elements() const { return m_num_elements; }
 
 	/// The capacity of how many elements *could* be held in this map.
-	constexpr size_t capacity() const
-	{
-		return m_capacity;
-	}
+	constexpr size_t capacity() const { return m_capacity; }
 };
 
-}
+}   // namespace cf
 
 #endif

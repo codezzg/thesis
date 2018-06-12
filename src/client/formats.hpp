@@ -25,4 +25,3 @@ constexpr bool hasStencilComponent(VkFormat format)
 
 VkVertexInputBindingDescription getVertexBindingDescription();
 std::array<VkVertexInputAttributeDescription, 5> getVertexAttributeDescriptions();
-

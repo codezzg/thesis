@@ -23,4 +23,3 @@ public:
 
 	glm::i32 getRepr() const { return static_cast<glm::i32>(shaderOpts.to_ulong()); }
 };
-

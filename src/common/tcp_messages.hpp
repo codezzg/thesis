@@ -80,7 +80,7 @@ inline std::ostream& operator<<(std::ostream& s, MsgType msg)
 constexpr MsgType byte2msg(uint8_t byte)
 {
 	return byte == 0 || byte > static_cast<uint8_t>(MsgType::UNKNOWN) ? MsgType::UNKNOWN
-	                                                                  : static_cast<MsgType>(byte);
+									  : static_cast<MsgType>(byte);
 }
 
 constexpr uint8_t msg2byte(MsgType type)

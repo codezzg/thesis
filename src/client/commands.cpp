@@ -47,9 +47,9 @@ VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool co
 }
 
 void endSingleTimeCommands(VkDevice device,
-        VkQueue graphicsQueue,
-        VkCommandPool commandPool,
-        VkCommandBuffer commandBuffer)
+	VkQueue graphicsQueue,
+	VkCommandPool commandPool,
+	VkCommandBuffer commandBuffer)
 {
 	vkEndCommandBuffer(commandBuffer);
 

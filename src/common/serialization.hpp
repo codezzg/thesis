@@ -9,7 +9,7 @@ template <std::size_t N>
 inline void serializeCamera(std::array<uint8_t, N>& buffer, const Camera& camera)
 {
 	static_assert(N * sizeof(uint8_t) >= 5 * sizeof(float),
-	        "serializeCamera: buffer given is too small! Should be able to contain at least 5 floats.");
+		"serializeCamera: buffer given is too small! Should be able to contain at least 5 floats.");
 	/*
 	 * CameraData:
 	 * [0] position.x
@@ -31,7 +31,7 @@ template <std::size_t N>
 inline Camera deserializeCamera(const std::array<uint8_t, N>& buffer)
 {
 	static_assert(N * sizeof(uint8_t) >= 5 * sizeof(float),
-	        "deserializeCamera: buffer given is too small! Should be able to contain at least 5 floats.");
+		"deserializeCamera: buffer given is too small! Should be able to contain at least 5 floats.");
 
 	Camera camera;
 	const auto buf = buffer.data();

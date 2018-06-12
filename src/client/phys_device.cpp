@@ -48,7 +48,7 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSur
 	if (formatCount != 0) {
 		details.formats.resize(formatCount);
 		VLKCHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
-		        physDevice, surface, &formatCount, details.formats.data()));
+			physDevice, surface, &formatCount, details.formats.data()));
 	}
 
 	uint32_t presentModeCount;
@@ -57,7 +57,7 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physDevice, VkSur
 	if (presentModeCount != 0) {
 		details.presentModes.resize(presentModeCount);
 		VLKCHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
-		        physDevice, surface, &presentModeCount, details.presentModes.data()));
+			physDevice, surface, &presentModeCount, details.presentModes.data()));
 	}
 
 	return details;
@@ -88,7 +88,7 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice)
 
 	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
 	VLKCHECK(
-	        vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, availableExtensions.data()));
+		vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, availableExtensions.data()));
 
 	std::unordered_set<std::string> requiredExtensions(gDeviceExtensions.begin(), gDeviceExtensions.end());
 

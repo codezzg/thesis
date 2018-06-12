@@ -11,6 +11,6 @@ VkCommandBuffer allocCommandBuffer(const Application& app, VkCommandPool command
 VkCommandBuffer beginSingleTimeCommands(const Application& app, VkCommandPool commandPool);
 
 void endSingleTimeCommands(VkDevice device,
-        VkQueue graphicsQueue,
-        VkCommandPool commandPool,
-        VkCommandBuffer commandBuffer);
+	VkQueue graphicsQueue,
+	VkCommandPool commandPool,
+	VkCommandBuffer commandBuffer);

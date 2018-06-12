@@ -40,12 +40,12 @@ std::size_t readFileIntoMemory(const char* path, void* buffer, std::size_t bufsi
 
 	if (dataLen > static_cast<signed>(bufsize)) {
 		err("readFileIntoMemory(",
-		        path,
-		        "): buffer is too small! (",
-		        bufsize,
-		        " while needing ",
-		        dataLen,
-		        " bytes.)");
+			path,
+			"): buffer is too small! (",
+			bufsize,
+			" while needing ",
+			dataLen,
+			" bytes.)");
 		return -1;
 	}
 

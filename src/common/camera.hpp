@@ -23,10 +23,7 @@ struct Camera {
 	// float near = 0.1f;
 	// float far = 300.f;
 
-	explicit Camera()
-	{
-		updateVectors();
-	}
+	explicit Camera() { updateVectors(); }
 
 	glm::mat4 viewMatrix() const;
 	// glm::mat4 projMatrix() const;
