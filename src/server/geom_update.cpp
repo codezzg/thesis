@@ -28,6 +28,7 @@ std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
 			static_cast<decltype(maxVerticesPerPayload)>(model.nVertices - i), maxVerticesPerPayload);
 		updates.emplace_back(header);
 
+		debug("Chunk size = ", sizeof(udp::ChunkHeader) + header.len * sizeof(Vertex));
 		i += header.len;
 	}
 
@@ -54,7 +55,9 @@ std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
 		i += header.len;
 	}
 
-	info("Updates size: ",
+	info("Updates size for model ",
+		model.name,
+		": ",
 		updates.size(),
 		", guessed: ",
 		model.nVertices / maxVerticesPerPayload + model.nIndices / maxIndicesPerPayload + 2);

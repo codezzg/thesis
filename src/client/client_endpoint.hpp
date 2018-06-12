@@ -76,5 +76,7 @@ public:
 	bool await(std::chrono::seconds timeout);
 	void proceed() { cv.notify_one(); }
 
+	bool disconnect();
+
 	bool isConnected() const { return connected; }
 };

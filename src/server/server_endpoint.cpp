@@ -13,6 +13,7 @@
 #include "server_appstage.hpp"
 #include "tcp_messages.hpp"
 #include "udp_messages.hpp"
+#include "utils.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -121,8 +122,14 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	}
 
 	const auto payloadSize = dataSize * geomUpdate.len;
+	verbose("start: ", geomUpdate.start, ", len: ", geomUpdate.len);
+	verbose("offset: ", offset, ", payload size: ", payloadSize, ", bufsize: ", bufsize);
+	// Prevent infinite loops
+	assert(sizeof(ChunkHeader) + payloadSize < bufsize);
+
 	if (offset + payloadSize > bufsize) {
 		// Not enough room
+		verbose("Not enough room!");
 		return 0;
 	}
 
@@ -138,6 +145,7 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 
 	// Update size in header
 	reinterpret_cast<udp::Header*>(buffer)->size += written;
+	verbose("Packet size is now ", reinterpret_cast<udp::Header*>(buffer)->size);
 
 	return written;
 }
@@ -153,26 +161,36 @@ void ServerActiveEndpoint::loopFunc()
 	while (!terminated) {
 
 		if (server.geomUpdate.size() == 0) {
-			// Wait for dirty models
+			// Wait for updates
 			std::unique_lock<std::mutex> ulk{ loopMtx };
 			server.sharedData.geomUpdateCv.wait(ulk);
 		}
 
 		std::size_t offset = 0;
 		writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
-		for (auto it = server.geomUpdate.begin(); it != server.geomUpdate.end();) {
+		info("geomUpdate.size now = ", server.geomUpdate.size());
 
-			const auto written = addGeomUpdate(buffer.data(), buffer.size(), offset, *it, server.resources);
+		auto write = server.geomUpdate.begin();
+		for (auto read = write; read != server.geomUpdate.end(); ++read) {
+			verbose("update: ", read->start, " / ", read->len);
+
+			const auto written =
+				addGeomUpdate(buffer.data(), buffer.size(), offset, *read, server.resources);
 			if (written > 0) {
-				it = server.geomUpdate.erase(it);
 				offset += written;
 			} else {
 				// Not enough room: send the packet and go on
+				dumpBytes(buffer.data(), buffer.size(), 50, LOGLV_VERBOSE);
 				sendPacket(socket, buffer.data(), buffer.size());
 				writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
 				offset = 0;
+				if (read != write)
+					*write = std::move(*read);
+				++write;
 			}
 		}
+
+		server.geomUpdate.erase(write, server.geomUpdate.end());
 
 		++packetGen;
 	}
@@ -294,8 +312,17 @@ static void keepaliveTask(socket_t clientSocket,
 			break;
 		}
 
-		if (type == MsgType::KEEPALIVE)
+		switch (type) {
+		case MsgType::KEEPALIVE:
 			latestPing = std::chrono::system_clock::now();
+			break;
+		case MsgType::DISCONNECT:
+			// Special value used to signal disconnection
+			latestPing = std::chrono::time_point<std::chrono::system_clock>::max();
+			break;
+		default:
+			break;
+		}
 	}
 }
 
@@ -349,12 +376,18 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(loopCv), std::ref(latestPing) };
 
 		const auto& roLatestPing = latestPing;
-		std::unique_lock<std::mutex> loopUlk{ loopMtx };
 		const auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
 
 		while (true) {
+			std::unique_lock<std::mutex> loopUlk{ loopMtx };
 			if (loopCv.wait_for(loopUlk, interval) == std::cv_status::no_timeout)
 				break;
+
+			// Check for disconnection
+			if (roLatestPing == std::chrono::time_point<std::chrono::system_clock>::max()) {
+				info("Client disconnected.");
+				break;
+			}
 
 			// Verify the client has pinged us more recently than SERVER_KEEPALIVE_INTERVAL_SECONDS
 			const auto now = std::chrono::system_clock::now();

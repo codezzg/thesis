@@ -13,20 +13,18 @@ enum LogLevel {
 };
 
 extern LogLevel gDebugLv;
+extern bool gColoredLogs;
 
 namespace logging {
 
-#ifdef COLORED_LOGS
 constexpr auto C_RED = "\033[1;31m";
 constexpr auto C_YELLOW = "\033[0;33m";
 constexpr auto C_NONE = "\033[0m";
-#endif
 
 inline void log(LogLevel debugLv, bool breakLine)
 {
-#ifdef COLORED_LOGS
-	std::cerr << C_NONE;
-#endif
+	if (gColoredLogs)
+		std::cerr << C_NONE;
 	if (gDebugLv >= debugLv && breakLine)
 		std::cerr << "\n";
 }
@@ -43,25 +41,13 @@ inline void log(LogLevel debugLv, bool breakLine, Arg&& arg, Args&&... args)
 template <typename... Args>
 inline void err(Args&&... args)
 {
-	log(LOGLV_ERR,
-		true,
-#ifdef COLORED_LOGS
-		C_RED,
-#endif
-		"[E] ",
-		std::forward<Args>(args)...);
+	log(LOGLV_ERR, true, gColoredLogs ? C_RED : "", "[E] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warn(Args&&... args)
 {
-	log(LOGLV_WARN,
-		true,
-#ifdef COLORED_LOGS
-		C_YELLOW,
-#endif
-		"[W] ",
-		std::forward<Args>(args)...);
+	log(LOGLV_WARN, true, gColoredLogs ? C_YELLOW : "", "[W] ", std::forward<Args>(args)...);
 }
 
 template <typename... Args>

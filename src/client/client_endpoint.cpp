@@ -72,8 +72,12 @@ void ClientPassiveEndpoint::loopFunc()
 
 std::size_t ClientPassiveEndpoint::retreive(uint8_t* outBuf, std::size_t outBufSize)
 {
-	if (outBufSize < usedBufSize)
-		throw std::invalid_argument("Buffer given to `retreive` is too small!");
+	if (outBufSize < usedBufSize) {
+		std::stringstream ss;
+		ss << "Buffer given to `retreive` is too small! (Given: " << (outBufSize / 1024) << " KiB, "
+		   << "required: " << (usedBufSize / 1024) << " KiB)";
+		throw std::runtime_error(ss.str());
+	}
 
 	std::lock_guard<std::mutex> lock{ bufMtx };
 	memcpy(outBuf, buffer, usedBufSize);
@@ -544,4 +548,9 @@ bool ClientReliableEndpoint::receiveOneTimeData()
 			// return false;
 		}
 	}
+}
+
+bool ClientReliableEndpoint::disconnect()
+{
+	return sendTCPMsg(socket, MsgType::DISCONNECT);
 }

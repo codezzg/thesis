@@ -98,6 +98,12 @@ public:
 		cleanup();
 	}
 
+	void disconnect()
+	{
+		if (!relEP.disconnect())
+			warn("Failed to disconnect!");
+	}
+
 private:
 	Application app;
 
@@ -215,6 +221,7 @@ private:
 
 	void startNetwork(const char* serverIp)
 	{
+		debug("Starting passive EP...");
 		passiveEP.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		passiveEP.runLoop();
 
@@ -380,6 +387,7 @@ private:
 
 		auto beginTime = std::chrono::high_resolution_clock::now();
 
+		debug("Starting main loop");
 		while (!glfwWindowShouldClose(app.window)) {
 			LimitFrameTime lft{ RENDER_FRAME_TIME };
 			lft.enabled = gLimitFrameTime;
@@ -443,12 +451,12 @@ private:
 		if (!passiveEP.dataAvailable())
 			return;
 
-		passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
+		auto bytesRead = passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
 
 		// streamingBuffer now contains [size0|chunk0|chunk1|...|size1|chunk0|...]
 
 		unsigned i = 0;
-		while (i < streamingBuffer.size()) {
+		while (i < bytesRead) {
 			i += processChunk(streamingBuffer.data() + i, streamingBuffer.size() - i);
 		}
 	}
@@ -485,7 +493,7 @@ private:
 			std::stringstream ss;
 			ss << "Invalid data type " << int(header->dataType) << " in Update Chunk!";
 			throw std::runtime_error(ss.str());
-		}
+		} break;
 		}
 
 		assert(dataSize != 0 && dataPtr != nullptr);
@@ -765,10 +773,11 @@ private:
 			});
 
 		// Allocate enough memory to contain all vertices and indices
-		streamingBuffer.reserve(std::accumulate(
-			netRsrc.models.begin(), netRsrc.models.end(), 0, [](auto acc, const auto& pair) {
-				return acc + pair.second.nVertices + pair.second.nIndices;
-			}));
+		streamingBuffer.resize(megabytes(16));
+		// std::accumulate(
+		// netRsrc.models.begin(), netRsrc.models.end(), 0, [](auto acc, const auto& pair) {
+		// return acc + pair.second.nVertices + pair.second.nIndices;
+		//}));
 
 		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
 	}
@@ -907,6 +916,7 @@ private:
 		auto appl = reinterpret_cast<VulkanClient*>(glfwGetWindowUserPointer(window));
 		switch (key) {
 		case GLFW_KEY_Q:
+			appl->disconnect();
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 			break;
 		case GLFW_KEY_G:
@@ -973,9 +983,13 @@ int main(int argc, char** argv)
 				}
 				gDebugLv = static_cast<LogLevel>(lv);
 			} break;
+			case 'n':
+				gColoredLogs = false;
+				break;
 			default:
-				std::cout << "Usage: " << argv[0]
-					  << " [-c (use camera)] [-d (debug mode, aka use forward rendering)]\n";
+				std::cout
+					<< "Usage: " << argv[0]
+					<< " [-c (use camera)] [-d (debug mode, aka use forward rendering)] [-n (no colored logs)]\n";
 				break;
 			}
 		} else {

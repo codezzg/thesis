@@ -66,6 +66,12 @@ int main(int argc, char** argv)
 	{
 		const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
 		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+
+		info("geomUpdate.size = ", server.geomUpdate.size());
+		int i = 0;
+		for (auto u : server.geomUpdate) {
+			info(i++, ": start: ", u.start, ", len: ", u.len);
+		}
 	}
 
 	/// Start TCP socket and wait for connections
@@ -93,6 +99,9 @@ void parseArgs(int argc, char** argv, std::string& ip)
 				}
 				gDebugLv = static_cast<LogLevel>(lv);
 			} break;
+			case 'n':
+				gColoredLogs = false;
+				break;
 			default:
 				std::cerr << "Usage: " << argv[0] << " [-v[vvv...]]\n";
 				std::exit(EXIT_FAILURE);
