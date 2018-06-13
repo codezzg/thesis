@@ -70,3 +70,23 @@ void dumpBytes(const void* buffer, std::size_t count, std::size_t maxCount, LogL
 	}
 	log(lv, true, "");
 }
+
+void dumpBytesIntoFile(const char* fname, const char* bufname, const void* buffer, std::size_t bufsize, bool append)
+{
+	std::ofstream file(fname, append ? std::ios::app : std::ios::out);
+	file << "\n------------------------------------------\n" << bufname << ": " << std::hex;
+
+	for (unsigned i = 0; i < bufsize; ++i) {
+		if (i % 30 == 0)
+			file << "\n";
+		file << (reinterpret_cast<const uint8_t*>(buffer)[i] & 0xFF) << " ";
+	}
+}
+
+void dumpBytesIntoFileBin(const char* fname, const void* buffer, std::size_t bufsize, bool append)
+{
+	std::ofstream file(fname, append ? std::ios::app | std::ios::binary : std::ios::binary);
+	for (unsigned i = 0; i < bufsize; ++i) {
+		file << reinterpret_cast<const uint8_t*>(buffer)[i];
+	}
+}

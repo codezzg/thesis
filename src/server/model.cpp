@@ -139,6 +139,8 @@ Model loadModel(const char* modelPath, void* buffer)
 	info("Model loaded: ", modelPath);
 	info(model.toString());
 
+	info("max idx = ", *std::max_element(indices.begin(), indices.end()));
+
 	return model;
 }
 

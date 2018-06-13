@@ -13,7 +13,6 @@ struct NetworkResources;
 
 void recordMultipassCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& commandBuffers,
-	uint32_t nIndices,
 	const Geometry& geometry,
 	const NetworkResources& netRsrc);
 

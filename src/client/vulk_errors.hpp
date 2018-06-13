@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vulkan/vulkan.h>
@@ -82,6 +83,10 @@ constexpr const char* vlkResultStr(VkResult res)
 #	define VLKCHECK(expr)                                                                                 \
 		do {                                                                                           \
 			const auto res = expr;                                                                 \
+			if (res == VK_ERROR_DEVICE_LOST) {                                                     \
+				std::cerr << "DEVICE LOST AT " << __FILE__ << ":" << __LINE__ << "\n";         \
+				std::exit(1);                                                                  \
+			}                                                                                      \
 			if (res != VK_SUCCESS)                                                                 \
 				throw std::runtime_error(std::string("Failure at ") + __FILE__ + ":" +         \
 							 std::to_string(__LINE__) + ": " + vlkResultStr(res)); \

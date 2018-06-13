@@ -162,22 +162,6 @@ bool validateUDPPacket(uint8_t* packetBuf, uint64_t packetGen)
 	return true;
 }
 
-void dumpPacket(const char* fname, const FrameData& packet)
-{
-	std::ofstream file(fname, std::ios::app);
-	file << "\n--- packet " << packet.header.frameId << ":" << packet.header.packetId << "\n"
-	     << "Header:\n"
-	     << std::hex;
-
-	for (unsigned i = 0; i < sizeof(FrameHeader); ++i)
-		file << (reinterpret_cast<const uint8_t*>(&packet.header)[i] & 0xFF) << " ";
-
-	file << "\nPayload:\n";
-	for (uint8_t byte : packet.payload) {
-		file << (byte & 0xFF) << " ";
-	}
-}
-
 static std::mutex spamMtx;
 static std::chrono::time_point<std::chrono::system_clock> latestSpam;
 

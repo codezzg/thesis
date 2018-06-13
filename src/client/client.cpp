@@ -464,6 +464,8 @@ private:
 		int64_t bytesLeft = totBytes;
 		assert(bytesLeft <= static_cast<int64_t>(streamingBuffer.size()));
 
+		memset(geometry.vertexBuffer.ptr, 0x0, geometry.vertexBuffer.size);
+		memset(geometry.indexBuffer.ptr, 0x0, geometry.indexBuffer.size);
 		while (bytesProcessed < totBytes) {
 			debug("Processing chunk at offset ", bytesProcessed);
 			const auto bytesInChunk = processChunk(streamingBuffer.data() + bytesProcessed, bytesLeft);
@@ -471,6 +473,26 @@ private:
 			bytesProcessed += bytesInChunk;
 			assert(bytesLeft >= 0);
 		}
+
+		Index maxIdx = 0;
+		assert(netRsrc.models.begin()->second.nIndices == geometry.indexBuffer.size / sizeof(Index));
+		for (unsigned i = 0; i < netRsrc.models.begin()->second.nIndices; ++i) {
+			auto idx = reinterpret_cast<Index*>(geometry.indexBuffer.ptr)[i];
+			if (idx > maxIdx)
+				maxIdx = idx;
+		}
+		info("max idx = ", maxIdx);
+		assert(maxIdx < geometry.vertexBuffer.size / sizeof(Vertex));
+
+		dumpBytesIntoFileBin("sb.data", streamingBuffer.data(), streamingBuffer.size());
+		dumpBytesIntoFileBin("vb.data",
+			geometry.vertexBuffer.ptr,
+			netRsrc.models.begin()->second.nVertices * sizeof(Vertex));
+		dumpBytesIntoFileBin(
+			"ib.data", geometry.indexBuffer.ptr, netRsrc.models.begin()->second.nIndices * sizeof(Index));
+
+		// TODO remove DEBUG
+		memset(geometry.indexBuffer.ptr, 0x0, geometry.indexBuffer.size);
 	}
 
 	/** Receives a pointer to a byte buffer and tries to read an UpdatePacket chunk from it.
@@ -536,8 +558,31 @@ private:
 			header->start + header->len);
 		auto& loc = it->second;
 		// Use the correct offset into the vertex/index buffer
-		const auto offset = header->dataType == udp::DataType::VERTEX ? loc.vertexOff : loc.indexOff;
-		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + offset;
+		const auto baseOffset = header->dataType == udp::DataType::VERTEX ? loc.vertexOff : loc.indexOff;
+		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + baseOffset;
+		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + header->start * dataSize;
+
+		{
+			const auto ptrStart = reinterpret_cast<uintptr_t>(dataPtr);
+			const auto actualPtrStart = reinterpret_cast<uintptr_t>(
+				header->dataType == udp::DataType::VERTEX ? geometry.vertexBuffer.ptr
+									  : geometry.indexBuffer.ptr);
+			const auto ptrLen = actualPtrStart + (header->dataType == udp::DataType::VERTEX
+									     ? geometry.vertexBuffer.size
+									     : geometry.indexBuffer.size);
+			verbose("writing at offset ", std::hex, ptrStart, " / ", actualPtrStart, " / ", ptrLen);
+			assert(actualPtrStart <= ptrStart && ptrStart <= ptrLen - dataSize * header->len);
+		}
+
+		if (header->dataType == udp::DataType::INDEX) {
+			Index maxIdx = 0;
+			for (unsigned i = 0; i < header->len; ++i) {
+				auto idx = reinterpret_cast<Index*>(ptr + sizeof(header))[i];
+				if (idx > maxIdx)
+					maxIdx = idx;
+			}
+			info("max idx of chunk at offset ", ptr, " = ", maxIdx);
+		}
 
 		memcpy(dataPtr, ptr + sizeof(header), dataSize * header->len);
 
@@ -771,6 +816,8 @@ private:
 		// Create vertex, index and uniform buffers. These buffers are all created una-tantum.
 		BufferAllocator bufAllocator;
 
+		// schedule vertex/index buffer to be created and set the proper offsets into the
+		// common buffer for all models
 		geometry.locations = addVertexAndIndexBuffers(
 			bufAllocator, geometry.vertexBuffer, geometry.indexBuffer, netRsrc.models);
 
@@ -821,7 +868,7 @@ private:
 		if (gIsDebug) {
 			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, nIndices, geometry);
 		} else {
-			recordMultipassCommandBuffers(app, swapCommandBuffers, nIndices, geometry, netRsrc);
+			recordMultipassCommandBuffers(app, swapCommandBuffers, geometry, netRsrc);
 		}
 	}
 

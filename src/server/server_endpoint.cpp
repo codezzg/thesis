@@ -141,7 +141,9 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	written += sizeof(ChunkHeader);
 
 	// Write chunk payload
-	memcpy(buffer + offset + sizeof(ChunkHeader), dataPtr, payloadSize);
+	memcpy(buffer + offset + sizeof(ChunkHeader),
+		reinterpret_cast<uint8_t*>(dataPtr) + dataSize * geomUpdate.start,
+		payloadSize);
 	written += payloadSize;
 
 	// Update size in header
@@ -183,7 +185,45 @@ void ServerActiveEndpoint::loopFunc()
 				read = server.geomUpdate.erase(read);
 			} else {
 				// Not enough room: send the packet and go on
-				dumpBytes(buffer.data(), buffer.size(), 50, LOGLV_VERBOSE);
+				verbose("Magic:");
+				dumpBytes(buffer.data(), sizeof(uint32_t), 50, LOGLV_VERBOSE);
+				verbose("Packet Gen:");
+				dumpBytes(buffer.data() + sizeof(uint32_t), sizeof(uint64_t), 50, LOGLV_VERBOSE);
+				verbose("Size:");
+				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t),
+					sizeof(uint32_t),
+					50,
+					LOGLV_VERBOSE);
+				verbose("ModelID:");
+				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t),
+					sizeof(uint32_t),
+					50,
+					LOGLV_VERBOSE);
+				verbose("DataType:");
+				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
+						  sizeof(uint32_t),
+					sizeof(uint8_t),
+					50,
+					LOGLV_VERBOSE);
+				verbose("Start:");
+				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
+						  sizeof(uint32_t) + sizeof(uint8_t),
+					sizeof(uint32_t),
+					50,
+					LOGLV_VERBOSE);
+				verbose("Len:");
+				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
+						  sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint32_t),
+					sizeof(uint32_t),
+					50,
+					LOGLV_VERBOSE);
+				verbose("Payload:");
+				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
+						  sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint32_t) +
+						  sizeof(uint32_t),
+					buffer.size(),
+					50,
+					LOGLV_VERBOSE);
 				sendPacket(socket, buffer.data(), buffer.size());
 				writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
 				offset = sizeof(udp::Header);

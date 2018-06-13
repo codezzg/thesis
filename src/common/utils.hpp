@@ -20,6 +20,12 @@ std::vector<char> readFileIntoMemory(const char* path);
 std::size_t readFileIntoMemory(const char* path, void* buffer, std::size_t bufsize);
 
 void dumpBytes(const void* buffer, std::size_t count, std::size_t maxCount = 50, LogLevel lv = LOGLV_VERBOSE);
+void dumpBytesIntoFile(const char* fname,
+	const char* bufname,
+	const void* buffer,
+	std::size_t bufsize,
+	bool append = false);
+void dumpBytesIntoFileBin(const char* fname, const void* buffer, std::size_t bufsize, bool append = false);
 
 template <typename T>
 std::string listToString(const T& list)

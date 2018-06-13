@@ -19,9 +19,6 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len);
  */
 bool validateUDPPacket(uint8_t* packetBuf, uint64_t packetGen);
 
-/** Dumps the content of `packet` into file `fname` */
-void dumpPacket(const char* fname, const FrameData& packet);
-
 /** Receives a message from socket expecting it to be a TCP message conforming to
  *  our protocol, and fills both `buffer` with the entire packet receives and
  *  `type` with the MsgType extracted from that message.
