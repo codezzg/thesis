@@ -27,7 +27,7 @@ class ClientPassiveEndpoint : public Endpoint {
 
 public:
 	/* This method should be always called and verified to return true before calling `retreive`. */
-	bool dataAvailable() const { return !terminated; }
+	bool dataAvailable() const { return !terminated && usedBufSize > 0; }
 
 	/** Copies the current `buffer` into `outBuf` in a thread-safe way.
 	 *  @return the number of bytes copied.

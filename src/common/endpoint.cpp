@@ -3,11 +3,13 @@
 #include "logging.hpp"
 #include "udp_messages.hpp"
 #include "utils.hpp"
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -176,10 +178,28 @@ void dumpPacket(const char* fname, const FrameData& packet)
 	}
 }
 
+static std::mutex spamMtx;
+static std::chrono::time_point<std::chrono::system_clock> latestSpam;
+
+static bool spamming(std::chrono::milliseconds spamTime = std::chrono::milliseconds(300))
+{
+	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - latestSpam) <
+	       spamTime;
+}
+
+static void spam()
+{
+	std::lock_guard<std::mutex> lock{ spamMtx };
+	latestSpam = std::chrono::system_clock::now();
+}
+
 bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 {
 	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
-		warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
+		if (!spamming()) {
+			warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
+			spam();
+		}
 		return false;
 	}
 	uberverbose("Sent ", len, " bytes");

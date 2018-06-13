@@ -263,6 +263,8 @@ private:
 			// Drop the memory used for staging the resources as it's not needed anymore.
 		}
 
+		startNetwork(serverIp);
+
 		// Tell TCP thread to send READY and wait for server response
 		relEP.proceed();
 		if (!relEP.await(std::chrono::seconds{ 10 })) {
@@ -276,7 +278,6 @@ private:
 	/** Check we received all the resources needed by all models */
 	void checkAssets(const ClientTmpResources& resources)
 	{
-
 		// Collect textures ids into a set (so we can use set_difference later)
 		std::set<StringId> textureSet;
 		for (const auto& pair : resources.textures)
@@ -378,7 +379,7 @@ private:
 
 	void mainLoop(const char* serverIp)
 	{
-		startNetwork(serverIp);
+		// startNetwork(serverIp);
 
 		FPSCounter fps;
 		fps.start();
@@ -454,27 +455,21 @@ private:
 
 		auto totBytes = passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
 
-		verbose("BYTES READ = ");
+		verbose("BYTES READ (", totBytes, ") = ");
 		dumpBytes(streamingBuffer.data(), streamingBuffer.size(), 50, LOGLV_VERBOSE);
 
-		// streamingBuffer now contains [size0|chunk0|chunk1|...|size1|chunk0|...]
+		// streamingBuffer now contains [chunk0|chunk1|...]
 
-		// Read the size of the first packet
-		uint32_t packetSize = *reinterpret_cast<const uint32_t*>(streamingBuffer.data());
 		unsigned bytesProcessed = 0;
-		auto bytesLeft = std::min(static_cast<std::size_t>(packetSize), streamingBuffer.size());
+		int64_t bytesLeft = totBytes;
+		assert(bytesLeft <= static_cast<int64_t>(streamingBuffer.size()));
+
 		while (bytesProcessed < totBytes) {
-			// TODO: take packetSize into account
 			debug("Processing chunk at offset ", bytesProcessed);
-			bytesProcessed += processChunk(streamingBuffer.data() + bytesProcessed, bytesLeft);
-			bytesLeft -= bytesProcessed;
+			const auto bytesInChunk = processChunk(streamingBuffer.data() + bytesProcessed, bytesLeft);
+			bytesLeft -= bytesInChunk;
+			bytesProcessed += bytesInChunk;
 			assert(bytesLeft >= 0);
-			if (bytesLeft == 0) {
-				// read new packet size
-				packetSize =
-					*reinterpret_cast<const uint32_t*>(streamingBuffer.data() + bytesProcessed);
-				bytesLeft = std::min(static_cast<std::size_t>(packetSize), streamingBuffer.size());
-			}
 		}
 	}
 
@@ -515,7 +510,7 @@ private:
 
 		assert(dataSize != 0 && dataPtr != nullptr);
 
-		const auto chunkSize = sizeof(header) + dataSize * header->len;
+		const auto chunkSize = sizeof(udp::ChunkHeader) + dataSize * header->len;
 
 		if (chunkSize > maxBytesToRead) {
 			err("processChunk would read past the allowed memory area!");
@@ -525,11 +520,20 @@ private:
 		auto it = geometry.locations.find(header->modelId);
 		if (it == geometry.locations.end()) {
 			warn("Received an Update Chunk for inexistent model ", header->modelId, "!");
+			// XXX
 			return chunkSize;
 		}
 
 		//// Update the model
 
+		debug("Updating model ",
+			header->modelId,
+			" / (type = ",
+			int(header->dataType),
+			") from ",
+			header->start,
+			" to ",
+			header->start + header->len);
 		auto& loc = it->second;
 		// Use the correct offset into the vertex/index buffer
 		const auto offset = header->dataType == udp::DataType::VERTEX ? loc.vertexOff : loc.indexOff;

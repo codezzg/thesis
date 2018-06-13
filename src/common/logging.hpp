@@ -23,10 +23,11 @@ constexpr auto C_NONE = "\033[0m";
 
 inline void log(LogLevel debugLv, bool breakLine)
 {
-	if (gColoredLogs)
-		std::cerr << C_NONE;
-	if (gDebugLv >= debugLv && breakLine)
+	if (gDebugLv >= debugLv && breakLine) {
+		if (gColoredLogs)
+			std::cerr << C_NONE;
 		std::cerr << "\n";
+	}
 }
 
 template <typename Arg, typename... Args>

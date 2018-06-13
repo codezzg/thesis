@@ -6,6 +6,7 @@
 #include "defer.hpp"
 #include "frame_data.hpp"
 #include "frame_utils.hpp"
+#include "geom_update.hpp"
 #include "logging.hpp"
 #include "model.hpp"
 #include "serialization.hpp"
@@ -282,9 +283,13 @@ void ServerReliableEndpoint::loopFunc()
 
 	while (!terminated) {
 
+		const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
+		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+
 		sockaddr_in clientAddr;
 		socklen_t clientLen = sizeof(clientAddr);
 
+		info("Accepting...");
 		auto clientSocket = ::accept(socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
 		if (clientSocket == -1) {
 			err("Error: couldn't accept connection.");
@@ -410,7 +415,8 @@ dropclient:
 		sendTCPMsg(clientSocket, MsgType::DISCONNECT);
 	}
 	server.sharedData.loopCv.notify_all();
-	server.passiveEP.close();
+	server.sharedData.geomUpdateCv.notify_all();
+	// server.passiveEP.close();
 	server.activeEP.close();
 	xplatSockClose(clientSocket);
 }

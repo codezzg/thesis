@@ -27,7 +27,6 @@ static bool loadAssets(Server& server);
 
 int main(int argc, char** argv)
 {
-
 	std::string ip = "127.0.0.1";
 	parseArgs(argc, argv, ip);
 
@@ -64,14 +63,14 @@ int main(int argc, char** argv)
 	}
 
 	{
-		const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
-		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+		// const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
+		// server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
 
-		info("geomUpdate.size = ", server.geomUpdate.size());
-		int i = 0;
-		for (auto u : server.geomUpdate) {
-			info(i++, ": start: ", u.start, ", len: ", u.len);
-		}
+		// info("geomUpdate.size = ", server.geomUpdate.size());
+		// int i = 0;
+		// for (auto u : server.geomUpdate) {
+		// info(i++, ": start: ", u.start, ", len: ", u.len);
+		//}
 	}
 
 	/// Start TCP socket and wait for connections

@@ -24,11 +24,8 @@ static constexpr auto BUFSIZE = megabytes(16);
 
 void ClientPassiveEndpoint::loopFunc()
 {
-	// This will be filled like this:
-	// [size0|chunk0.header|chunk0.payload|chunk1.header|chunk1.payload|...garbage0|size1|...]
-	// where `sizeN` is the total chunk size of the N-th packet stored in the buffer.
-	// Saving the actual packet size is needed because we just copy all the payload,
-	// trailing garbage included.
+	// This will be densely filled like this:
+	// [chunk0.header|chunk0.payload|chunk1.header|chunk1.payload|...]
 	buffer = new uint8_t[BUFSIZE];
 	usedBufSize = 0;
 
@@ -55,8 +52,8 @@ void ClientPassiveEndpoint::loopFunc()
 			assert(usedBufSize + sizeof(uint32_t) + size < BUFSIZE);
 
 			// Write packet size
-			*reinterpret_cast<uint32_t*>(buffer + usedBufSize) = size;
-			usedBufSize += sizeof(uint32_t);
+			//*reinterpret_cast<uint32_t*>(buffer + usedBufSize) = size;
+			// usedBufSize += sizeof(uint32_t);
 
 			// Write packet data
 			memcpy(buffer + usedBufSize, packet->payload.data(), size);

@@ -30,3 +30,7 @@ x64/
 compile.bat
 cov-int
 cov-token
+*.log
+*.tgz
+*.gz
+*.out
