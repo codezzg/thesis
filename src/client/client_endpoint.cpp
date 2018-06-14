@@ -44,16 +44,16 @@ void ClientPassiveEndpoint::loopFunc()
 		packetGen = packet->header.packetGen;
 
 		const auto size = packet->header.size;
-		assert(size <= packet->payload.size());
+		if (size > packet->payload.size()) {
+			err("Packet size is ", size, " > ", packet->payload.size(), "!");
+			continue;
+		}
+
 		// Just copy all the payload into `buffer` and let the main thread process it.
 		{
 			std::lock_guard<std::mutex> lock{ bufMtx };
 
-			assert(usedBufSize + sizeof(uint32_t) + size < BUFSIZE);
-
-			// Write packet size
-			//*reinterpret_cast<uint32_t*>(buffer + usedBufSize) = size;
-			// usedBufSize += sizeof(uint32_t);
+			assert(usedBufSize + size < BUFSIZE);
 
 			// Write packet data
 			memcpy(buffer + usedBufSize, packet->payload.data(), size);

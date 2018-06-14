@@ -85,6 +85,8 @@ static void writeGeomUpdateHeader(uint8_t* buffer, std::size_t bufsize, uint64_t
 	header.packetGen = packetGen;
 	header.size = 0;
 
+	// DEBUG
+	// memset(buffer, 0xAA, bufsize);
 	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(header));
 }
 
@@ -128,7 +130,7 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	// Prevent infinite loops
 	assert(sizeof(ChunkHeader) + payloadSize < bufsize);
 
-	if (offset + payloadSize > bufsize) {
+	if (offset + sizeof(ChunkHeader) + payloadSize > bufsize) {
 		// Not enough room
 		verbose("Not enough room!");
 		return 0;
@@ -146,11 +148,56 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 		payloadSize);
 	written += payloadSize;
 
+	// if (geomUpdate.dataType == DataType::INDEX) {
+	// Index maxIdx = 0;
+	// for (unsigned i = 0; i < payloadSize / sizeof(Index); ++i) {
+	// auto idx = reinterpret_cast<Index*>(
+	// reinterpret_cast<uint8_t*>(dataPtr) + dataSize * geomUpdate.start)[i];
+	// if (idx > maxIdx)
+	// maxIdx = idx;
+	//}
+	// info("max idx = ", maxIdx);
+	//}
+
 	// Update size in header
-	reinterpret_cast<udp::Header*>(buffer)->size += written;
-	verbose("Packet size is now ", reinterpret_cast<udp::Header*>(buffer)->size);
+	reinterpret_cast<Header*>(buffer)->size += written;
+	verbose("Packet size is now ", reinterpret_cast<Header*>(buffer)->size);
 
 	return written;
+}
+
+static void dumpFullPacket(uint8_t* buffer, std::size_t bufsize)
+{
+	verbose("Magic:");
+	dumpBytes(buffer, sizeof(uint32_t), 50, LOGLV_VERBOSE);
+	verbose("Packet Gen:");
+	dumpBytes(buffer + sizeof(uint32_t), sizeof(uint64_t), 50, LOGLV_VERBOSE);
+	verbose("Size:");
+	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t), sizeof(uint32_t), 50, LOGLV_VERBOSE);
+	verbose("ModelID:");
+	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t), sizeof(uint32_t), 50, LOGLV_VERBOSE);
+	verbose("DataType:");
+	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t),
+		sizeof(uint8_t),
+		50,
+		LOGLV_VERBOSE);
+	verbose("Start:");
+	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint8_t),
+		sizeof(uint32_t),
+		50,
+		LOGLV_VERBOSE);
+	verbose("Len:");
+	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint8_t) +
+			  sizeof(uint32_t),
+		sizeof(uint32_t),
+		50,
+		LOGLV_VERBOSE);
+	verbose("Payload:");
+	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint8_t) +
+			  sizeof(uint32_t) + sizeof(uint32_t),
+		bufsize,
+		100,
+		LOGLV_VERBOSE);
 }
 
 void ServerActiveEndpoint::loopFunc()
@@ -176,54 +223,24 @@ void ServerActiveEndpoint::loopFunc()
 		auto write = server.geomUpdate.begin();
 		unsigned i = 0;
 		for (auto read = write; read != server.geomUpdate.end();) {
-			verbose("update: ", i++, ": ", read->start, " / ", read->len);
+			verbose("update: ", i, ": ", read->start, " / ", read->len);
 
 			const auto written =
 				addGeomUpdate(buffer.data(), buffer.size(), offset, *read, server.resources);
 			if (written > 0) {
 				offset += written;
+				++i;
 				read = server.geomUpdate.erase(read);
 			} else {
 				// Not enough room: send the packet and go on
-				verbose("Magic:");
-				dumpBytes(buffer.data(), sizeof(uint32_t), 50, LOGLV_VERBOSE);
-				verbose("Packet Gen:");
-				dumpBytes(buffer.data() + sizeof(uint32_t), sizeof(uint64_t), 50, LOGLV_VERBOSE);
-				verbose("Size:");
-				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t),
-					sizeof(uint32_t),
-					50,
-					LOGLV_VERBOSE);
-				verbose("ModelID:");
-				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t),
-					sizeof(uint32_t),
-					50,
-					LOGLV_VERBOSE);
-				verbose("DataType:");
-				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
-						  sizeof(uint32_t),
-					sizeof(uint8_t),
-					50,
-					LOGLV_VERBOSE);
-				verbose("Start:");
-				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
-						  sizeof(uint32_t) + sizeof(uint8_t),
-					sizeof(uint32_t),
-					50,
-					LOGLV_VERBOSE);
-				verbose("Len:");
-				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
-						  sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint32_t),
-					sizeof(uint32_t),
-					50,
-					LOGLV_VERBOSE);
-				verbose("Payload:");
-				dumpBytes(buffer.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) +
-						  sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint32_t) +
-						  sizeof(uint32_t),
-					buffer.size(),
-					50,
-					LOGLV_VERBOSE);
+				if (gDebugLv >= LOGLV_VERBOSE) {
+					dumpFullPacket(buffer.data(), buffer.size());
+					dumpBytesIntoFileBin(
+						(std::string{ "dumps/server_packet" } + std::to_string(i - 1) + ".data")
+							.c_str(),
+						buffer.data(),
+						buffer.size());
+				}
 				sendPacket(socket, buffer.data(), buffer.size());
 				writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
 				offset = sizeof(udp::Header);
@@ -233,9 +250,24 @@ void ServerActiveEndpoint::loopFunc()
 			}
 		}
 
+		if (offset > sizeof(udp::Header)) {
+			// Need to send the last packet
+			if (gDebugLv >= LOGLV_VERBOSE) {
+				dumpFullPacket(buffer.data(), buffer.size());
+				dumpBytesIntoFileBin(
+					(std::string{ "dumps/server_packet" } + std::to_string(i - 1) + ".data")
+						.c_str(),
+					buffer.data(),
+					buffer.size());
+			}
+			sendPacket(socket, buffer.data(), buffer.size());
+		}
+
 		// server.geomUpdate.erase(write, server.geomUpdate.end());
 
 		++packetGen;
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
 }
 
@@ -322,8 +354,14 @@ void ServerReliableEndpoint::loopFunc()
 	::listen(socket, MAX_CLIENTS);
 
 	while (!terminated) {
-
 		const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
+		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+		// TODO
+		// This is done to send each update multiple times hoping that the client will
+		// eventually get them all. Find a better solution!
+		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
 		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
 
 		sockaddr_in clientAddr;

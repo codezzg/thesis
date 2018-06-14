@@ -466,33 +466,45 @@ private:
 
 		memset(geometry.vertexBuffer.ptr, 0x0, geometry.vertexBuffer.size);
 		memset(geometry.indexBuffer.ptr, 0x0, geometry.indexBuffer.size);
+		debug("vertexBuffer: ",
+			std::hex,
+			uintptr_t(geometry.vertexBuffer.ptr),
+			",  indexBuffer: ",
+			uintptr_t(geometry.indexBuffer.ptr),
+			std::dec);
+
 		while (bytesProcessed < totBytes) {
 			debug("Processing chunk at offset ", bytesProcessed);
 			const auto bytesInChunk = processChunk(streamingBuffer.data() + bytesProcessed, bytesLeft);
+			debug("bytes in chunk: ", bytesInChunk);
 			bytesLeft -= bytesInChunk;
 			bytesProcessed += bytesInChunk;
 			assert(bytesLeft >= 0);
 		}
 
-		Index maxIdx = 0;
-		assert(netRsrc.models.begin()->second.nIndices == geometry.indexBuffer.size / sizeof(Index));
-		for (unsigned i = 0; i < netRsrc.models.begin()->second.nIndices; ++i) {
-			auto idx = reinterpret_cast<Index*>(geometry.indexBuffer.ptr)[i];
-			if (idx > maxIdx)
-				maxIdx = idx;
+#ifndef NDEBUG
+		if (gDebugLv >= LOGLV_VERBOSE) {
+			dumpBytesIntoFileBin("dumps/sb.data", streamingBuffer.data(), streamingBuffer.size());
+			dumpBytesIntoFileBin("dumps/vb.data",
+				geometry.vertexBuffer.ptr,
+				netRsrc.models.begin()->second.nVertices * sizeof(Vertex));
+			dumpBytesIntoFileBin("dumps/ib.data",
+				(uint8_t*)geometry.indexBuffer.ptr,
+				netRsrc.models.begin()->second.nIndices * sizeof(Index));
 		}
-		info("max idx = ", maxIdx);
-		assert(maxIdx < geometry.vertexBuffer.size / sizeof(Vertex));
 
-		dumpBytesIntoFileBin("sb.data", streamingBuffer.data(), streamingBuffer.size());
-		dumpBytesIntoFileBin("vb.data",
-			geometry.vertexBuffer.ptr,
-			netRsrc.models.begin()->second.nVertices * sizeof(Vertex));
-		dumpBytesIntoFileBin(
-			"ib.data", geometry.indexBuffer.ptr, netRsrc.models.begin()->second.nIndices * sizeof(Index));
-
-		// TODO remove DEBUG
-		memset(geometry.indexBuffer.ptr, 0x0, geometry.indexBuffer.size);
+		{
+			Index maxIdx = 0;
+			assert(netRsrc.models.begin()->second.nIndices == geometry.indexBuffer.size / sizeof(Index));
+			for (unsigned i = 0; i < netRsrc.models.begin()->second.nIndices; ++i) {
+				auto idx = reinterpret_cast<Index*>(geometry.indexBuffer.ptr)[i];
+				if (idx > maxIdx)
+					maxIdx = idx;
+			}
+			info("max idx = ", maxIdx);
+			assert(maxIdx < geometry.vertexBuffer.size / sizeof(Vertex));
+		}
+#endif
 	}
 
 	/** Receives a pointer to a byte buffer and tries to read an UpdatePacket chunk from it.
@@ -563,6 +575,7 @@ private:
 		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + header->start * dataSize;
 
 		{
+			// Ensure we don't write past the buffers area
 			const auto ptrStart = reinterpret_cast<uintptr_t>(dataPtr);
 			const auto actualPtrStart = reinterpret_cast<uintptr_t>(
 				header->dataType == udp::DataType::VERTEX ? geometry.vertexBuffer.ptr
@@ -577,14 +590,25 @@ private:
 		if (header->dataType == udp::DataType::INDEX) {
 			Index maxIdx = 0;
 			for (unsigned i = 0; i < header->len; ++i) {
-				auto idx = reinterpret_cast<Index*>(ptr + sizeof(header))[i];
+				auto idx = reinterpret_cast<Index*>(ptr + sizeof(udp::ChunkHeader))[i];
 				if (idx > maxIdx)
 					maxIdx = idx;
 			}
-			info("max idx of chunk at offset ", ptr, " = ", maxIdx);
+			verbose("max idx of chunk at location ", uintptr_t(ptr), " = ", maxIdx);
 		}
 
-		memcpy(dataPtr, ptr + sizeof(header), dataSize * header->len);
+		debug("Copying from ",
+			std::hex,
+			uintptr_t(ptr + sizeof(udp::ChunkHeader)),
+			" --> ",
+			uintptr_t(dataPtr),
+			std::dec,
+			"  (",
+			dataSize * header->len,
+			")");
+		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_VERBOSE);
+		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_VERBOSE);
+		memcpy(dataPtr, ptr + sizeof(udp::ChunkHeader), dataSize * header->len);
 
 		return chunkSize;
 	};

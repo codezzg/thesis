@@ -14,7 +14,6 @@ std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
 	const auto maxVerticesPerPayload = (payloadSize - sizeof(udp::ChunkHeader)) / sizeof(Vertex);
 	const auto maxIndicesPerPayload = (payloadSize - sizeof(udp::ChunkHeader)) / sizeof(Index);
 
-	// XXX: did we get at least the order of magnitude right?
 	updates.reserve(model.nVertices / maxVerticesPerPayload + model.nIndices / maxIndicesPerPayload + 2);
 
 	unsigned i = 0;
@@ -60,5 +59,6 @@ std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
 		updates.size(),
 		", guessed: ",
 		model.nVertices / maxVerticesPerPayload + model.nIndices / maxIndicesPerPayload + 2);
+
 	return updates;
 }
