@@ -88,7 +88,8 @@ public:
 		}
 		glfwSetKeyCallback(app.window, keyCallback);
 
-		connectToServer(ip);
+		if (!connectToServer(ip))
+			return;
 
 		if (!gIsDebug)
 			measure_ms("Init Vulkan", LOGLV_INFO, [this]() { initVulkan(); });   // deferred rendering
@@ -229,96 +230,72 @@ private:
 		// activeEP.runLoop();
 	}
 
-	// XXX: This function is very intricate, due to two threads bouncing back and forth and waiting
-	// on condition variables. It's likely buggy, so a rework to simplify it may prove necessary.
-	void connectToServer(const char* serverIp)
+	bool connectToServer(const char* serverIp)
 	{
-		auto& coord = relEP.coordination;
-		using CS = ClientReliableEndpoint::ConnectionStage;
-
-		// Acquire the lock, forcing the ep to wait until we're at the first wait.
-		std::unique_lock<std::mutex> ulk{ coord.mtx };
-
 		relEP.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
-		relEP.runLoop();
 
-		// Wait for handshake to complete (this releases the lock)
-		while (coord.stage != CS::PREP_RSRC) {
-			debug("main :: (main thread waiting for handshake)");
-			if (coord.cv.wait_for(ulk, std::chrono::seconds{ 10 }) == std::cv_status::timeout) {
-				// if (!relEP.await(std::chrono::seconds{ 10 })) {
-				throw std::runtime_error("Failed connecting to server!");
-			}
+		debug(":: Performing handshake");
+		if (!relEP.performHandshake()) {
+			err("Failed to perform handshake.");
+			return false;
 		}
-		// Implicitly recquire the lock
-		// But release it immediately so the ep can acquire it and wait for us
-		ulk.unlock();
+
+		debug(":: Expecting START_RSRC_EXCHANGE");
+		if (!relEP.expectStartResourceExchange()) {
+			err("Didn't receive START_RSRC_EXCHANGE.");
+			return false;
+		}
 
 		// Retreive one-time data from server
 		{
 			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = megabytes(64);
 			ClientTmpResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
-			relEP.resources = &resources;
-			debug("assigned resources");
 
-			// Tell TCP thread to receive the data
-			// relEP.proceed();
-			ulk.lock();
-			coord.stage = CS::SEND_RX_ACK;
-			debug("main :: Stage: ", int(coord.stage));
-			ulk.unlock();
-			debug("main :: main --> ep");
-			coord.cv.notify_one();
+			if (!relEP.sendRsrcExchangeAck()) {
+				err("Failed to send RSRC_EXCHANGE_ACK");
+				return false;
+			}
 
-			measure_ms("Recv Assets", LOGLV_INFO, [this, &coord, &ulk]() {
-				ulk.lock();
-				while (coord.stage != CS::CHECK_RSRC) {
-					debug("main :: (main thread waiting for receiving resources)");
-					if (coord.cv.wait_for(ulk, std::chrono::seconds{ 10 }) ==
-						std::cv_status::timeout) {
-						// if (!relEP.await(std::chrono::seconds{ 10 })) {
-						throw std::runtime_error("Failed to receive the one-time data!");
-					}
-				}
-				ulk.unlock();
+			bool success = false;
+			debug(":: Receiving one-time resources...");
+			measure_ms("Recv Assets", LOGLV_INFO, [this, &resources, &success]() {
+				success = relEP.receiveOneTimeData(resources);
 			});
-
-			measure_ms("Check Assets", LOGLV_INFO, [this, &resources]() { checkAssets(resources); });
-
-			// coord.stage = CS::LOAD_RSRC;
-			// info(":: Stage: ", int(coord.stage));
+			if (!success) {
+				err("Failed to receive one-time data.");
+				return false;
+			}
 
 			// Process the received data
-			measure_ms("Load Assets", LOGLV_INFO, [this, &resources]() { loadAssets(resources); });
+			debug(":: processing received resources...");
+			measure_ms("Check Assets", LOGLV_INFO, [this, &resources]() { checkAssets(resources); });
+			measure_ms("Load Assets", LOGLV_INFO, [this, &resources, &success]() {
+				success = loadAssets(resources);
+			});
+			if (!success) {
+				err("Failed to load assets.");
+				return false;
+			}
 
-			relEP.resources = nullptr;
 			// Drop the memory used for staging the resources as it's not needed anymore.
 		}
 
-		ulk.lock();
-		coord.stage = CS::START_UDP;
-		debug("main :: Stage: ", int(coord.stage));
+		debug(":: Starting UDP endpoints...");
 		startNetwork(serverIp);
 
-		// Tell TCP thread to send READY and wait for server response
-		// relEP.proceed();
-		debug("main :: main --> ep");
-		coord.stage = CS::SEND_READY;
-		ulk.unlock();
-		coord.cv.notify_one();
-
-		ulk.lock();
-		while (coord.stage != CS::LISTENING) {
-			debug("main :: (main thread waiting for ready to be sent)");
-			if (coord.cv.wait_for(ulk, std::chrono::seconds{ 10 }) == std::cv_status::timeout) {
-				// if (!relEP.await(std::chrono::seconds{ 10 })) {
-				throw std::runtime_error("Connected to server, but server didn't send READY!");
-			}
+		debug(":: Sending READY...");
+		if (!relEP.sendReadyAndWait()) {
+			err("Failed to send or receive READY.");
+			return false;
 		}
-		info("Received READY.");
+		debug(":: Received READY.");
+
+		debug(":: Starting TCP listening loop");
+		relEP.runLoop();
 
 		// Ready to start the main loop
-		debug("main :: Starting main loop");
+
+		return true;
 	}
 
 	/** Check we received all the resources needed by all models */
@@ -366,7 +343,7 @@ private:
 		}
 	}
 
-	void loadAssets(const ClientTmpResources& resources)
+	bool loadAssets(const ClientTmpResources& resources)
 	{
 		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
 
@@ -401,10 +378,13 @@ private:
 				texLoadTasks.emplace_back(
 					texLoader.addTextureAsync(netRsrc.textures[pair.first], pair.second));
 			}
-			for (auto& res : texLoadTasks)
-				if (!res.get())
-					throw std::runtime_error("Failed to load texture image! Latest error: "s +
-								 texLoader.getLatestError());
+			for (auto& res : texLoadTasks) {
+				if (!res.get()) {
+					err("Failed to load texture image! Latest error: ", texLoader.getLatestError());
+					return false;
+				}
+			}
+
 			texLoader.create(app);
 			texSampler = createTextureSampler(app);
 		}
@@ -419,6 +399,8 @@ private:
 		}
 
 		prepareBufferMemory(stagingBuffer);
+
+		return true;
 	}
 
 	void mainLoop(const char* serverIp)

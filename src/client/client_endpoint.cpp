@@ -122,38 +122,23 @@ void ClientActiveEndpoint::loopFunc()
 
 /////////////////////// ReliableEP
 
-bool ClientReliableEndpoint::await(std::chrono::seconds timeout)
+bool ClientReliableEndpoint::performHandshake()
 {
-	return true;
-	// std::unique_lock<std::mutex> ulk{ waitMtx };
-	// info(std::this_thread::get_id(), " AWAIT");
-	// info("cvCanProceed is false");
-	// auto r = waitCv.wait_for(ulk, timeout) == std::cv_status::no_timeout;
-	// info("await terminated");
-	// return r;
-}
-
-void ClientReliableEndpoint::proceed()
-{
-	// waitMtx.lock();
-	// info("cvCanProceed is true");
-	// waitMtx.unlock();
-	// info(std::this_thread::get_id(), " PROCEED");
-	// waitCv.notify_one();
-}
-
-static bool performHandshake(socket_t socket)
-{
-	std::array<uint8_t, 1> buf = {};
-
 	// send HELO message
 	if (!sendTCPMsg(socket, MsgType::HELO))
 		return false;
 
-	return expectTCPMsg(socket, buf.data(), 1, MsgType::HELO_ACK);
+	uint8_t buffer;
+	return expectTCPMsg(socket, &buffer, 1, MsgType::HELO_ACK);
 }
 
-static bool sendReadyAndWait(socket_t socket)
+bool ClientReliableEndpoint::expectStartResourceExchange()
+{
+	uint8_t buffer;
+	return expectTCPMsg(socket, &buffer, 1, MsgType::START_RSRC_EXCHANGE);
+}
+
+bool ClientReliableEndpoint::sendReadyAndWait()
 {
 	if (!sendTCPMsg(socket, MsgType::READY))
 		return false;
@@ -162,8 +147,14 @@ static bool sendReadyAndWait(socket_t socket)
 	return expectTCPMsg(socket, &buf, 1, MsgType::READY);
 }
 
-static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_variable& cv)
+bool ClientReliableEndpoint::sendRsrcExchangeAck()
 {
+	return sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK);
+}
+
+static void keepaliveTask(socket_t socket, std::condition_variable& cv)
+{
+	std::mutex mtx;
 	while (true) {
 		std::unique_lock<std::mutex> ulk{ mtx };
 
@@ -178,118 +169,28 @@ static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_varia
 	}
 }
 
-/* The logic here goes as follows:
- * - the main thread starts this thread via runLoop()
- * - the main thread waits for the handshake via await()
- * - this thread then waits to be notified by the main thread to proceed and receive the data;
- * - once the data is received, we notify the main thread and wait;
- * - the client awaits us and we send a READY msg;
- * - the client waits again for us to receive server's ready msg;
- * - as soon as we receive it this thread both notifies the client and starts the keepalive loop.
- */
 void ClientReliableEndpoint::loopFunc()
 {
-	auto& c = coordination;
-	using CS = ConnectionStage;
-
-	// Acquire the lock (can only be done when the main thread is already waiting for us)
-	std::unique_lock<std::mutex> ulk{ c.mtx };
-
-	{
-		// -> HELO / <- HELO-ACK
-		debug("ep :: Performing handshake");
-		c.stage = CS::HANDSHAKE;
-		debug("ep :: Stage: ", int(c.stage));
-		if (!performHandshake(socket)) {
-			err("Handshake failed");
-			return;
-		}
-
-		{
-			debug("ep :: Expecting START_RSRC_EXCHANGE");
-			c.stage = CS::RECV_SRX;
-			debug("ep :: Stage: ", int(c.stage));
-			uint8_t buffer;
-			if (!expectTCPMsg(socket, &buffer, 1, MsgType::START_RSRC_EXCHANGE)) {
-				err("Expecting START_RSRC_EXCHANGE but didn't receive it.");
-				return;
-			}
-		}
-		c.stage = CS::PREP_RSRC;
-		debug("ep :: Stage: ", int(c.stage));
-		ulk.unlock();
-	}
-	debug("ep :: ep --> main");
-	c.cv.notify_one();
-
-	{
-		// Wait for the main thread to tell us to proceed
-		debug("ep :: Waiting main thread preparations...");
-
-		ulk.lock();
-		c.cv.wait(ulk, [this]() { return coordination.stage == CS::SEND_RX_ACK; });
-		// lock comes back to us
-		debug("Done waiting.");
-
-		debug("ep :: Sending RSRC_EXCHANGE_ACK...");
-		// Ready to receive one-time data
-		if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK))
-			return;
-
-		debug("ep :: Waiting for one-time data...");
-		c.stage = CS::RECV_RSRC;
-		debug("ep :: Stage: ", int(c.stage));
-		if (!receiveOneTimeData()) {
-			err("Error receiving one time data.");
-			return;
-		}
-		debug("notifying main");
-		c.stage = CS::CHECK_RSRC;
-		debug("ep :: Stage: ", int(c.stage));
-		ulk.unlock();
-	}
-	debug("ep :: ep --> main");
-	c.cv.notify_one();
-
-	{
-		ulk.lock();
-		// Wait for the main thread to process the received assets
-		debug("ep :: Waiting main thread assets processing...");
-		c.cv.wait(ulk, [this]() {
-			// FIXME: prevent spurious wakeups!
-			return coordination.stage == CS::SEND_READY;
-		});
-		debug("ep :: Sending READY");
-		if (!sendReadyAndWait(socket)) {
-			err("[ ERROR ] Sending or awaiting ready failed.");
-			return;
-		}
-		c.stage = CS::LISTENING;
-		ulk.unlock();
-	}
-	debug("ep :: ep --> main");
-	c.cv.notify_one();
-
 	// Spawn the keepalive routine
 	std::thread keepaliveThread{
 		keepaliveTask,
 		socket,
-		std::ref(c.mtx),
-		std::ref(c.cv),
+		std::ref(keepaliveCv),
 	};
 
 	std::array<uint8_t, 1> buffer = {};
 	debug("ep :: Starting msg receiving loop");
-	while (isConnected()) {
+	connected = true;
+	while (connected) {
 		MsgType type;
 		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), type)) {
-			c.stage = CS::TERMINATING;
+			connected = false;
 			break;
 		}
 
 		switch (type) {
 		case MsgType::DISCONNECT:
-			c.stage = CS::TERMINATING;
+			connected = false;
 			break;
 		default:
 			break;
@@ -297,7 +198,7 @@ void ClientReliableEndpoint::loopFunc()
 	}
 
 	info("Closing TCP connection.");
-	c.cv.notify_all();
+	keepaliveCv.notify_all();
 	if (keepaliveThread.joinable())
 		keepaliveThread.join();
 	info("Keepalive thread joined.");
@@ -305,7 +206,7 @@ void ClientReliableEndpoint::loopFunc()
 
 void ClientReliableEndpoint::onClose()
 {
-	coordination.cv.notify_all();
+	keepaliveCv.notify_all();
 }
 
 /** Reads header data from `buffer` and starts reading a texture. If more packets
@@ -523,11 +424,9 @@ static bool receiveModel(socket_t socket,
 	return true;
 }
 
-bool ClientReliableEndpoint::receiveOneTimeData()
+bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 {
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
-
-	assert(resources != nullptr);
 
 	// Receive data
 	while (true) {
@@ -548,7 +447,7 @@ bool ClientReliableEndpoint::receiveOneTimeData()
 
 		case MsgType::RSRC_TYPE_TEXTURE: {
 
-			if (!receiveTexture(socket, buffer.data(), buffer.size(), *resources)) {
+			if (!receiveTexture(socket, buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive texture.");
 				return false;
 			}
@@ -563,7 +462,7 @@ bool ClientReliableEndpoint::receiveOneTimeData()
 
 		case MsgType::RSRC_TYPE_MATERIAL: {
 
-			if (!receiveMaterial(buffer.data(), buffer.size(), *resources)) {
+			if (!receiveMaterial(buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive material");
 				return false;
 			}
@@ -578,7 +477,7 @@ bool ClientReliableEndpoint::receiveOneTimeData()
 
 		case MsgType::RSRC_TYPE_MODEL: {
 
-			if (!receiveModel(socket, buffer.data(), buffer.size(), *resources)) {
+			if (!receiveModel(socket, buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive model");
 				return false;
 			}

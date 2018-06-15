@@ -54,46 +54,20 @@ public:
  */
 class ClientReliableEndpoint : public Endpoint {
 
+	std::condition_variable keepaliveCv;
+
+	bool connected = false;
+
 	void loopFunc() override;
 	void onClose() override;
 
-	bool receiveOneTimeData();
-
 public:
-	enum class ConnectionStage {
-		HANDSHAKE,
-		RECV_SRX,
-		PREP_RSRC,
-		SEND_RX_ACK,
-		RECV_RSRC,
-		CHECK_RSRC,
-		LOAD_RSRC,
-		START_UDP,
-		SEND_READY,
-		LISTENING,
-		TERMINATING,
-	};
-
-	struct {
-		std::mutex mtx;
-		std::condition_variable cv;
-		/** Used to guard cv against spurious wakeups */
-		ConnectionStage stage;
-	} coordination;
-
-	/** This gets passed to us by the main thread, and remains valid
-	 *  only during the one-time data exchange.
-	 */
-	ClientTmpResources* resources = nullptr;
-
-	/** Call this after starting this socket to block the caller thread until the next step
-	 *  in the protocol is performed or the timeout expires.
-	 *  @return true if the handshake was completed before the timeout.
-	 */
-	bool await(std::chrono::seconds timeout);
-	void proceed();
-
 	bool disconnect();
+	bool isConnected() const { return connected; }
 
-	bool isConnected() const { return coordination.stage == ConnectionStage::LISTENING; }
+	bool performHandshake();
+	bool expectStartResourceExchange();
+	bool sendRsrcExchangeAck();
+	bool receiveOneTimeData(ClientTmpResources& resources);
+	bool sendReadyAndWait();
 };
