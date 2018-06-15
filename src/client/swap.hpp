@@ -9,6 +9,7 @@
 
 struct Application;
 struct Geometry;
+struct NetworkResources;
 
 struct SwapChain final {
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
@@ -66,8 +67,8 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 /** records a vector of commandBuffers that perform forward rendering */
 void recordSwapChainDebugCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& buffers,
-	uint32_t nIndices,
-	const Geometry& geometry);
+	const Geometry& geometry,
+	const NetworkResources& netRsrc);
 
 /** @return a pipeline suited for forward rendering */
 VkPipeline createSwapChainDebugPipeline(const Application& app);

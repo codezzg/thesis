@@ -17,7 +17,7 @@ void measure_ms(const char* name, LogLevel loglv, F&& f)
 		"[",
 		name,
 		"] time taken: ",
-		std::chrono::duration_cast<std::chrono::milliseconds>(endTime - beginTime).count(),
+		std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() * 0.001,
 		" ms");
 #endif
 }

@@ -29,7 +29,7 @@ public:
 
 	std::unordered_map<StringId, shared::Texture> textures;
 	std::unordered_map<StringId, shared::Material> materials;
-	std::unordered_map<StringId, ModelInfo> models;
+	std::vector<ModelInfo> models;
 
 	explicit ClientTmpResources(std::size_t size)
 		: memory(size)
@@ -45,8 +45,8 @@ struct NetworkResources {
 	/** Map materialId => material */
 	std::unordered_map<StringId, Material> materials;
 
-	/** Map modelId => model info */
-	std::unordered_map<StringId, ModelInfo> models;
+	/** List of model info */
+	std::vector<ModelInfo> models;
 
 	/** Default resources, used when actual ones are missing */
 	struct {

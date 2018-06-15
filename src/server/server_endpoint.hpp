@@ -25,8 +25,6 @@ class ServerActiveEndpoint final : public Endpoint {
 	std::size_t memsize = 0;
 
 	void loopFunc() override;
-	/** Sends vertices and indices, stored at `buffer`, to client */
-	void sendFrameData(int64_t frameId, uint8_t* buffer, int nVertices, int nIndices);
 
 public:
 	std::chrono::milliseconds targetFrameTime;
@@ -74,6 +72,7 @@ class ServerReliableEndpoint : public Endpoint {
 	Server& server;
 
 	std::mutex loopMtx;
+	/** Used to wait in the keepalive listen loop */
 	std::condition_variable loopCv;
 
 	void loopFunc() override;

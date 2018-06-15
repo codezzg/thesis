@@ -11,6 +11,7 @@
 #include "units.hpp"
 #include "utils.hpp"
 #include "vertex.hpp"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -446,10 +447,12 @@ static bool receiveModel(socket_t socket,
 	for (unsigned i = 0; i < header.res.nMeshes; ++i)
 		model.meshes.emplace_back(meshes[i]);
 
-	if (resources.models.count(model.name) != 0) {
+	if (std::find_if(resources.models.begin(), resources.models.end(), [name = model.name](const auto& m) {
+		    return m.name == name;
+	    }) != resources.models.end()) {
 		warn("Received the same model two times: ", model.name);
 	} else {
-		resources.models[model.name] = model;
+		resources.models.emplace_back(model);
 		info("Stored model ", model.name);
 	}
 

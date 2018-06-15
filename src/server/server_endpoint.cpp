@@ -28,54 +28,6 @@ using namespace logging;
 using namespace std::chrono_literals;
 using shared::ResourcePacket;
 
-/** Writes all possible vertices and indices, starting from `offset`-th byte,
- *  from `src` into `dst` until `dst` has room  or `src` is exhausted.
- *  @return the number of bytes that were copied so far, i.e. the next offset to use.
- *  NOTE: this operation may leave some unused trailing space in buffer if payload.size() is not
- *  a multiple of sizeof(Vertex) and sizeof(Index). The client, upon receiving
- *  the packet this buffer belongs to, should not just
- *  memcpy(dst, buffer, buffer.size()), but it must calculate the exact amount of bytes to pick from
- *  the buffer, or it will copy the unused garbage bytes too!
- */
-template <std::size_t N>
-static int writeAllPossible(std::array<uint8_t, N>& dst,
-	const uint8_t* src,
-	int nVertices,
-	int nIndices,
-	std::size_t offset)
-{
-	const auto srcSize = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
-	auto srcIdx = offset;
-	auto dstIdx = 0lu;
-	while (srcIdx < srcSize && dstIdx < N) {
-		const bool isVertex = srcIdx < static_cast<unsigned>(nVertices) * sizeof(Vertex);
-		if (isVertex) {
-			// Check for room
-			if (dstIdx + sizeof(Vertex) > N) {
-				info("[Warning] only filled ", dstIdx, "/", N, " dst bytes.");
-				return srcIdx;
-			}
-			*(reinterpret_cast<Vertex*>(dst.data() + dstIdx)) =
-				*(reinterpret_cast<const Vertex*>(src + srcIdx));
-			dstIdx += sizeof(Vertex);
-			srcIdx += sizeof(Vertex);
-		} else {
-			// Check for room
-			if (dstIdx + sizeof(Index) > N) {
-				info("[Warning] only filled ", dstIdx, "/", N, " dst bytes.");
-				return srcIdx;
-			}
-			*(reinterpret_cast<Index*>(dst.data() + dstIdx)) =
-				*(reinterpret_cast<const Index*>(src + srcIdx));
-			dstIdx += sizeof(Index);
-			srcIdx += sizeof(Index);
-		}
-	}
-
-	// If we arrived here, we filled every last byte of the payload with no waste.
-	return srcIdx;
-}
-
 static void writeGeomUpdateHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen)
 {
 	assert(bufsize >= sizeof(udp::Header));
@@ -271,38 +223,6 @@ void ServerActiveEndpoint::loopFunc()
 	}
 }
 
-void ServerActiveEndpoint::sendFrameData(int64_t frameId, uint8_t* buffer, int nVertices, int nIndices)
-{
-	// Start new frame
-	size_t totSent = 0;
-	int nPacketsSent = 0;
-	size_t offset = 0;
-	int32_t packetId = 0;
-
-	const std::size_t totBytes = nVertices * sizeof(Vertex) + nIndices * sizeof(Index);
-	while (!terminated && offset < totBytes) {
-		// Create new packet
-		FrameData packet;
-		packet.header.magic = cfg::PACKET_MAGIC;
-		packet.header.frameId = frameId;
-		packet.header.packetId = packetId;
-		packet.header.phead.nVertices = nVertices;
-		packet.header.phead.nIndices = nIndices;
-		// const auto preOff = offset;
-		offset = writeAllPossible(packet.payload, buffer, nVertices, nIndices, offset);
-		// std::cerr << "offset: " << offset << " (copied " << offset - preOff << " bytes)\n";
-		// std::cerr << "writing packet " << frameId << ":" << packetId << "\n";
-		// dumpPacket("server.dump", packet);
-
-		sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(packet));
-
-		totSent += packet.payload.size();
-		++nPacketsSent;
-		++packetId;
-	}
-	// std::cerr << "Sent total " << totSent << " bytes (" << nPacketsSent << " packets).\n";
-}
-
 ////////////////////////////////////////
 
 // Receives client parameters wherewith the server shall calculate the primitives to send during next frame
@@ -332,9 +252,8 @@ void ServerPassiveEndpoint::loopFunc()
 			continue;
 
 		latestFrame = packet->header.frameId;
-
-		// Update shared data
 		{
+			// Update shared data
 			std::lock_guard<std::mutex> lock{ shared.clientDataMtx };
 			memcpy(shared.clientData.data(), packet->payload.data(), packet->payload.size());
 			shared.clientFrame = latestFrame;
@@ -375,6 +294,7 @@ void ServerReliableEndpoint::loopFunc()
 		}
 
 		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
+		// For concurrent client handling, uncomment this and comment `listenTo`
 		// std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSocket, clientAddr);
 		// listener.detach();
 
@@ -506,7 +426,6 @@ void ServerReliableEndpoint::onClose()
 
 static bool sendMaterial(socket_t clientSocket, const Material& material)
 {
-
 	ResourcePacket<shared::Material> packet;
 	packet.type = MsgType::RSRC_TYPE_MATERIAL;
 	packet.res.name = material.name;
@@ -598,7 +517,6 @@ static bool sendModel(socket_t clientSocket, const Model& model)
 
 bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 {
-
 	/* Send all models info,
 	 * materials (which are basically maps (mat id) => { (diffuse): tex id, (specular): tex id, ... })
 	 * and textures data.

@@ -4,6 +4,7 @@
 #include "hashing.hpp"
 #include "models.hpp"
 #include <unordered_map>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 struct Geometry {
@@ -30,4 +31,4 @@ struct Geometry {
 auto addVertexAndIndexBuffers(BufferAllocator& bufAllocator,
 	Buffer& vertexBuffer,
 	Buffer& indexBuffer,
-	const std::unordered_map<StringId, ModelInfo>& models) -> std::unordered_map<StringId, Geometry::Location>;
+	const std::vector<ModelInfo>& models) -> std::unordered_map<StringId, Geometry::Location>;

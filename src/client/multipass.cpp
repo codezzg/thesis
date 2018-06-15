@@ -69,26 +69,17 @@ void recordMultipassCommandBuffers(const Application& app,
 		std::array<VkBuffer, 1> vertexBuffers = { geometry.vertexBuffer.handle };
 		std::vector<VkDeviceSize> offsets(geometry.locations.size());
 
-		// TODO: consider saving models in an array rather than a map, as it's often inconvenient
-		std::vector<ModelInfo> models(netRsrc.models.size());
-
 		// Use the same vertex buffer for all models, but with a different offset for each model.
 		// The offsets to use are saved in geometry.locations.
-		{
-			unsigned j = 0;
-			for (const auto& modelpair : netRsrc.models) {
-				// We need to save these in an ordered array to ensure consistent ordering later.
-				models[j] = modelpair.second;
-				auto it = geometry.locations.find(modelpair.first);
-				assert(it != geometry.locations.end());
-				offsets[j] = it->second.vertexOff;
-				++j;
-			}
+		for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
+			auto loc_it = geometry.locations.find(netRsrc.models[j].name);
+			assert(loc_it != geometry.locations.end());
+			offsets[j] = loc_it->second.vertexOff;
 		}
 
-		for (unsigned j = 0; j < models.size(); ++j) {
+		for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
 
-			const auto& model = models[j];
+			const auto& model = netRsrc.models[j];
 
 			// Bind the vertex buffer at the proper offset
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), &offsets[j]);

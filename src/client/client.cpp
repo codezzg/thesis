@@ -132,8 +132,6 @@ private:
 
 	/** Memory area staging vertices and indices coming from the server */
 	std::vector<uint8_t> streamingBuffer;
-	uint64_t nVertices = 0;
-	uint64_t nIndices = 0;
 
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
@@ -242,7 +240,7 @@ private:
 
 		// Retreive one-time data from server
 		{
-			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = 1 << 25;
+			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = megabytes(64);
 			ClientTmpResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
 			relEP.resources = &resources;
 
@@ -283,8 +281,7 @@ private:
 		for (const auto& pair : resources.textures)
 			textureSet.emplace(pair.first);
 
-		for (const auto& pair : resources.models) {
-			const auto& model = pair.second;
+		for (const auto& model : resources.models) {
 
 			std::set<StringId> neededTextureSet;
 
@@ -332,9 +329,8 @@ private:
 		});
 
 		// Save models into permanent storage
-		std::copy(resources.models.begin(),
-			resources.models.end(),
-			std::inserter(netRsrc.models, netRsrc.models.begin()));
+		// NOTE: resources.models becomes invalid after this move
+		netRsrc.models = std::move(resources.models);
 
 		{
 			/// Load textures
@@ -411,7 +407,7 @@ private:
 		info("closing activeEP");
 		activeEP.close();
 		info("closing relEP");
-		relEP.close();   // FIXME why it hangs sometimes?
+		relEP.close();
 
 		info("waiting device idle");
 		VLKCHECK(vkDeviceWaitIdle(app.device));
@@ -419,23 +415,8 @@ private:
 
 	void runFrame()
 	{
-		static size_t pvs = nVertices, pis = nIndices;
-
 		// Receive network data
 		receiveData();
-
-		if (nVertices != pvs || nIndices != pis) {
-			pvs = nVertices;
-			pis = nIndices;
-			VLKCHECK(vkDeviceWaitIdle(app.device));
-			info("Re-recording command buffers");
-			vkFreeCommandBuffers(app.device,
-				app.commandPool,
-				static_cast<uint32_t>(swapCommandBuffers.size()),
-				swapCommandBuffers.data());
-			swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
-			recordAllCommandBuffers();
-		}
 
 		updateMVPUniformBuffer();
 		updateCompUniformBuffer();
@@ -487,16 +468,16 @@ private:
 			dumpBytesIntoFileBin("dumps/sb.data", streamingBuffer.data(), streamingBuffer.size());
 			dumpBytesIntoFileBin("dumps/vb.data",
 				geometry.vertexBuffer.ptr,
-				netRsrc.models.begin()->second.nVertices * sizeof(Vertex));
+				netRsrc.models.begin()->nVertices * sizeof(Vertex));
 			dumpBytesIntoFileBin("dumps/ib.data",
 				(uint8_t*)geometry.indexBuffer.ptr,
-				netRsrc.models.begin()->second.nIndices * sizeof(Index));
+				netRsrc.models.begin()->nIndices * sizeof(Index));
 		}
 
 		{
 			Index maxIdx = 0;
-			assert(netRsrc.models.begin()->second.nIndices == geometry.indexBuffer.size / sizeof(Index));
-			for (unsigned i = 0; i < netRsrc.models.begin()->second.nIndices; ++i) {
+			assert(netRsrc.models.begin()->nIndices == geometry.indexBuffer.size / sizeof(Index));
+			for (unsigned i = 0; i < netRsrc.models.begin()->nIndices; ++i) {
 				auto idx = reinterpret_cast<Index*>(geometry.indexBuffer.ptr)[i];
 				if (idx > maxIdx)
 					maxIdx = idx;
@@ -890,7 +871,7 @@ private:
 	void recordAllCommandBuffers()
 	{
 		if (gIsDebug) {
-			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, nIndices, geometry);
+			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, geometry, netRsrc);
 		} else {
 			recordMultipassCommandBuffers(app, swapCommandBuffers, geometry, netRsrc);
 		}

@@ -7,14 +7,13 @@ using namespace logging;
 auto addVertexAndIndexBuffers(BufferAllocator& bufAllocator,
 	Buffer& vertexBuffer,
 	Buffer& indexBuffer,
-	const std::unordered_map<StringId, ModelInfo>& models) -> std::unordered_map<StringId, Geometry::Location>
+	const std::vector<ModelInfo>& models) -> std::unordered_map<StringId, Geometry::Location>
 {
 	std::unordered_map<StringId, Geometry::Location> locations;
 	VkDeviceSize vbufSize = 0, ibufSize = 0;
 
-	for (const auto& pair : models) {
-		const auto& model = pair.second;
-		auto& loc = locations[pair.first];
+	for (const auto& model : models) {
+		auto& loc = locations[model.name];
 		loc.vertexOff = vbufSize;
 		loc.indexOff = ibufSize;
 		vbufSize += model.nVertices * sizeof(Vertex);

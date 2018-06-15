@@ -1,6 +1,7 @@
 #include "swap.hpp"
 #include "application.hpp"
 #include "buffers.hpp"
+#include "client_resources.hpp"
 #include "formats.hpp"
 #include "geometry.hpp"
 #include "images.hpp"
@@ -468,47 +469,80 @@ VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
 
 void recordSwapChainDebugCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& commandBuffers,
-	uint32_t nIndices,
-	const Geometry& geometry)
+	const Geometry& geometry,
+	const NetworkResources& netRsrc)
 {
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+	VkRenderPassBeginInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = app.renderPass;
+	renderPassInfo.renderArea.offset = { 0, 0 };
+	renderPassInfo.renderArea.extent = app.swapChain.extent;
+	std::array<VkClearValue, 2> clearValues = {};
+	clearValues[0].color = { 0.12f, 0.83f, 1.0f, 1.f };
+	clearValues[1].depthStencil = { 1.f, 0 };
+	renderPassInfo.clearValueCount = clearValues.size();
+	renderPassInfo.pClearValues = clearValues.data();
+
+	const std::array<VkBuffer, 1> vertexBuffers = { geometry.vertexBuffer.handle };
+	std::vector<VkDeviceSize> offsets(geometry.locations.size());
+
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
-		VkCommandBufferBeginInfo beginInfo = {};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-		beginInfo.pInheritanceInfo = nullptr;
 
 		VLKCHECK(vkBeginCommandBuffer(commandBuffers[i], &beginInfo));
 
-		VkRenderPassBeginInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = app.renderPass;
 		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
-		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = app.swapChain.extent;
-		std::array<VkClearValue, 2> clearValues = {};
-		clearValues[0].color = { 0.12f, 0.83f, 1.0f, 1.f };
-		clearValues[1].depthStencil = { 1.f, 0 };
-		renderPassInfo.clearValueCount = clearValues.size();
-		renderPassInfo.pClearValues = clearValues.data();
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
-		const std::array<VkBuffer, 1> vertexBuffers = { geometry.vertexBuffer.handle };
-		const std::array<VkDeviceSize, 1> offsets = { 0 };
-		static_assert(
-			vertexBuffers.size() == offsets.size(), "offsets should be the same amount of vertexBuffers!");
-		vkCmdBindVertexBuffers(
-			commandBuffers[i], 0, vertexBuffers.size(), vertexBuffers.data(), offsets.data());
-		vkCmdBindIndexBuffer(commandBuffers[i], geometry.indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdBindDescriptorSets(commandBuffers[i],
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			app.res.pipelineLayouts->get("swap"),
-			0,
-			1,
-			&app.res.descriptorSets->get("swap"),
-			0,
-			nullptr);
-		vkCmdDrawIndexed(commandBuffers[i], nIndices, 1, 0, 0, 0);
+
+		// Draw all models
+		assert(geometry.locations.size() == netRsrc.models.size() &&
+			"Geometry locations should be the same number as models!");
+
+		// Use the same vertex buffer for all models, but with a different offset for each model.
+		// The offsets to use are saved in geometry.locations.
+		for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
+			auto loc_it = geometry.locations.find(netRsrc.models[j].name);
+			assert(loc_it != geometry.locations.end());
+			offsets[j] = loc_it->second.vertexOff;
+		}
+
+		for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
+
+			const auto& model = netRsrc.models[j];
+
+			// Bind the vertex buffer at the proper offset
+			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), &offsets[j]);
+
+			// Bind the index buffer at the proper offset
+			const auto loc_it = geometry.locations.find(model.name);
+			assert(loc_it != geometry.locations.end());
+			vkCmdBindIndexBuffer(commandBuffers[i],
+				geometry.indexBuffer.handle,
+				loc_it->second.indexOff,
+				VK_INDEX_TYPE_UINT32);
+
+			for (const auto& mesh : model.meshes) {
+				const auto& matName =
+					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
+
+				vkCmdBindDescriptorSets(commandBuffers[i],
+					VK_PIPELINE_BIND_POINT_GRAPHICS,
+					app.res.pipelineLayouts->get("swap"),
+					2,
+					1,
+					&app.res.descriptorSets->get("swap"),
+					0,
+					nullptr);
+
+				vkCmdDrawIndexed(commandBuffers[i], mesh.len, 1, mesh.offset, 0, 0);
+			}
+		}
 
 		vkCmdEndRenderPass(commandBuffers[i]);
 
