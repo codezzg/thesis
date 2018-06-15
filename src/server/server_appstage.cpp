@@ -2,6 +2,7 @@
 #include "clock.hpp"
 #include "frame_utils.hpp"
 #include "geom_update.hpp"
+#include "logging.hpp"
 #include "serialization.hpp"
 #include "server.hpp"
 #include <cmath>
@@ -11,6 +12,8 @@
 #include <random>
 #include <unordered_map>
 #include <vector>
+
+using namespace logging;
 
 struct Sphere {
 	glm::vec3 center;
@@ -148,10 +151,10 @@ void appstageLoop(Server& server)
 	std::uniform_int_distribution<unsigned> nSentDist{ 1, 100 };
 
 	while (true) {
-		const LimitFrameTime lft{ 16ms };
+		const LimitFrameTime lft{ 500ms };
 
 		// Wiggle the model and schedule random portions of it to be updated
-		wiggle(model);
+		// wiggle(model);
 
 		// FIXME: simple but inefficient way to send random updates: we're creating all
 		// the update chunks and discarding most of them at each frame.
@@ -163,8 +166,8 @@ void appstageLoop(Server& server)
 		{
 			std::lock_guard<std::mutex> lock{ server.shared.geomUpdateMtx };
 			for (unsigned i = 0; i < nSent; ++i) {
-				assert(i < updates.size());
-				server.shared.geomUpdate.emplace_back(updates[i]);
+				assert(i < idxToPick.size() && idxToPick[i] < updates.size());
+				server.shared.geomUpdate.emplace_back(updates[idxToPick[i]]);
 			}
 		}
 		server.shared.geomUpdateCv.notify_one();

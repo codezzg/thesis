@@ -100,17 +100,6 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 		payloadSize);
 	written += payloadSize;
 
-	// if (geomUpdate.dataType == DataType::INDEX) {
-	// Index maxIdx = 0;
-	// for (unsigned i = 0; i < payloadSize / sizeof(Index); ++i) {
-	// auto idx = reinterpret_cast<Index*>(
-	// reinterpret_cast<uint8_t*>(dataPtr) + dataSize * geomUpdate.start)[i];
-	// if (idx > maxIdx)
-	// maxIdx = idx;
-	//}
-	// info("max idx = ", maxIdx);
-	//}
-
 	// Update size in header
 	reinterpret_cast<Header*>(buffer)->size += written;
 	verbose("Packet size is now ", reinterpret_cast<Header*>(buffer)->size);

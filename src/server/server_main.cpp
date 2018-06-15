@@ -4,6 +4,7 @@
 #include "logging.hpp"
 #include "model.hpp"
 #include "server.hpp"
+#include "server_appstage.hpp"
 #include "server_endpoint.hpp"
 #include "units.hpp"
 #include "xplatform.hpp"
@@ -64,7 +65,9 @@ int main(int argc, char** argv)
 
 	/// Start TCP socket and wait for connections
 	server.relEP.startPassive(ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
-	server.relEP.runLoopSync();
+	server.relEP.runLoop();
+
+	appstageLoop(server);
 }
 
 void parseArgs(int argc, char** argv, std::string& ip)

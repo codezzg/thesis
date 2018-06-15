@@ -475,8 +475,6 @@ private:
 		int64_t bytesLeft = totBytes;
 		assert(bytesLeft <= static_cast<int64_t>(streamingBuffer.size()));
 
-		memset(geometry.vertexBuffer.ptr, 0x0, geometry.vertexBuffer.size);
-		memset(geometry.indexBuffer.ptr, 0x0, geometry.indexBuffer.size);
 		verbose("vertexBuffer: ",
 			std::hex,
 			uintptr_t(geometry.vertexBuffer.ptr),
@@ -515,7 +513,7 @@ private:
 				if (idx > maxIdx)
 					maxIdx = idx;
 			}
-			info("max idx = ", maxIdx);
+			verbose("max idx = ", maxIdx);
 			assert(maxIdx < geometry.vertexBuffer.size / sizeof(Vertex));
 		}
 #endif
@@ -826,7 +824,7 @@ private:
 		auto ubo = uniformBuffers.getComp();
 		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
 		ubo->opts = shaderOpts.getRepr();
-		verbose("viewPos = ", glm::to_string(ubo->viewPos));
+		uberverbose("viewPos = ", glm::to_string(ubo->viewPos));
 	}
 
 	void prepareBufferMemory(Buffer& stagingBuffer)

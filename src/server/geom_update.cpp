@@ -53,7 +53,7 @@ std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
 		i += header.len;
 	}
 
-	info("Updates size for model ",
+	verbose("Updates size for model ",
 		model.name,
 		": ",
 		updates.size(),
