@@ -17,7 +17,7 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len);
 /** Checks whether the data contained in `packetBuf` conforms to our
  *  UDP protocol or not (i.e. has the proper header)
  */
-bool validateUDPPacket(uint8_t* packetBuf, uint64_t packetGen);
+bool validateUDPPacket(const uint8_t* packetBuf, uint64_t packetGen);
 
 /** Receives a message from socket expecting it to be a TCP message conforming to
  *  our protocol, and fills both `buffer` with the entire packet receives and

@@ -148,9 +148,9 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len)
 	return true;
 }
 
-bool validateUDPPacket(uint8_t* packetBuf, uint64_t packetGen)
+bool validateUDPPacket(const uint8_t* packetBuf, uint64_t packetGen)
 {
-	const auto packet = reinterpret_cast<udp::UpdatePacket*>(packetBuf);
+	const auto packet = reinterpret_cast<const udp::UpdatePacket*>(packetBuf);
 	if (packet->header.magic != cfg::PACKET_MAGIC) {
 		info("Packet has invalid magic: dropping.");
 		return false;

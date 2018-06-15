@@ -1,3 +1,4 @@
+// TODO: ensure no spurious wakeup
 #include "client_endpoint.hpp"
 #include "camera.hpp"
 #include "config.hpp"
@@ -123,14 +124,26 @@ void ClientActiveEndpoint::loopFunc()
 
 bool ClientReliableEndpoint::await(std::chrono::seconds timeout)
 {
-	std::mutex mtx;
-	std::unique_lock<std::mutex> ulk{ mtx };
-	return cv.wait_for(ulk, timeout) == std::cv_status::no_timeout;
+	return true;
+	// std::unique_lock<std::mutex> ulk{ waitMtx };
+	// info(std::this_thread::get_id(), " AWAIT");
+	// info("cvCanProceed is false");
+	// auto r = waitCv.wait_for(ulk, timeout) == std::cv_status::no_timeout;
+	// info("await terminated");
+	// return r;
+}
+
+void ClientReliableEndpoint::proceed()
+{
+	// waitMtx.lock();
+	// info("cvCanProceed is true");
+	// waitMtx.unlock();
+	// info(std::this_thread::get_id(), " PROCEED");
+	// waitCv.notify_one();
 }
 
 static bool performHandshake(socket_t socket)
 {
-
 	std::array<uint8_t, 1> buf = {};
 
 	// send HELO message
@@ -151,10 +164,9 @@ static bool sendReadyAndWait(socket_t socket)
 
 static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_variable& cv)
 {
-
-	std::unique_lock<std::mutex> ulk{ mtx };
-
 	while (true) {
+		std::unique_lock<std::mutex> ulk{ mtx };
+
 		// Using a condition variable instead of sleep_for since we want to be able to interrupt it.
 		const auto r = cv.wait_for(ulk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
 		if (r == std::cv_status::no_timeout) {
@@ -177,73 +189,107 @@ static void keepaliveTask(socket_t socket, std::mutex& mtx, std::condition_varia
  */
 void ClientReliableEndpoint::loopFunc()
 {
+	auto& c = coordination;
+	using CS = ConnectionStage;
 
-	// -> HELO / <- HELO-ACK
-	if (!performHandshake(socket)) {
-		err("Handshake failed");
-		return;
-	}
+	// Acquire the lock (can only be done when the main thread is already waiting for us)
+	std::unique_lock<std::mutex> ulk{ c.mtx };
 
 	{
-		uint8_t buffer;
-		if (!expectTCPMsg(socket, &buffer, 1, MsgType::START_RSRC_EXCHANGE)) {
-			err("Expecting START_RSRC_EXCHANGE but didn't receive it.");
+		// -> HELO / <- HELO-ACK
+		debug("ep :: Performing handshake");
+		c.stage = CS::HANDSHAKE;
+		debug("ep :: Stage: ", int(c.stage));
+		if (!performHandshake(socket)) {
+			err("Handshake failed");
 			return;
 		}
+
+		{
+			debug("ep :: Expecting START_RSRC_EXCHANGE");
+			c.stage = CS::RECV_SRX;
+			debug("ep :: Stage: ", int(c.stage));
+			uint8_t buffer;
+			if (!expectTCPMsg(socket, &buffer, 1, MsgType::START_RSRC_EXCHANGE)) {
+				err("Expecting START_RSRC_EXCHANGE but didn't receive it.");
+				return;
+			}
+		}
+		c.stage = CS::PREP_RSRC;
+		debug("ep :: Stage: ", int(c.stage));
+		ulk.unlock();
 	}
+	debug("ep :: ep --> main");
+	c.cv.notify_one();
 
-	cv.notify_one();
-
-	std::mutex mtx;
 	{
-		std::unique_lock<std::mutex> ulk{ mtx };
 		// Wait for the main thread to tell us to proceed
-		cv.wait(ulk);
-	}
+		debug("ep :: Waiting main thread preparations...");
 
-	// Ready to receive one-time data
-	if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK))
-		return;
+		ulk.lock();
+		c.cv.wait(ulk, [this]() { return coordination.stage == CS::SEND_RX_ACK; });
+		// lock comes back to us
+		debug("Done waiting.");
 
-	info("Waiting for one-time data...");
-	if (!receiveOneTimeData()) {
-		err("Error receiving one time data.");
-		return;
+		debug("ep :: Sending RSRC_EXCHANGE_ACK...");
+		// Ready to receive one-time data
+		if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK))
+			return;
+
+		debug("ep :: Waiting for one-time data...");
+		c.stage = CS::RECV_RSRC;
+		debug("ep :: Stage: ", int(c.stage));
+		if (!receiveOneTimeData()) {
+			err("Error receiving one time data.");
+			return;
+		}
+		debug("notifying main");
+		c.stage = CS::CHECK_RSRC;
+		debug("ep :: Stage: ", int(c.stage));
+		ulk.unlock();
 	}
-	cv.notify_one();
+	debug("ep :: ep --> main");
+	c.cv.notify_one();
 
 	{
-		std::unique_lock<std::mutex> ulk{ mtx };
+		ulk.lock();
 		// Wait for the main thread to process the received assets
-		cv.wait(ulk);
+		debug("ep :: Waiting main thread assets processing...");
+		c.cv.wait(ulk, [this]() {
+			// FIXME: prevent spurious wakeups!
+			return coordination.stage == CS::SEND_READY;
+		});
+		debug("ep :: Sending READY");
+		if (!sendReadyAndWait(socket)) {
+			err("[ ERROR ] Sending or awaiting ready failed.");
+			return;
+		}
+		c.stage = CS::LISTENING;
+		ulk.unlock();
 	}
-
-	if (!sendReadyAndWait(socket)) {
-		err("[ ERROR ] Sending or awaiting ready failed.");
-		return;
-	}
-	cv.notify_one();
+	debug("ep :: ep --> main");
+	c.cv.notify_one();
 
 	// Spawn the keepalive routine
 	std::thread keepaliveThread{
 		keepaliveTask,
 		socket,
-		std::ref(mtx),
-		std::ref(cv),
+		std::ref(c.mtx),
+		std::ref(c.cv),
 	};
 
 	std::array<uint8_t, 1> buffer = {};
-	connected = true;
-	while (connected) {
+	debug("ep :: Starting msg receiving loop");
+	while (isConnected()) {
 		MsgType type;
 		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), type)) {
-			connected = false;
+			c.stage = CS::TERMINATING;
 			break;
 		}
 
 		switch (type) {
 		case MsgType::DISCONNECT:
-			connected = false;
+			c.stage = CS::TERMINATING;
 			break;
 		default:
 			break;
@@ -251,7 +297,7 @@ void ClientReliableEndpoint::loopFunc()
 	}
 
 	info("Closing TCP connection.");
-	cv.notify_all();
+	c.cv.notify_all();
 	if (keepaliveThread.joinable())
 		keepaliveThread.join();
 	info("Keepalive thread joined.");
@@ -259,7 +305,7 @@ void ClientReliableEndpoint::loopFunc()
 
 void ClientReliableEndpoint::onClose()
 {
-	cv.notify_all();
+	coordination.cv.notify_all();
 }
 
 /** Reads header data from `buffer` and starts reading a texture. If more packets

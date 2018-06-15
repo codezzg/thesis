@@ -1,10 +1,14 @@
 #include "server_appstage.hpp"
 #include "clock.hpp"
+#include "frame_utils.hpp"
+#include "geom_update.hpp"
 #include "serialization.hpp"
+#include "server.hpp"
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <iostream>
+#include <random>
 #include <unordered_map>
 #include <vector>
 
@@ -78,7 +82,7 @@ void transformVertices(Model& model,
 	const auto camera = deserializeCamera(clientData);
 
 	// STUB
-	// wiggle(model);
+	wiggle(model);
 
 	const auto& frustum = calcFrustum(/*camera.projMatrix()*/ glm::mat4{ 1.f });   // TODO
 	const auto sphere = calcBoundingSphere(model);
@@ -125,5 +129,44 @@ void transformVertices(Model& model,
 			++indexIdx;
 		}
 		nIndices = indexIdx;
+	}
+}
+
+void appstageLoop(Server& server)
+{
+	using namespace std::literals::chrono_literals;
+
+	std::default_random_engine rng;
+	rng.seed(std::random_device{}());
+
+	auto& model = server.resources.models.begin()->second;
+	auto updates = buildUpdatePackets(model);
+	std::vector<std::size_t> idxToPick(updates.size());
+	for (unsigned i = 0; i < idxToPick.size(); ++i)
+		idxToPick[i] = i;
+
+	std::uniform_int_distribution<unsigned> nSentDist{ 1, 100 };
+
+	while (true) {
+		const LimitFrameTime lft{ 16ms };
+
+		// Wiggle the model and schedule random portions of it to be updated
+		wiggle(model);
+
+		// FIXME: simple but inefficient way to send random updates: we're creating all
+		// the update chunks and discarding most of them at each frame.
+		updates = buildUpdatePackets(model);
+
+		std::shuffle(idxToPick.begin(), idxToPick.end(), rng);
+
+		const auto nSent = nSentDist(rng);
+		{
+			std::lock_guard<std::mutex> lock{ server.shared.geomUpdateMtx };
+			for (unsigned i = 0; i < nSent; ++i) {
+				assert(i < updates.size());
+				server.shared.geomUpdate.emplace_back(updates[i]);
+			}
+		}
+		server.shared.geomUpdateCv.notify_one();
 	}
 }

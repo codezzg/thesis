@@ -10,8 +10,7 @@
 
 /** This struct contains data that is shared between the server's active and passive endpoints. */
 struct ServerSharedData final {
-	/** Notified whenever a new frame arrives from the client */
-	std::condition_variable loopCv;
+	//// Client per-frame data
 
 	/** The latest frame received from client */
 	int64_t clientFrame = -1;
@@ -19,8 +18,19 @@ struct ServerSharedData final {
 	/** Mutex guarding access to clientData */
 	std::mutex clientDataMtx;
 
+	/** Notified whenever a new frame arrives from the client */
+	std::condition_variable clientDataCv;
+
 	/** Payload received from the client goes here*/
 	std::array<uint8_t, FrameData().payload.size()> clientData;
+
+	//// Geometry updating
+
+	/** List of update chunks to send */
+	std::vector<udp::ChunkHeader> geomUpdate;
+
+	/** Mutex guarding geomUpdate */
+	std::mutex geomUpdateMtx;
 
 	/** Notified whenever there are geometry updates to send to the client*/
 	std::condition_variable geomUpdateCv;
@@ -34,11 +44,10 @@ struct Server final {
 
 	ServerActiveEndpoint activeEP;
 	ServerPassiveEndpoint passiveEP;
-	ServerSharedData sharedData;
 	ServerReliableEndpoint relEP;
+	ServerSharedData shared;
 
 	ServerResources resources;
-	std::vector<udp::ChunkHeader> geomUpdate;
 
 	explicit Server(std::size_t memsize);
 	~Server();

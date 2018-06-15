@@ -62,17 +62,6 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 
-	{
-		// const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
-		// server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
-
-		// info("geomUpdate.size = ", server.geomUpdate.size());
-		// int i = 0;
-		// for (auto u : server.geomUpdate) {
-		// info(i++, ": start: ", u.start, ", len: ", u.len);
-		//}
-	}
-
 	/// Start TCP socket and wait for connections
 	server.relEP.startPassive(ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
 	server.relEP.runLoopSync();

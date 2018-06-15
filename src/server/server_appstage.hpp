@@ -8,6 +8,8 @@
 #include <array>
 #include <glm/glm.hpp>
 
+struct Server;
+
 /** The procedures used by the server's "application stage", e.g. culling
  *  optimization, vertex transformations, etc.
  */
@@ -21,6 +23,8 @@ void transformVertices(Model& model,
 	std::size_t bufsize,
 	/* inout */ int& nVertices,
 	/* inout */ int& nIndices);
+
+void appstageLoop(Server& server);
 
 #ifdef _WIN32
 inline bool sphereInFrustum(const glm::vec3& pos, float radius, const Frustum& frustum)

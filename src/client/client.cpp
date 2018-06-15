@@ -229,30 +229,64 @@ private:
 		// activeEP.runLoop();
 	}
 
+	// XXX: This function is very intricate, due to two threads bouncing back and forth and waiting
+	// on condition variables. It's likely buggy, so a rework to simplify it may prove necessary.
 	void connectToServer(const char* serverIp)
 	{
+		auto& coord = relEP.coordination;
+		using CS = ClientReliableEndpoint::ConnectionStage;
+
+		// Acquire the lock, forcing the ep to wait until we're at the first wait.
+		std::unique_lock<std::mutex> ulk{ coord.mtx };
+
 		relEP.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
 		relEP.runLoop();
-		// Wait for handshake to complete
-		if (!relEP.await(std::chrono::seconds{ 10 })) {
-			throw std::runtime_error("Failed connecting to server!");
+
+		// Wait for handshake to complete (this releases the lock)
+		while (coord.stage != CS::PREP_RSRC) {
+			debug("main :: (main thread waiting for handshake)");
+			if (coord.cv.wait_for(ulk, std::chrono::seconds{ 10 }) == std::cv_status::timeout) {
+				// if (!relEP.await(std::chrono::seconds{ 10 })) {
+				throw std::runtime_error("Failed connecting to server!");
+			}
 		}
+		// Implicitly recquire the lock
+		// But release it immediately so the ep can acquire it and wait for us
+		ulk.unlock();
 
 		// Retreive one-time data from server
 		{
 			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = megabytes(64);
 			ClientTmpResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
 			relEP.resources = &resources;
+			debug("assigned resources");
 
 			// Tell TCP thread to receive the data
-			relEP.proceed();
-			measure_ms("Recv Assets", LOGLV_INFO, [this]() {
-				if (!relEP.await(std::chrono::seconds{ 10 })) {
-					throw std::runtime_error("Failed to receive the one-time data!");
+			// relEP.proceed();
+			ulk.lock();
+			coord.stage = CS::SEND_RX_ACK;
+			debug("main :: Stage: ", int(coord.stage));
+			ulk.unlock();
+			debug("main :: main --> ep");
+			coord.cv.notify_one();
+
+			measure_ms("Recv Assets", LOGLV_INFO, [this, &coord, &ulk]() {
+				ulk.lock();
+				while (coord.stage != CS::CHECK_RSRC) {
+					debug("main :: (main thread waiting for receiving resources)");
+					if (coord.cv.wait_for(ulk, std::chrono::seconds{ 10 }) ==
+						std::cv_status::timeout) {
+						// if (!relEP.await(std::chrono::seconds{ 10 })) {
+						throw std::runtime_error("Failed to receive the one-time data!");
+					}
 				}
+				ulk.unlock();
 			});
 
 			measure_ms("Check Assets", LOGLV_INFO, [this, &resources]() { checkAssets(resources); });
+
+			// coord.stage = CS::LOAD_RSRC;
+			// info(":: Stage: ", int(coord.stage));
 
 			// Process the received data
 			measure_ms("Load Assets", LOGLV_INFO, [this, &resources]() { loadAssets(resources); });
@@ -261,16 +295,30 @@ private:
 			// Drop the memory used for staging the resources as it's not needed anymore.
 		}
 
+		ulk.lock();
+		coord.stage = CS::START_UDP;
+		debug("main :: Stage: ", int(coord.stage));
 		startNetwork(serverIp);
 
 		// Tell TCP thread to send READY and wait for server response
-		relEP.proceed();
-		if (!relEP.await(std::chrono::seconds{ 10 })) {
-			throw std::runtime_error("Connected to server, but server didn't send READY!");
+		// relEP.proceed();
+		debug("main :: main --> ep");
+		coord.stage = CS::SEND_READY;
+		ulk.unlock();
+		coord.cv.notify_one();
+
+		ulk.lock();
+		while (coord.stage != CS::LISTENING) {
+			debug("main :: (main thread waiting for ready to be sent)");
+			if (coord.cv.wait_for(ulk, std::chrono::seconds{ 10 }) == std::cv_status::timeout) {
+				// if (!relEP.await(std::chrono::seconds{ 10 })) {
+				throw std::runtime_error("Connected to server, but server didn't send READY!");
+			}
 		}
 		info("Received READY.");
 
 		// Ready to start the main loop
+		debug("main :: Starting main loop");
 	}
 
 	/** Check we received all the resources needed by all models */
@@ -437,7 +485,7 @@ private:
 		auto totBytes = passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
 
 		verbose("BYTES READ (", totBytes, ") = ");
-		dumpBytes(streamingBuffer.data(), streamingBuffer.size(), 50, LOGLV_VERBOSE);
+		dumpBytes(streamingBuffer.data(), streamingBuffer.size(), 50, LOGLV_UBER_VERBOSE);
 
 		// streamingBuffer now contains [chunk0|chunk1|...]
 
@@ -447,21 +495,24 @@ private:
 
 		memset(geometry.vertexBuffer.ptr, 0x0, geometry.vertexBuffer.size);
 		memset(geometry.indexBuffer.ptr, 0x0, geometry.indexBuffer.size);
-		debug("vertexBuffer: ",
+		verbose("vertexBuffer: ",
 			std::hex,
 			uintptr_t(geometry.vertexBuffer.ptr),
 			",  indexBuffer: ",
 			uintptr_t(geometry.indexBuffer.ptr),
 			std::dec);
 
+		unsigned nChunksProcessed = 0;
 		while (bytesProcessed < totBytes) {
-			debug("Processing chunk at offset ", bytesProcessed);
+			verbose("Processing chunk at offset ", bytesProcessed);
 			const auto bytesInChunk = processChunk(streamingBuffer.data() + bytesProcessed, bytesLeft);
-			debug("bytes in chunk: ", bytesInChunk);
+			++nChunksProcessed;
+			verbose("bytes in chunk: ", bytesInChunk);
 			bytesLeft -= bytesInChunk;
 			bytesProcessed += bytesInChunk;
 			assert(bytesLeft >= 0);
 		}
+		debug("Processed ", nChunksProcessed, " chunks.");
 
 #ifndef NDEBUG
 		if (gDebugLv >= LOGLV_VERBOSE) {
@@ -495,7 +546,7 @@ private:
 	 *  update the proper vertices or indices of a model.
 	 *  @return The number of bytes read, (aka the offset of the next chunk if there are more chunks after this)
 	 */
-	std::size_t processChunk(uint8_t* ptr, std::size_t maxBytesToRead)
+	std::size_t processChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
 	{
 		if (maxBytesToRead <= sizeof(udp::ChunkHeader)) {
 			err("Buffer given to processChunk has not enough room for a Header + Payload!");
@@ -541,7 +592,7 @@ private:
 
 		//// Update the model
 
-		debug("Updating model ",
+		verbose("Updating model ",
 			header->modelId,
 			" / (type = ",
 			int(header->dataType),
@@ -571,14 +622,14 @@ private:
 		if (header->dataType == udp::DataType::INDEX) {
 			Index maxIdx = 0;
 			for (unsigned i = 0; i < header->len; ++i) {
-				auto idx = reinterpret_cast<Index*>(ptr + sizeof(udp::ChunkHeader))[i];
+				auto idx = reinterpret_cast<const Index*>(ptr + sizeof(udp::ChunkHeader))[i];
 				if (idx > maxIdx)
 					maxIdx = idx;
 			}
 			verbose("max idx of chunk at location ", uintptr_t(ptr), " = ", maxIdx);
 		}
 
-		debug("Copying from ",
+		verbose("Copying from ",
 			std::hex,
 			uintptr_t(ptr + sizeof(udp::ChunkHeader)),
 			" --> ",
@@ -587,8 +638,8 @@ private:
 			"  (",
 			dataSize * header->len,
 			")");
-		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_VERBOSE);
-		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_VERBOSE);
+		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
+		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
 		memcpy(dataPtr, ptr + sizeof(udp::ChunkHeader), dataSize * header->len);
 
 		return chunkSize;

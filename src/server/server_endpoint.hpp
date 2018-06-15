@@ -71,9 +71,9 @@ class ServerReliableEndpoint : public Endpoint {
 
 	Server& server;
 
-	std::mutex loopMtx;
+	std::mutex keepaliveMtx;
 	/** Used to wait in the keepalive listen loop */
-	std::condition_variable loopCv;
+	std::condition_variable keepaliveCv;
 
 	void loopFunc() override;
 

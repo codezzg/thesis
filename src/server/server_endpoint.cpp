@@ -118,7 +118,7 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	return written;
 }
 
-static void dumpFullPacket(uint8_t* buffer, std::size_t bufsize)
+static void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize)
 {
 	verbose("Magic:");
 	dumpBytes(buffer, sizeof(uint32_t), 50, LOGLV_VERBOSE);
@@ -154,7 +154,6 @@ static void dumpFullPacket(uint8_t* buffer, std::size_t bufsize)
 
 void ServerActiveEndpoint::loopFunc()
 {
-	std::mutex loopMtx;
 	uint64_t packetGen = 0;
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer = {};
@@ -162,19 +161,21 @@ void ServerActiveEndpoint::loopFunc()
 	// Send geometry datagrams to the client
 	while (!terminated) {
 
-		if (server.geomUpdate.size() == 0) {
+		if (server.shared.geomUpdate.size() == 0) {
 			// Wait for updates
-			std::unique_lock<std::mutex> ulk{ loopMtx };
-			server.sharedData.geomUpdateCv.wait(ulk);
+			std::unique_lock<std::mutex> ulk{ server.shared.geomUpdateMtx };
+			server.shared.geomUpdateCv.wait(
+				ulk, [this]() { return terminated || server.shared.geomUpdate.size() > 0; });
 		}
 
 		std::size_t offset = sizeof(udp::Header);
 		writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
-		verbose("geomUpdate.size now = ", server.geomUpdate.size());
+		verbose("geomUpdate.size now = ", server.shared.geomUpdate.size());
 
-		auto write = server.geomUpdate.begin();
+		// TODO: use a more efficient approach for erasing elements
+		auto write = server.shared.geomUpdate.begin();
 		unsigned i = 0;
-		for (auto read = write; read != server.geomUpdate.end();) {
+		for (auto read = write; read != server.shared.geomUpdate.end();) {
 			verbose("update: ", i, ": ", read->start, " / ", read->len);
 
 			const auto written =
@@ -182,7 +183,7 @@ void ServerActiveEndpoint::loopFunc()
 			if (written > 0) {
 				offset += written;
 				++i;
-				read = server.geomUpdate.erase(read);
+				read = server.shared.geomUpdate.erase(read);
 			} else {
 				// Not enough room: send the packet and go on
 				if (gDebugLv >= LOGLV_VERBOSE) {
@@ -196,9 +197,6 @@ void ServerActiveEndpoint::loopFunc()
 				sendPacket(socket, buffer.data(), buffer.size());
 				writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
 				offset = sizeof(udp::Header);
-				// if (read != write)
-				//*write = std::move(*read);
-				//++write;
 			}
 		}
 
@@ -215,11 +213,7 @@ void ServerActiveEndpoint::loopFunc()
 			sendPacket(socket, buffer.data(), buffer.size());
 		}
 
-		// server.geomUpdate.erase(write, server.geomUpdate.end());
-
 		++packetGen;
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
 }
 
@@ -230,7 +224,6 @@ void ServerPassiveEndpoint::loopFunc()
 {
 	// Track the latest frame we received
 	int64_t latestFrame = -1;
-	auto& shared = server.sharedData;
 	int nPacketRecvErrs = 0;
 
 	while (!terminated) {
@@ -254,11 +247,11 @@ void ServerPassiveEndpoint::loopFunc()
 		latestFrame = packet->header.frameId;
 		{
 			// Update shared data
-			std::lock_guard<std::mutex> lock{ shared.clientDataMtx };
-			memcpy(shared.clientData.data(), packet->payload.data(), packet->payload.size());
-			shared.clientFrame = latestFrame;
+			std::lock_guard<std::mutex> lock{ server.shared.clientDataMtx };
+			memcpy(server.shared.clientData.data(), packet->payload.data(), packet->payload.size());
+			server.shared.clientFrame = latestFrame;
 		}
-		shared.loopCv.notify_all();
+		server.shared.clientDataCv.notify_one();
 	}
 }
 
@@ -272,16 +265,18 @@ void ServerReliableEndpoint::loopFunc()
 	info("Listening...");
 	::listen(socket, MAX_CLIENTS);
 
+	auto& geomUpdate = server.shared.geomUpdate;
+
 	while (!terminated) {
 		const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
-		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
 		// TODO
 		// This is done to send each update multiple times hoping that the client will
 		// eventually get them all. Find a better solution!
-		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
-		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
-		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
-		server.geomUpdate.insert(server.geomUpdate.end(), updates.begin(), updates.end());
+		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
 
 		sockaddr_in clientAddr;
 		socklen_t clientLen = sizeof(clientAddr);
@@ -378,15 +373,18 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 	{
 		// Periodically check keepalive, or drop the client
 		std::chrono::time_point<std::chrono::system_clock> latestPing;
-		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(loopCv), std::ref(latestPing) };
+		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(keepaliveCv), std::ref(latestPing) };
 
 		const auto& roLatestPing = latestPing;
 		const auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
 
 		while (true) {
-			std::unique_lock<std::mutex> loopUlk{ loopMtx };
-			if (loopCv.wait_for(loopUlk, interval) == std::cv_status::no_timeout)
-				break;
+			{
+				std::unique_lock<std::mutex> keepaliveUlk{ keepaliveMtx };
+				// TODO: ensure no spurious wakeup
+				if (keepaliveCv.wait_for(keepaliveUlk, interval) == std::cv_status::no_timeout)
+					break;
+			}
 
 			// Check for disconnection
 			if (roLatestPing == std::chrono::time_point<std::chrono::system_clock>::max()) {
@@ -412,16 +410,18 @@ dropclient:
 		// Send disconnect message
 		sendTCPMsg(clientSocket, MsgType::DISCONNECT);
 	}
-	server.sharedData.loopCv.notify_all();
-	server.sharedData.geomUpdateCv.notify_all();
+	server.shared.clientDataCv.notify_all();
+	server.shared.geomUpdateCv.notify_all();
 	// server.passiveEP.close();
+	info("Closing activeEP");
 	server.activeEP.close();
+	info("Closing socket");
 	xplatSockClose(clientSocket);
 }
 
 void ServerReliableEndpoint::onClose()
 {
-	loopCv.notify_all();
+	keepaliveCv.notify_all();
 }
 
 static bool sendMaterial(socket_t clientSocket, const Material& material)
