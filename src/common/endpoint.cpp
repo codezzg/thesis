@@ -133,7 +133,7 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len)
 	if (count < 0) {
 		err("Error receiving message: [", count, "] ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
-	} else if (count == sizeof(buffer)) {
+	} else if (static_cast<std::size_t>(count) == len) {
 		warn("Warning: message was truncated as it's too large.");
 		return false;
 	} else if (count == 0) {

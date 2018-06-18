@@ -341,6 +341,7 @@ static bool receiveModel(socket_t socket,
 	// [13] nMaterials (1 B)
 	// [14] nMeshes    (1 B)
 	const auto header = *reinterpret_cast<const ResourcePacket<shared::Model>*>(buffer);
+	constexpr auto sizeOfHeader = sizeof(ResourcePacket<shared::Model>);
 	const auto expectedSize = header.res.nMaterials * sizeof(StringId) + header.res.nMeshes * sizeof(shared::Mesh);
 
 	if (expectedSize > cfg::MAX_MODEL_SIZE) {
@@ -355,8 +356,8 @@ static bool receiveModel(socket_t socket,
 		return false;
 
 	// Copy the first texture data embedded in the header packet into the texture memory area
-	auto len = std::min(bufsize - sizeof(header), expectedSize);
-	memcpy(payload, buffer + sizeof(header), len);
+	auto len = std::min(bufsize - sizeOfHeader, expectedSize);
+	memcpy(payload, buffer + sizeOfHeader, len);
 
 	// Receive remaining model information as raw data packets (if needed)
 	auto processedSize = len;

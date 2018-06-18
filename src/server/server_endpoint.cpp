@@ -39,7 +39,7 @@ static void writeGeomUpdateHeader(uint8_t* buffer, std::size_t bufsize, uint64_t
 
 	// DEBUG
 	// memset(buffer, 0xAA, bufsize);
-	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(header));
+	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(udp::Header));
 }
 
 /** Writes a geometry update chunk into `buffer`, starting at `offset`.
@@ -268,7 +268,7 @@ void ServerReliableEndpoint::loopFunc()
 		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
 
 		sockaddr_in clientAddr;
-		socklen_t clientLen = sizeof(clientAddr);
+		socklen_t clientLen = sizeof(sockaddr_in);
 
 		info("Accepting...");
 		auto clientSocket = ::accept(socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
@@ -472,7 +472,8 @@ static bool sendModel(socket_t clientSocket, const Model& model)
 		", nMeshes = ",
 		int(header.res.nMeshes),
 		" }");
-	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
+	constexpr auto sizeOfHeader = sizeof(ResourcePacket<shared::Model>);
+	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeOfHeader);
 
 	const auto matSize = header.res.nMaterials * sizeof(StringId);
 	const auto meshSize = header.res.nMeshes * sizeof(shared::Mesh);
@@ -486,10 +487,10 @@ static bool sendModel(socket_t clientSocket, const Model& model)
 	}
 	memcpy(payload.data() + matSize, model.meshes.data(), meshSize);
 
-	auto len = std::min(size, packet.size() - sizeof(header));
-	memcpy(packet.data() + sizeof(header), payload.data(), len);
+	auto len = std::min(size, packet.size() - sizeOfHeader);
+	memcpy(packet.data() + sizeOfHeader, payload.data(), len);
 
-	if (!sendPacket(clientSocket, packet.data(), len + sizeof(header)))
+	if (!sendPacket(clientSocket, packet.data(), len + sizeOfHeader))
 		return false;
 
 	std::size_t bytesSent = len;
@@ -648,13 +649,14 @@ bool ServerReliableEndpoint::sendTexture(socket_t clientSocket,
 		", format = ",
 		int(header.res.format),
 		" }");
-	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeof(header));
+	constexpr auto sizeOfHeader = sizeof(ResourcePacket<TextureInfo>);
+	memcpy(packet.data(), reinterpret_cast<uint8_t*>(&header), sizeOfHeader);
 
 	// Fill remaining space with payload
-	auto len = std::min(texture.size, packet.size() - sizeof(header));
-	memcpy(packet.data() + sizeof(header), texture.data, len);
+	auto len = std::min(texture.size, packet.size() - sizeOfHeader);
+	memcpy(packet.data() + sizeOfHeader, texture.data, len);
 
-	if (!sendPacket(clientSocket, packet.data(), len + sizeof(header)))
+	if (!sendPacket(clientSocket, packet.data(), len + sizeOfHeader))
 		return false;
 
 	std::size_t bytesSent = len;
