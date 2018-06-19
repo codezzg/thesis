@@ -108,6 +108,8 @@ public:
 
 private:
 	Application app;
+	
+	bool fullscreen = false;
 
 	ClientPassiveEndpoint passiveEP;
 	ClientActiveEndpoint activeEP;
@@ -1038,6 +1040,16 @@ private:
 		case GLFW_KEY_KP_SUBTRACT:
 			appl->cameraCtrl->cameraSpeed -= 10;
 			break;
+		case GLFW_KEY_F4: {
+			// Toggle windowed fullscreen
+			const auto mode = glfwGetVideoMode(appl->app.monitor);
+			if (appl->fullscreen) {
+				glfwSetWindowMonitor(window, nullptr, 100, 100, cfg::WIDTH, cfg::HEIGHT, mode->refreshRate);
+			} else {
+				glfwSetWindowMonitor(window, nullptr, 0, 0, mode->width, mode->height, mode->refreshRate);
+			}
+			appl->fullscreen = !appl->fullscreen;
+		} break;
 		default:
 			break;
 		}

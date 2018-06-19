@@ -223,17 +223,20 @@ static bool receiveTexture(socket_t socket,
 	// [1] tex.name   (4 B)
 	// [5] tex.format (1 B)
 	// [6] tex.size   (8 B)
-	const auto expectedSize = *reinterpret_cast<const uint64_t*>(buffer + 6);
+
+	// TODO: use a reinterpret_cast to the header struct
+	const auto header = *reinterpret_cast<const shared::ResourcePacket<shared::TextureInfo>*>(buffer);
+	constexpr auto sizeOfHeader = sizeof(shared::ResourcePacket<shared::TextureInfo>);
+	const auto expectedSize = header.res.size;
 
 	if (expectedSize > cfg::MAX_TEXTURE_SIZE) {
 		err("Texture server sent is too big! (", expectedSize / 1024 / 1024., " MiB)");
 		return false;
 	}
 
-	const auto texName = *reinterpret_cast<const StringId*>(buffer + 1);
+	const auto texName = header.res.name;
 
-	auto format = static_cast<shared::TextureFormat>(buffer[5]);
-	assert(static_cast<uint8_t>(format) < static_cast<uint8_t>(shared::TextureFormat::UNKNOWN));
+	assert(static_cast<uint8_t>(header.res.format) < static_cast<uint8_t>(shared::TextureFormat::UNKNOWN));
 
 	// Retreive payload
 
@@ -242,11 +245,9 @@ static bool receiveTexture(socket_t socket,
 	if (!texdata)
 		return false;
 
-	constexpr auto HEADER_SIZE = 14;
-
 	// Copy the first texture data embedded in the header packet into the texture memory area
-	auto len = std::min(bufsize - HEADER_SIZE, expectedSize);
-	memcpy(texdata, buffer + HEADER_SIZE, len);
+	auto len = std::min(bufsize - sizeOfHeader, expectedSize);
+	memcpy(texdata, buffer + sizeOfHeader, len);
 
 	// Receive remaining texture data as raw data packets (if needed)
 	auto processedSize = len;
@@ -256,13 +257,14 @@ static bool receiveTexture(socket_t socket,
 
 		len = std::min(remainingSize, bufsize);
 
+		int bytesRead;
 		// Receive the data directly into the texture memory area (avoids a memcpy from the buffer)
-		if (!receivePacket(socket, reinterpret_cast<uint8_t*>(texdata) + processedSize, len)) {
+		if (!receivePacket(socket, reinterpret_cast<uint8_t*>(texdata) + processedSize, len, &bytesRead)) {
 			resources.allocator.deallocLatest();
 			return false;
 		}
 
-		processedSize += len;
+		processedSize += bytesRead;
 	}
 
 	if (processedSize != expectedSize) {
@@ -272,7 +274,7 @@ static bool receiveTexture(socket_t socket,
 	shared::Texture texture;
 	texture.size = expectedSize;
 	texture.data = texdata;
-	texture.format = format;
+	texture.format = header.res.format;
 
 	if (resources.textures.count(texName) > 0) {
 		warn("Received the same texture two times: ", texName);

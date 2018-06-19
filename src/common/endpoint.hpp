@@ -12,7 +12,12 @@ struct FrameData;
 // Common functions
 bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len);
 
-bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len);
+/** Receives a packet from `socket`, storing at most `len` bytes into `buffer`.
+ *  Buffer must be at least `len` bytes long. That is *NOT* checked by this function.
+ *  If `bytesRead` is not null, it is filled with the actual number of bytes read.
+ *  @return true if > 0 bytes were read, false otherwise.
+ */
+bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len, int* bytesRead = nullptr);
 
 /** Checks whether the data contained in `packetBuf` conforms to our
  *  UDP protocol or not (i.e. has the proper header)

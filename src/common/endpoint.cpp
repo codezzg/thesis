@@ -126,20 +126,19 @@ void Endpoint::close()
 	loopThread.reset(nullptr);
 }
 
-bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len)
+bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len, int* bytesRead)
 {
-	const auto count = recv(socket, reinterpret_cast<char*>(buffer), len, 0);
+	const auto count = ::recv(socket, reinterpret_cast<char*>(buffer), len, 0);
+	if (bytesRead)
+		*bytesRead = count;
 
 	if (count < 0) {
 		err("Error receiving message: [", count, "] ", xplatGetErrorString(), " (", xplatGetError(), ")");
 		return false;
-	} else if (static_cast<std::size_t>(count) == len) {
-		warn("Warning: message was truncated as it's too large.");
-		return false;
 	} else if (count == 0) {
 		warn("Received EOF");
 		return false;
-	}
+	} 
 
 	uberverbose("Received ", count, " bytes");
 	if (gDebugLv >= LOGLV_UBER_VERBOSE)

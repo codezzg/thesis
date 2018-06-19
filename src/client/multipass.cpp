@@ -16,8 +16,12 @@ void recordMultipassCommandBuffers(const Application& app,
 	const NetworkResources& netRsrc)
 {
 	std::array<VkClearValue, 5> clearValues = {};
-	clearValues[0].color = { 0.f, 0.2f, 0.6f, 1.f };
+	clearValues[0].color = { 0.f, 0.f, 0.f, 0.f };
 	clearValues[1].depthStencil = { 1, 0 };
+	clearValues[2].color = { 0.f, 0.f, 0.f, 0.f };
+	clearValues[3].color = { 0.f, 0.f, 0.f, 0.f };
+	// "Sky" color (TODO replace with skybox)
+	clearValues[4].color = { 0.41f, 0.84f, 0.87f, 0.f };
 
 	VkRenderPassBeginInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

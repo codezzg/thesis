@@ -127,6 +127,7 @@ void Application::init()
 	validation.requestLayers(enabledLayers);
 #endif
 	window = initWindow();
+	monitor = glfwGetPrimaryMonitor();
 	instance = createInstance(validation);
 
 	uint32_t version;

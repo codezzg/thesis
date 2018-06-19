@@ -22,6 +22,7 @@ struct Application final {
 	// ApplicationMemory memory;
 
 	GLFWwindow* window = nullptr;
+	GLFWmonitor* monitor = nullptr;
 
 	VkInstance instance = VK_NULL_HANDLE;
 	VkSurfaceKHR surface = VK_NULL_HANDLE;

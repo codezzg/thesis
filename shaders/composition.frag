@@ -18,7 +18,7 @@ layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
 	int opts;
 } ubo;
 
-#define AMBIENT_INTENSITY 0.15
+#define AMBIENT_INTENSITY 0.45
 
 void main() {
 	// For now just 1 light, hardcoded
@@ -38,7 +38,8 @@ void main() {
 	float fragSpec = subpassLoad(gAlbedoSpec).a;
 
 	// Ambient
-	const vec3 ambient = AMBIENT_INTENSITY * ambientColor * albedo;
+	float isSky = float(fragPos == vec3(0.0)); // HACK!
+	vec3 ambient = (isSky + (1.0 - isSky) * AMBIENT_INTENSITY) * ambientColor * albedo;
 
 	// Diffuse
 	vec3 lightDir = normalize(lightPos - fragPos);
@@ -70,7 +71,6 @@ void main() {
 		}
 	} else {
 		fragColor = vec4(lighting, 1.0);
-		/*fragColor = vec4(albedo, 1.0);*/
 	}
 	/*fragColor = vec4(lighting, 1.0);*/
 	/*fragColor = vec4(vec3(specular), 1.0);*/
