@@ -6,8 +6,13 @@
 #include <cstdint>
 #include <memory>
 #include <thread>
+#include <atomic>
+#include <mutex>
 
 struct FrameData;
+struct BandwidthLimiter;
+
+extern BandwidthLimiter gBandwidthLimiter;
 
 // Common functions
 bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len);
@@ -52,7 +57,7 @@ protected:
 	/** port this endpoint was started on */
 	int port;
 
-	volatile bool terminated = false;
+	bool terminated = false;
 	socket_t socket = xplatInvalidSocketID();
 
 	/** The function running in this endpoint's thread. Should implement a loop
@@ -93,4 +98,38 @@ public:
 
 	/** Terminates the loop and closes the socket */
 	void close();
+};
+
+/** A bandwidth limiter using the token bucket algorithm */
+struct BandwidthLimiter {
+	/** Guards access to the class parameters */
+	std::mutex mtx;
+
+	std::atomic_bool terminated = true;
+
+	/** Interval at which refillThread updates (seconds) */
+	std::chrono::duration<float> updateInterval = std::chrono::duration<float>{ 0.2 };
+
+	/** Token refill rate (Hz) */
+	std::size_t tokenRate = 0;
+	/** Max tokens in the bucket */
+	std::size_t maxTokens = 0;
+	/** Tokens in the bucket */
+	std::size_t tokens = 0;
+
+	std::thread refillThread;
+
+	/** Sets the max amount of bytes sent per second by all sockets to `limit` (cumulative).
+	 *  Only applies to sends called through endpoint functions, such as `sendPacket`.
+	 *  Calling this function with `limit == 0` removes the limit.
+	 *  Calling this function resets the quota and the clock.
+	 */
+	void setSendLimit(std::size_t bytesPerSecond);
+
+	/** Attempts to send `bytes` bytes.
+	 *  @return true if the send is allowed, false otherwise.
+	 */
+	bool requestToken(std::size_t bytes);
+
+	void cleanup();
 };

@@ -38,6 +38,7 @@ int main(int argc, char** argv)
 		std::cerr << "Failed to initialize sockets." << std::endl;
 		return EXIT_FAILURE;
 	}
+	//gBandwidthLimiter.setSendLimit(100000);
 
 	if (!xplatEnableExitHandler()) {
 		std::cerr << "Failed to enable exit handler!\n";
@@ -45,6 +46,7 @@ int main(int argc, char** argv)
 	}
 	xplatSetExitHandler([]() {
 		gServer->closeNetwork();
+		gBandwidthLimiter.cleanup();
 		if (Endpoint::cleanup())
 			info("Successfully cleaned up sockets.");
 		else

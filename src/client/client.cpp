@@ -999,7 +999,7 @@ private:
 
 	static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
 	{
-		static constexpr double centerX = cfg::WIDTH / 2.0, centerY = cfg::HEIGHT / 2.0;
+		constexpr double centerX = cfg::WIDTH / 2.0, centerY = cfg::HEIGHT / 2.0;
 		static bool firstTime = true;
 
 		if (!firstTime) {

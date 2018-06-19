@@ -16,6 +16,9 @@
 
 using namespace logging;
 
+BandwidthLimiter gBandwidthLimiter;
+
+
 static socket_t findFirstValidSocket(const addrinfo* result, socket_connect_op op)
 {
 	// Connect
@@ -178,6 +181,8 @@ static void spam()
 
 bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 {
+	while (!gBandwidthLimiter.requestToken(len)) {}
+
 	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
 		if (!spamming()) {
 			warn("could not write to remote: ", xplatGetErrorString(), " (", xplatGetError(), ")");
@@ -229,4 +234,64 @@ bool sendTCPMsg(socket_t socket, MsgType type)
 		err("Failed to send message: ", type);
 
 	return r;
+}
+
+//////////////////////////
+
+/** Refills `l`'s bucket with rate depending on its member variables. */
+static void refillTask(BandwidthLimiter& l) 
+{
+	while (!l.terminated) {
+		std::chrono::duration<float> sleepTime;
+		{
+			std::lock_guard<std::mutex> lock{ l.mtx };
+			
+			// Must read this while the mutex is locked
+			sleepTime = l.updateInterval;
+
+			const auto nTokensToRefill = static_cast<std::size_t>(l.tokenRate * l.updateInterval.count());
+			l.tokens = std::min(l.maxTokens, l.tokens + nTokensToRefill);
+		}
+		std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
+	}
+}
+
+void BandwidthLimiter::setSendLimit(std::size_t bytesPerSecond) 
+{
+	if (refillThread.joinable()) {
+		terminated = true;
+		refillThread.join();
+	}
+
+	terminated = false;
+
+	if (bytesPerSecond == 0)
+		return;
+
+	tokenRate = bytesPerSecond;
+	maxTokens = bytesPerSecond; // FIXME: makes sense?
+	tokens = 0;
+
+	refillThread = std::thread(refillTask, std::ref(*this));
+}
+
+bool BandwidthLimiter::requestToken(std::size_t bytes) 
+{
+	if (terminated)
+		return true;
+
+	std::lock_guard<std::mutex> lock{ mtx };
+	
+	if (tokens < bytes)
+		return false;
+	
+	tokens -= bytes;
+	return true;
+}
+
+void BandwidthLimiter::cleanup()
+{
+	terminated = true;
+	if (refillThread.joinable())
+		refillThread.join();
 }
