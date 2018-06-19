@@ -23,25 +23,29 @@ static constexpr auto CLIENT_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
 Server* gServer;
 
-static void parseArgs(int argc, char** argv, std::string& ip);
+static void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond);
 static bool loadAssets(Server& server);
 
 int main(int argc, char** argv)
 {
 	std::string ip = "127.0.0.1";
-	parseArgs(argc, argv, ip);
+	std::size_t limitBytesPerSecond = 0;
+	parseArgs(argc, argv, ip, limitBytesPerSecond);
 
 	std::cerr << "Debug level = " << static_cast<int>(gDebugLv) << "\n";
 
 	/// Initial setup
 	if (!Endpoint::init()) {
-		std::cerr << "Failed to initialize sockets." << std::endl;
+		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;
 	}
-	//gBandwidthLimiter.setSendLimit(100000);
+	if (limitBytesPerSecond > 0) {
+		info("Limiting bandwidth to ", limitBytesPerSecond, " bytes/s");
+		gBandwidthLimiter.setSendLimit(limitBytesPerSecond);
+	}
 
 	if (!xplatEnableExitHandler()) {
-		std::cerr << "Failed to enable exit handler!\n";
+		err("Failed to enable exit handler!");
 		return EXIT_FAILURE;
 	}
 	xplatSetExitHandler([]() {
@@ -72,11 +76,16 @@ int main(int argc, char** argv)
 	appstageLoop(server);
 }
 
-void parseArgs(int argc, char** argv, std::string& ip)
+void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond)
 {
-	int i = argc - 1;
+	const auto usage = [argv] () {
+		std::cerr << "Usage: " << argv[0] << " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)]\n";
+		std::exit(EXIT_FAILURE);
+	};
+
+	int i = 1;
 	int posArgs = 0;
-	while (i > 0) {
+	while (i < argc) {
 		if (strlen(argv[i]) < 2) {
 			std::cerr << "Invalid flag -.\n";
 			std::exit(EXIT_FAILURE);
@@ -95,9 +104,18 @@ void parseArgs(int argc, char** argv, std::string& ip)
 			case 'n':
 				gColoredLogs = false;
 				break;
+			case 'b': {
+				if (i == argc - 1) {
+					usage();
+				}
+				auto bytesPerSeconds = std::atoll(argv[i + 1]);
+				if (bytesPerSeconds <= 0)
+					limitBytesPerSecond = 0;
+				limitBytesPerSecond = static_cast<std::size_t>(bytesPerSeconds);
+				++i;
+			} break;
 			default:
-				std::cerr << "Usage: " << argv[0] << " [-v[vvv...]]\n";
-				std::exit(EXIT_FAILURE);
+				usage();
 			}
 		} else {
 			switch (posArgs++) {
@@ -108,7 +126,7 @@ void parseArgs(int argc, char** argv, std::string& ip)
 				break;
 			}
 		}
-		--i;
+		++i;
 	}
 }
 
