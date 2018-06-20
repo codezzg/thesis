@@ -18,7 +18,6 @@ using namespace logging;
 
 BandwidthLimiter gBandwidthLimiter;
 
-
 static socket_t findFirstValidSocket(const addrinfo* result, socket_connect_op op)
 {
 	// Connect
@@ -141,7 +140,7 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len, int* bytes
 	} else if (count == 0) {
 		warn("Received EOF");
 		return false;
-	} 
+	}
 
 	uberverbose("Received ", count, " bytes");
 	if (gDebugLv >= LOGLV_UBER_VERBOSE)
@@ -181,7 +180,8 @@ static void spam()
 
 bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 {
-	while (!gBandwidthLimiter.requestToken(len)) {}
+	while (!gBandwidthLimiter.requestToken(len)) {
+	}
 
 	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
 		if (!spamming()) {
@@ -239,13 +239,13 @@ bool sendTCPMsg(socket_t socket, MsgType type)
 //////////////////////////
 
 /** Refills `l`'s bucket with rate depending on its member variables. */
-static void refillTask(BandwidthLimiter& l) 
+static void refillTask(BandwidthLimiter& l)
 {
 	while (!l.terminated) {
 		std::chrono::duration<float> sleepTime;
 		{
 			std::lock_guard<std::mutex> lock{ l.mtx };
-			
+
 			// Must read this while the mutex is locked
 			sleepTime = l.updateInterval;
 
@@ -254,9 +254,10 @@ static void refillTask(BandwidthLimiter& l)
 		}
 		std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
 	}
+	info("refillThread terminated.");
 }
 
-void BandwidthLimiter::setSendLimit(std::size_t bytesPerSecond) 
+void BandwidthLimiter::setSendLimit(std::size_t bytesPerSecond)
 {
 	if (refillThread.joinable()) {
 		terminated = true;
@@ -269,22 +270,25 @@ void BandwidthLimiter::setSendLimit(std::size_t bytesPerSecond)
 		return;
 
 	tokenRate = bytesPerSecond;
-	maxTokens = bytesPerSecond; // FIXME: makes sense?
+	maxTokens = bytesPerSecond;   // FIXME: makes sense?
 	tokens = 0;
 
+	info("Kicking off refillThread...");
 	refillThread = std::thread(refillTask, std::ref(*this));
 }
 
-bool BandwidthLimiter::requestToken(std::size_t bytes) 
+bool BandwidthLimiter::requestToken(std::size_t bytes)
 {
 	if (terminated)
 		return true;
 
 	std::lock_guard<std::mutex> lock{ mtx };
-	
-	if (tokens < bytes)
+
+	if (tokens < bytes) {
+		verbose("requestToken returning false (have ", tokens, " / ", bytes, " tokens)");
 		return false;
-	
+	}
+
 	tokens -= bytes;
 	return true;
 }

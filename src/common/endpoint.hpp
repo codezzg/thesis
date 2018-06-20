@@ -3,11 +3,11 @@
 #include "endpoint_xplatform.hpp"
 #include "tcp_messages.hpp"
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <memory>
-#include <thread>
-#include <atomic>
 #include <mutex>
+#include <thread>
 
 struct FrameData;
 struct BandwidthLimiter;
@@ -105,10 +105,10 @@ struct BandwidthLimiter {
 	/** Guards access to the class parameters */
 	std::mutex mtx;
 
-	std::atomic_bool terminated = true;
+	std::atomic_bool terminated{ true };
 
 	/** Interval at which refillThread updates (seconds) */
-	std::chrono::duration<float> updateInterval = std::chrono::duration<float>{ 0.2 };
+	std::chrono::duration<float> updateInterval{ 0.2 };
 
 	/** Token refill rate (Hz) */
 	std::size_t tokenRate = 0;
