@@ -54,21 +54,3 @@ bool acquireNextSwapImage(const Application& app, VkSemaphore imageAvailableSema
 std::vector<VkCommandBuffer> createSwapChainCommandBuffers(const Application& app, VkCommandPool commandPool);
 
 VkPipeline createSwapChainPipeline(const Application& app);
-
-/** @return a descriptorSetLayout suited for forward rendering */
-VkDescriptorSetLayout createSwapChainDebugDescriptorSetLayout(const Application& app);
-
-/** @return a descriptorSet suited for forward rendering */
-VkDescriptorSet createSwapChainDebugDescriptorSet(const Application& app,
-	const Buffer& uniformBuffer,
-	const Image& tex,
-	VkSampler texSampler);
-
-/** records a vector of commandBuffers that perform forward rendering */
-void recordSwapChainDebugCommandBuffers(const Application& app,
-	std::vector<VkCommandBuffer>& buffers,
-	const Geometry& geometry,
-	const NetworkResources& netRsrc);
-
-/** @return a pipeline suited for forward rendering */
-VkPipeline createSwapChainDebugPipeline(const Application& app);

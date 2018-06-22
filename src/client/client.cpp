@@ -71,7 +71,6 @@ constexpr auto RENDER_FRAME_TIME = std::chrono::milliseconds{ 16 };
 constexpr auto SERVER_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
 bool gUseCamera = false;
-bool gIsDebug = false;
 bool gLimitFrameTime = true;
 
 class VulkanClient final {
@@ -91,10 +90,7 @@ public:
 		if (!connectToServer(ip))
 			return;
 
-		if (!gIsDebug)
-			measure_ms("Init Vulkan", LOGLV_INFO, [this]() { initVulkan(); });   // deferred rendering
-		else
-			initVulkanForward();   // forward rendering
+		measure_ms("Init Vulkan", LOGLV_INFO, [this]() { initVulkan(); });   // deferred rendering
 
 		mainLoop(ip);
 		cleanup();
@@ -179,40 +175,6 @@ private:
 		app.swapChain.pipeline = createSwapChainPipeline(app);
 
 		createDescriptorSetsForMaterials();
-
-		recordAllCommandBuffers();
-
-		createSemaphores();
-
-		prepareCamera();
-	}
-
-	void initVulkanForward()
-	{
-		// Create basic Vulkan resources
-		app.swapChain = createSwapChain(app);
-		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
-		app.renderPass = createForwardRenderPass(app);
-
-		// app.commandPool = createCommandPool(app);
-		app.swapChain.depthImage = createDepthImage(app);
-		app.swapChain.framebuffers = createSwapChainFramebuffers(app, app.swapChain);
-		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
-		app.pipelineCache = createPipelineCache(app);
-
-		app.descriptorPool = createDescriptorPool(app, netRsrc);
-
-		// Initialize resource maps
-		app.res.init(app.device, app.descriptorPool);
-
-		// Create pipelines
-		app.res.descriptorSetLayouts->add("swap", createSwapChainDebugDescriptorSetLayout(app));
-		app.res.pipelineLayouts->add(
-			"swap", createPipelineLayout(app, { app.res.descriptorSetLayouts->get("swap") }));
-		app.swapChain.pipeline = createSwapChainDebugPipeline(app);
-		app.res.descriptorSets->add("swap",
-			createSwapChainDebugDescriptorSet(
-				app, uniformBuffers, netRsrc.defaults.diffuseTex, texSampler));
 
 		recordAllCommandBuffers();
 
@@ -456,10 +418,7 @@ private:
 
 		cameraCtrl->processInput(app.window);
 
-		if (gIsDebug)
-			drawFrameForward();
-		else
-			drawFrame();
+		drawFrame();
 	}
 
 	void receiveData()
@@ -659,20 +618,14 @@ private:
 		app.swapChain = createSwapChain(app);
 		app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
 		app.swapChain.depthImage = createDepthImage(app);
-		if (gIsDebug) {
-			app.renderPass = createForwardRenderPass(app);
-			app.swapChain.pipeline = createSwapChainDebugPipeline(app);
-			app.swapChain.framebuffers = createSwapChainFramebuffers(app, app.swapChain);
-		} else {
-			app.gBuffer.createAttachments(app);
-			app.renderPass = createMultipassRenderPass(app);
+		app.gBuffer.createAttachments(app);
+		app.renderPass = createMultipassRenderPass(app);
 
-			updateGBufferDescriptors(app, app.res.descriptorSets->get("shader_res"), texSampler);
+		updateGBufferDescriptors(app, app.res.descriptorSets->get("shader_res"), texSampler);
 
-			app.gBuffer.pipeline = createGBufferPipeline(app);
-			app.swapChain.pipeline = createSwapChainPipeline(app);
-			app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
-		}
+		app.gBuffer.pipeline = createGBufferPipeline(app);
+		app.swapChain.pipeline = createSwapChainPipeline(app);
+		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 
 		recordAllCommandBuffers();
@@ -902,14 +855,7 @@ private:
 		activeEP.setCamera(&camera);
 	}
 
-	void recordAllCommandBuffers()
-	{
-		if (gIsDebug) {
-			recordSwapChainDebugCommandBuffers(app, swapCommandBuffers, geometry, netRsrc);
-		} else {
-			recordMultipassCommandBuffers(app, swapCommandBuffers, geometry, netRsrc);
-		}
-	}
+	void recordAllCommandBuffers() { recordMultipassCommandBuffers(app, swapCommandBuffers, geometry, netRsrc); }
 
 	void createDescriptorSetsForMaterials()
 	{
@@ -935,8 +881,7 @@ private:
 	void cleanupSwapChain()
 	{
 		// Destroy the gbuffer and all its attachments
-		if (!gIsDebug)
-			app.gBuffer.destroyTransient(app.device);
+		app.gBuffer.destroyTransient(app.device);
 		// Destroy the swapchain and all its images and framebuffers
 		app.swapChain.destroyTransient(app.device);
 
@@ -1075,9 +1020,6 @@ int main(int argc, char** argv)
 		}
 		if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
-			case 'd':
-				gIsDebug = true;
-				break;
 			case 'c':
 				gUseCamera = true;
 				break;
@@ -1094,9 +1036,7 @@ int main(int argc, char** argv)
 				gColoredLogs = false;
 				break;
 			default:
-				std::cout
-					<< "Usage: " << argv[0]
-					<< " [-c (use camera)] [-d (debug mode, aka use forward rendering)] [-n (no colored logs)]\n";
+				std::cout << "Usage: " << argv[0] << " [-c (use camera)] [-n (no colored logs)]\n";
 				break;
 			}
 		} else {
