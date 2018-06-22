@@ -8,7 +8,16 @@ layout (location = 0) out vec4 fragColor;
 layout (input_attachment_index = 0, set = 1, binding = 0) uniform subpassInput gPosition;
 layout (input_attachment_index = 1, set = 1, binding = 1) uniform subpassInput gNormal;
 layout (input_attachment_index = 2, set = 1, binding = 2) uniform subpassInput gAlbedoSpec;
+
+struct PointLight {
+	vec3 position;
+	float intensity;
+	vec4 color;
+};
+
 layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
+	PointLight pointLight;
+
 	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
 	// about avoiding using vec3
 	vec4 viewPos;
@@ -21,12 +30,9 @@ layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
 #define AMBIENT_INTENSITY 0.45
 
 void main() {
-	// For now just 1 light, hardcoded
-	const vec3 lightPos = vec3(10.0, 50.0, 1.0);
-	const vec3 lightColor = vec3(1.0, 1.0, 1.0);
-
 	// For now, hardcode ambient color
 	const vec3 ambientColor = vec3(1.0);
+	PointLight pointLight = ubo.pointLight;// PointLight(vec3(10.0, 10.0, 10.0), vec3(1.0, 1.0, 1.0), 1.0);
 
 	// TODO: use material shininess
 	const float shininess = 32.0;
@@ -37,14 +43,22 @@ void main() {
 	vec3 albedo = subpassLoad(gAlbedoSpec).rgb;
 	float fragSpec = subpassLoad(gAlbedoSpec).a;
 
+	vec3 lightFragVec = fragPos - pointLight.position.xyz;
+	float lightFragDist = length(lightFragVec);
+	// FIXME wats dis
+	float attenuation = 100.0 * pointLight.intensity / pow(lightFragDist, 2.0);
+
 	// Ambient
 	float isSky = float(fragPos == vec3(0.0)); // HACK!
 	vec3 ambient = (isSky + (1.0 - isSky) * AMBIENT_INTENSITY) * ambientColor * albedo;
+	// XXX: debug
+	ambient *= attenuation;
 
 	// Diffuse
-	vec3 lightDir = normalize(lightPos - fragPos);
+	vec3 lightDir = normalize(lightFragVec);
 	float diff = max(dot(normal, lightDir), 0.0);
-	vec3 diffuse = lightColor * diff * albedo;
+	vec3 diffuse = pointLight.color.rgb * diff * albedo;
+	diffuse *= attenuation;
 
 	// Specular
 	vec3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
@@ -52,7 +66,8 @@ void main() {
 
 	vec3 halfDir = normalize(lightDir + viewDir);
 	float spec = pow(max(dot(normal, halfDir), 0.0), shininess);
-	vec3 specular = lightColor * spec * fragSpec;
+	vec3 specular = pointLight.color.rgb * spec * fragSpec;
+	specular *= attenuation;
 
 	vec3 lighting = ambient + diffuse + specular;
 
@@ -70,6 +85,12 @@ void main() {
 				fragColor = vec4(vec3(fragSpec), 1.0);
 		}
 	} else {
+		/*if (length(fragPos) < 10000.0) {*/
+			/*fragColor = vec4(abs(fragPos.x) / 10.0, abs(fragPos.y) / 50.0, abs(fragPos.z) / 10.0, 1.0);*/
+			/*fragColor = vec4(vec3(100.0 / pow(lightFragDist, 2.0)), 1.0);*/
+			/*fragColor = vec4(vec3(pointLight.intensity), 1.0);*/
+		/*} else*/
+			/*fragColor = vec4(0.0);*/
 		fragColor = vec4(lighting, 1.0);
 	}
 	/*fragColor = vec4(lighting, 1.0);*/

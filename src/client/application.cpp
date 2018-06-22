@@ -94,7 +94,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 2;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	// FIXME: use a less wasteful approach for image allocation than 2 per material
+	// TODO: use a less wasteful approach for image allocation than 2 per material
 	poolSizes[1].descriptorCount = 3 * (netRsrc.materials.size() + 1);   // diff/spec/normal + default ones
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 	poolSizes[2].descriptorCount = 3;   // one per G-buffer attachment

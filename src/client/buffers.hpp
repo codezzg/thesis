@@ -9,6 +9,7 @@
  * To do that, see VulkanAllocator, create/destroy/map/unmapBuffers* functions.
  */
 
+#include "shared_resources.hpp"
 #include <glm/glm.hpp>
 #include <tuple>
 #include <vector>
@@ -32,9 +33,15 @@ struct MVPUniformBufferObject final {
 	glm::mat4 proj;
 };
 
+struct PointLight {
+	glm::vec4 posInt;   // position + intensity
+	glm::vec4 color;
+};
+
 struct CompositionUniformBufferObject final {
+	PointLight pointLight;
 	glm::vec4 viewPos;
-	glm::i16 opts;   // showGBufTex | useNormalMap
+	glm::i32 opts;   // showGBufTex | useNormalMap
 };
 
 /** A struct containing both an MVPUniformBuffer and a CompositionUniformBuffer

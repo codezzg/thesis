@@ -73,9 +73,9 @@ int main(int argc, char** argv)
 	{
 		shared::PointLight light;
 		light.name = sid("Light 0");
-		light.position = glm::vec3(10, 10, 10);
+		light.position = glm::vec3(10, 15, 0);
 		light.color = glm::vec3(0.6, 0.0, 0.9);
-		light.intensity = 1;
+		light.intensity = 1.5;
 		light.dynMask = 0;
 		server.resources.pointLights.emplace_back(light);
 	}

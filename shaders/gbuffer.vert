@@ -25,9 +25,6 @@ layout (set = 3, binding = 0) uniform UniformBufferObject {
 } mvpUbo;
 
 void main() {
-	// TODO
-	const vec3 lightPos = vec3(10.0, 50.0, 1.0);
-
 	vec4 worldPos = mvpUbo.model * vec4(inPos, 1.0);
 	outPos = worldPos.xyz;
 	outTexCoords = inTexCoords;

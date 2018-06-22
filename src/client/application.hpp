@@ -3,7 +3,6 @@
 #include "buffers.hpp"
 #include "gbuffer.hpp"
 #include "images.hpp"
-#include "memory.hpp"
 #include "resources.hpp"
 #include "swap.hpp"
 #include "validation.hpp"
@@ -19,34 +18,30 @@ struct Queues final {
 
 struct Application final {
 
-	// ApplicationMemory memory;
-
 	GLFWwindow* window = nullptr;
 	GLFWmonitor* monitor = nullptr;
 
 	VkInstance instance = VK_NULL_HANDLE;
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 
+	Validation validation;
+
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device = VK_NULL_HANDLE;
 
 	Queues queues;
-
-	Validation validation;
+	std::vector<VkCommandBuffer> commandBuffers;
 
 	VkCommandPool commandPool = VK_NULL_HANDLE;
 	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 
 	SwapChain swapChain;
-
 	GBuffer gBuffer;
-
 	Buffer screenQuadBuffer;
 
 	Resources res;
 
 	VkPipelineCache pipelineCache = VK_NULL_HANDLE;
-
 	VkRenderPass renderPass = VK_NULL_HANDLE;
 
 	void init();

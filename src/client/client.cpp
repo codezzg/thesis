@@ -25,6 +25,7 @@
 #include "shared_resources.hpp"
 #include "swap.hpp"
 #include "textures.hpp"
+#include "to_string.hpp"
 #include "udp_messages.hpp"
 #include "units.hpp"
 #include "utils.hpp"
@@ -112,8 +113,6 @@ private:
 	ClientReliableEndpoint relEP;
 	int64_t curFrame = -1;
 
-	std::vector<VkCommandBuffer> swapCommandBuffers;
-
 	/** The semaphores are owned by `app.res`. We save their handles rather than querying them
 	 *  each frame for performance reasons.
 	 */
@@ -126,6 +125,7 @@ private:
 	/** Single buffer containing all uniform buffer objects needed */
 	CombinedUniformBuffers uniformBuffers;
 
+	/** Stores resources received via network */
 	NetworkResources netRsrc;
 	VkSampler texSampler = VK_NULL_HANDLE;
 
@@ -135,10 +135,8 @@ private:
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
 
+	/** Contains togglable debug options for shaders */
 	ShaderOpts shaderOpts;
-
-	static constexpr VkDeviceSize VERTEX_BUFFER_SIZE = megabytes(16);
-	static constexpr VkDeviceSize INDEX_BUFFER_SIZE = megabytes(16);
 
 	void initVulkan()
 	{
@@ -154,7 +152,7 @@ private:
 		// app.swapChain.depthOnlyView = createImageView(app, app.swapChain.depthImage.handle,
 		// formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);
 		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
-		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
+		app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 		app.pipelineCache = createPipelineCache(app);
 
 		app.descriptorPool = createDescriptorPool(app, netRsrc);
@@ -321,6 +319,11 @@ private:
 		// Save models into permanent storage
 		// NOTE: resources.models becomes invalid after this move
 		netRsrc.models = std::move(resources.models);
+
+		// Save lights into permanent storage
+		// TODO: do something more sophisticate to take advantage of the lights' dynMasks
+		// NOTE: resources.pointLights becomes invalid after this move
+		netRsrc.pointLights = std::move(resources.pointLights);
 
 		{
 			/// Load textures
@@ -626,7 +629,7 @@ private:
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app);
 		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
-		swapCommandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
+		app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 
 		recordAllCommandBuffers();
 		updateMVPUniformBuffer();
@@ -657,7 +660,7 @@ private:
 		submitInfo.pWaitDstStageMask = waitStages;
 
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &swapCommandBuffers[imageIndex];
+		submitInfo.pCommandBuffers = &app.commandBuffers[imageIndex];
 
 		VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
 		submitInfo.signalSemaphoreCount = 1;
@@ -716,7 +719,7 @@ private:
 		submitInfo.pWaitDstStageMask = waitStages.data();
 
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &swapCommandBuffers[imageIndex];
+		submitInfo.pCommandBuffers = &app.commandBuffers[imageIndex];
 
 		// Signal semaphore when done
 		submitInfo.signalSemaphoreCount = 1;
@@ -779,6 +782,11 @@ private:
 	{
 		auto ubo = uniformBuffers.getComp();
 		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
+		if (netRsrc.pointLights.size() > 0) {
+			const auto& pl = netRsrc.pointLights[0];
+			ubo->pointLight = PointLight{ { pl.position.x, pl.position.y, pl.position.z, pl.intensity },
+				{ pl.color.r, pl.color.g, pl.color.b, 0.0 } };
+		}
 		ubo->opts = shaderOpts.getRepr();
 		uberverbose("viewPos = ", glm::to_string(ubo->viewPos));
 	}
@@ -855,7 +863,7 @@ private:
 		activeEP.setCamera(&camera);
 	}
 
-	void recordAllCommandBuffers() { recordMultipassCommandBuffers(app, swapCommandBuffers, geometry, netRsrc); }
+	void recordAllCommandBuffers() { recordMultipassCommandBuffers(app, app.commandBuffers, geometry, netRsrc); }
 
 	void createDescriptorSetsForMaterials()
 	{
@@ -889,8 +897,8 @@ private:
 
 		vkFreeCommandBuffers(app.device,
 			app.commandPool,
-			static_cast<uint32_t>(swapCommandBuffers.size()),
-			swapCommandBuffers.data());
+			static_cast<uint32_t>(app.commandBuffers.size()),
+			app.commandBuffers.data());
 	}
 
 	void cleanup()

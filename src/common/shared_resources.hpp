@@ -53,10 +53,10 @@ struct Texture {
  *  light initial data are sent with PointLightInfo, and updates are sent as UDP packets.
  */
 struct PointLight {
-	StringId name;
 	glm::vec3 position{ 0.f, 0.f, 0.f };
 	glm::vec3 color{ 1.f, 1.f, 1.f };
 	float intensity = 1;
+	StringId name;
 	uint8_t dynMask = 0;
 };
 

@@ -16,7 +16,14 @@ layout (set = 2, binding = 0) uniform sampler2D texDiffuse;
 layout (set = 2, binding = 1) uniform sampler2D texSpecular;
 layout (set = 2, binding = 2) uniform sampler2D texNormal;
 
+struct PointLight {
+	vec3 position;
+	float intensity;
+	vec4 color;
+};
+
 layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
+	PointLight pointLight;
 	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
 	// about avoiding using vec3
 	vec4 viewPos;
@@ -32,7 +39,7 @@ void main() {
 	vec3 n = normalize(inNorm);
 	vec3 b = normalize(inBitangent);
 	mat3 tbn = mat3(t, b, n);
-	if (((ubo.opts >> 1) & 1) != 0)
+	if (((ubo.opts >> 1) & 1) != 0) // use normal map
 		outNorm = tbn * normalize(texture(texNormal, inTexCoords).xyz * 2.0 - vec3(1.0));
 	else
 		outNorm = inNorm;

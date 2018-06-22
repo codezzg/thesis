@@ -16,9 +16,12 @@ void recordMultipassCommandBuffers(const Application& app,
 	const NetworkResources& netRsrc)
 {
 	std::array<VkClearValue, 5> clearValues = {};
-	clearValues[0].color = { 0.f, 0.f, 0.f, 0.f };
+	constexpr auto fm = std::numeric_limits<float>::max();
+	clearValues[0].color = { 0, 0, 0, 0 };
 	clearValues[1].depthStencil = { 1, 0 };
-	clearValues[2].color = { 0.f, 0.f, 0.f, 0.f };
+	// Pos
+	clearValues[2].color = { fm, fm, fm, fm };
+	// Norm
 	clearValues[3].color = { 0.f, 0.f, 0.f, 0.f };
 	// "Sky" color (TODO replace with skybox)
 	clearValues[4].color = { 0.41f, 0.84f, 0.87f, 0.f };
@@ -36,15 +39,17 @@ void recordMultipassCommandBuffers(const Application& app,
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
-		VLKCHECK(vkBeginCommandBuffer(commandBuffers[i], &beginInfo));
+		auto& cmdBuf = commandBuffers[i];
+
+		VLKCHECK(vkBeginCommandBuffer(cmdBuf, &beginInfo));
 
 		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
 
 		//// First subpass
-		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(cmdBuf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		// Bind view resources
-		vkCmdBindDescriptorSets(commandBuffers[i],
+		vkCmdBindDescriptorSets(cmdBuf,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			app.res.pipelineLayouts->get("multi"),
 			0,
@@ -53,9 +58,9 @@ void recordMultipassCommandBuffers(const Application& app,
 			0,
 			nullptr);
 
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
 		// Bind shader resources
-		vkCmdBindDescriptorSets(commandBuffers[i],
+		vkCmdBindDescriptorSets(cmdBuf,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			app.res.pipelineLayouts->get("multi"),
 			1,
@@ -82,25 +87,22 @@ void recordMultipassCommandBuffers(const Application& app,
 		}
 
 		for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
-
 			const auto& model = netRsrc.models[j];
 
 			// Bind the vertex buffer at the proper offset
-			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), &offsets[j]);
+			vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers.data(), &offsets[j]);
 
 			// Bind the index buffer at the proper offset
 			const auto loc_it = geometry.locations.find(model.name);
 			assert(loc_it != geometry.locations.end());
-			vkCmdBindIndexBuffer(commandBuffers[i],
-				geometry.indexBuffer.handle,
-				loc_it->second.indexOff,
-				VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(
+				cmdBuf, geometry.indexBuffer.handle, loc_it->second.indexOff, VK_INDEX_TYPE_UINT32);
 
 			for (const auto& mesh : model.meshes) {
 				const auto& matName =
 					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
 
-				vkCmdBindDescriptorSets(commandBuffers[i],
+				vkCmdBindDescriptorSets(cmdBuf,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					app.res.pipelineLayouts->get("multi"),
 					2,
@@ -108,7 +110,7 @@ void recordMultipassCommandBuffers(const Application& app,
 					&app.res.descriptorSets->get(matName),
 					0,
 					nullptr);
-				vkCmdBindDescriptorSets(commandBuffers[i],
+				vkCmdBindDescriptorSets(cmdBuf,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					app.res.pipelineLayouts->get("multi"),
 					3,
@@ -117,22 +119,22 @@ void recordMultipassCommandBuffers(const Application& app,
 					0,
 					nullptr);
 
-				vkCmdDrawIndexed(commandBuffers[i], mesh.len, 1, mesh.offset, 0, 0);
+				vkCmdDrawIndexed(cmdBuf, mesh.len, 1, mesh.offset, 0, 0);
 			}
 		}
 
 		//// Second subpass: draw combined gbuffer images into a fullscreen quad
-		vkCmdNextSubpass(commandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
 
 		vertexBuffers[0] = app.screenQuadBuffer.handle;
-		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers.data(), offsets.data());
-		vkCmdDraw(commandBuffers[i], 4, 1, 0, 0);
+		vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers.data(), offsets.data());
+		vkCmdDraw(cmdBuf, 4, 1, 0, 0);
 
-		vkCmdEndRenderPass(commandBuffers[i]);
+		vkCmdEndRenderPass(cmdBuf);
 
-		VLKCHECK(vkEndCommandBuffer(commandBuffers[i]));
+		VLKCHECK(vkEndCommandBuffer(cmdBuf));
 	}
 }
 
