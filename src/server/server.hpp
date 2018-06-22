@@ -49,6 +49,7 @@ struct Server final {
 
 	ServerResources resources;
 
+	/** Constructs a Server with `memsize` internal memory. */
 	explicit Server(std::size_t memsize);
 	~Server();
 

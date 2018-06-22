@@ -76,7 +76,7 @@ int main(int argc, char** argv)
 		light.position = glm::vec3(10, 15, 0);
 		light.color = glm::vec3(0.6, 0.0, 0.9);
 		light.intensity = 1.5;
-		light.dynMask = 0;
+		light.dynMask = (1 << shared::LightDynFlags::POSITION) | (1 << shared::LightDynFlags::COLOR);
 		server.resources.pointLights.emplace_back(light);
 	}
 

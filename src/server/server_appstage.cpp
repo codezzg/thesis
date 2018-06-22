@@ -163,6 +163,8 @@ void appstageLoop(Server& server)
 	while (true) {
 		const LimitFrameTime lft{ 500ms };
 
+		// Model updating simulation
+		/*
 		// Wiggle the model and schedule random portions of it to be updated
 		// wiggle(model);
 
@@ -181,5 +183,8 @@ void appstageLoop(Server& server)
 			}
 		}
 		server.shared.geomUpdateCv.notify_one();
+		*/
+
+		// Move dyn lights
 	}
 }

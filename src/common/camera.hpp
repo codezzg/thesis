@@ -4,7 +4,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 
-// Thank you, windows...
+// Thank you, windows
 #undef near
 #undef far
 
