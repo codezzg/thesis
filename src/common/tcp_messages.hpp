@@ -62,6 +62,9 @@ inline std::ostream& operator<<(std::ostream& s, MsgType msg)
 	case M::RSRC_TYPE_MODEL:
 		s << "RSRC_TYPE_MODEL";
 		break;
+	case M::RSRC_TYPE_POINT_LIGHT:
+		s << "RSRC_TYPE_POINT_LIGHT";
+		break;
 	case M::END_RSRC_EXCHANGE:
 		s << "END_RSRC_EXCHANGE";
 		break;

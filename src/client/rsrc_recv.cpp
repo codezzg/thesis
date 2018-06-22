@@ -5,13 +5,11 @@
 #include "shared_resources.hpp"
 #include "utils.hpp"
 #include <algorithm>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
 
 using namespace logging;
 
-/** Reads header data from `buffer` and starts reading a texture. If more packets
- *  need to be read for the texture, receive them from `socket` until completion.
- *  Texture received is stored into `resources`.
- */
 bool receiveTexture(socket_t socket,
 	const uint8_t* buffer,
 	std::size_t bufsize,
@@ -90,7 +88,6 @@ bool receiveTexture(socket_t socket,
 	return true;
 }
 
-/** Read a material out of `buffer` and store it in `resources` */
 bool receiveMaterial(const uint8_t* buffer,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources)
@@ -224,6 +221,46 @@ bool receiveModel(socket_t socket,
 				mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE,
 				") }");
 		}
+	}
+
+	return true;
+}
+
+bool receivePointLight(const uint8_t* buffer,
+	std::size_t bufsize,
+	/* out */ ClientTmpResources& resources)
+{
+	assert(bufsize >= sizeof(shared::ResourcePacket<shared::PointLightInfo>));
+
+	const auto lightInfo = *reinterpret_cast<const shared::PointLightInfo*>(buffer + 1);
+
+	shared::PointLight light;
+	light.name = lightInfo.name;
+	light.position = glm::vec3{ lightInfo.x, lightInfo.y, lightInfo.z };
+	light.color = glm::vec3{ lightInfo.r, lightInfo.g, lightInfo.b };
+	light.intensity = lightInfo.intensity;
+	light.dynMask = lightInfo.dynMask;
+
+	debug("received pointLight: { name = ",
+		light.name,
+		", pos = ",
+		glm::to_string(light.position),
+		", color = ",
+		glm::to_string(light.color),
+		", intensity = ",
+		light.intensity,
+		", dynMask = ",
+		int(light.dynMask),
+		" }");
+
+	if (std::find_if(
+		    resources.pointLights.begin(), resources.pointLights.end(), [name = light.name](const auto& light) {
+			    return light.name == name;
+		    }) != resources.pointLights.end()) {
+		warn("Received the same PointLight two times: ", light.name);
+	} else {
+		resources.pointLights.emplace_back(light);
+		info("Stored PointLight ", light.name);
 	}
 
 	return true;

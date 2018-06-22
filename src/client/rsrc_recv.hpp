@@ -27,7 +27,6 @@ bool receiveModel(socket_t socket,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources);
 
-bool receivePointLight(socket_t socket,
-	const uint8_t* buffer,
+bool receivePointLight(const uint8_t* buffer,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources);

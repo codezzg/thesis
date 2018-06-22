@@ -69,6 +69,17 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 
+	// FIXME
+	{
+		shared::PointLight light;
+		light.name = sid("Light 0");
+		light.position = glm::vec3(10, 10, 10);
+		light.color = glm::vec3(0.6, 0.0, 0.9);
+		light.intensity = 1;
+		light.dynMask = 0;
+		server.resources.pointLights.emplace_back(light);
+	}
+
 	/// Start TCP socket and wait for connections
 	server.relEP.startPassive(ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
 	server.relEP.runLoop();

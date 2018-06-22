@@ -34,7 +34,7 @@ public:
 	std::unordered_map<StringId, Model> models;
 	std::unordered_map<StringId, shared::Texture> textures;
 	/** These have no data inside `allocator`, they're stored "inline" in the map */
-	std::unordered_map<StringId, shared::PointLight> pointLights;
+	std::vector<shared::PointLight> pointLights;
 
 	/** `memory` is a pointer into a valid buffer. The buffer should be large enough to contain all
 	 *  resources and should not be manipulated by other than this class.

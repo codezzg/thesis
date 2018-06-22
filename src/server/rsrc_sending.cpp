@@ -71,7 +71,7 @@ bool sendPointLight(socket_t clientSocket, const shared::PointLight& light)
 		", intensity = ",
 		packet.res.intensity,
 		", dynMask = ",
-		packet.res.dynMask,
+		int(packet.res.dynMask),
 		" }");
 
 	// We want to send this in a single packet. This is reasonable, as a packet should be at least

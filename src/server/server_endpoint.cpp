@@ -481,13 +481,15 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 	}
 
 	// Send lights
-	for (const auto& plpair : server.resources.pointLights) {
-
-		const auto& light = plpair.second;
-
+	for (const auto& light : server.resources.pointLights) {
 		bool ok = sendPointLight(clientSocket, light);
 		if (!ok) {
 			err("Failed sending point light");
+			return false;
+		}
+		ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+		if (!ok) {
+			warn("Not received RSRC_EXCHANGE_ACK!");
 			return false;
 		}
 	}

@@ -239,7 +239,7 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 		case MsgType::END_RSRC_EXCHANGE:
 			return true;
 
-		case MsgType::RSRC_TYPE_TEXTURE: {
+		case MsgType::RSRC_TYPE_TEXTURE:
 
 			if (!receiveTexture(socket, buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive texture.");
@@ -252,9 +252,9 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 				return false;
 			}
 
-		} break;
+			break;
 
-		case MsgType::RSRC_TYPE_MATERIAL: {
+		case MsgType::RSRC_TYPE_MATERIAL:
 
 			if (!receiveMaterial(buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive material");
@@ -267,9 +267,9 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 				return false;
 			}
 
-		} break;
+			break;
 
-		case MsgType::RSRC_TYPE_MODEL: {
+		case MsgType::RSRC_TYPE_MODEL:
 
 			if (!receiveModel(socket, buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive model");
@@ -281,7 +281,22 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 				err("Failed to send ACK");
 				return false;
 			}
-		} break;
+
+			break;
+
+		case MsgType::RSRC_TYPE_POINT_LIGHT:
+			if (!receivePointLight(buffer.data(), buffer.size(), resources)) {
+				err("Failed to receive point light");
+				return false;
+			}
+
+			// All green, send ACK
+			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
+				err("Failed to send ACK");
+				return false;
+			}
+
+			break;
 
 		default:
 			err("Invalid data type: ", incomingDataType, " (", unsigned(incomingDataType), ")");
