@@ -6,6 +6,7 @@
 struct NetworkResources;
 
 struct Material {
+	StringId name;
 	// All these handles are unowned.
 	VkImageView diffuse;
 	VkImageView specular;

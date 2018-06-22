@@ -8,7 +8,7 @@
 #include <mutex>
 #include <vector>
 
-/** This struct contains data that is shared between the server's active and passive endpoints. */
+/** This struct contains data that is shared between the server's endpoints. */
 struct ServerSharedData final {
 	//// Client per-frame data
 

@@ -108,7 +108,7 @@ public:
 
 private:
 	Application app;
-	
+
 	bool fullscreen = false;
 
 	ClientPassiveEndpoint passiveEP;
@@ -313,17 +313,18 @@ private:
 			std::set<StringId> neededTextureSet;
 
 			// Check materials, and gather needed textures information in the meantime
-			for (const auto& mat : model.materials) {
-				if (mat == SID_NONE)
+			for (const auto& matName : model.materials) {
+				if (matName == SID_NONE)
 					continue;
-				auto it = resources.materials.find(mat);
+				auto it = std::find_if(resources.materials.begin(),
+					resources.materials.end(),
+					[matName](const auto& mat) { return mat.name == matName; });
 				if (it != resources.materials.end()) {
-					const auto& mat = it->second;
-					neededTextureSet.emplace(mat.diffuseTex);
-					neededTextureSet.emplace(mat.specularTex);
+					neededTextureSet.emplace(it->diffuseTex);
+					neededTextureSet.emplace(it->specularTex);
 				} else {
 					warn("Material ",
-						mat,
+						matName,
 						" is needed by model ",
 						model.name,
 						" but was not received!");
@@ -396,8 +397,8 @@ private:
 			shared::Material dfltMat = { SID_NONE, SID_NONE, SID_NONE, SID_NONE };
 			netRsrc.defaults.material = createMaterial(dfltMat, netRsrc);
 		}
-		for (const auto& pair : resources.materials) {
-			netRsrc.materials[pair.first] = createMaterial(pair.second, netRsrc);
+		for (const auto& mat : resources.materials) {
+			netRsrc.materials.emplace_back(createMaterial(mat, netRsrc));
 		}
 
 		prepareBufferMemory(stagingBuffer);
@@ -912,34 +913,22 @@ private:
 
 	void createDescriptorSetsForMaterials()
 	{
-		// Gather materials and names into vectors
-		std::vector<Material> materials;
-		std::vector<StringId> materialNames;
-
-		if (netRsrc.materials.size() > 0) {
-			materials.reserve(netRsrc.materials.size());
-			materialNames.reserve(netRsrc.materials.size());
-			for (const auto& pair : netRsrc.materials) {
-				materialNames.emplace_back(pair.first);
-				materials.emplace_back(pair.second);
-			}
-		} else {
-			materials.emplace_back(netRsrc.defaults.material);
-			materialNames.emplace_back(SID_NONE);
-		}
-
 		// Create the descriptor sets
-		auto descriptorSets = createMultipassDescriptorSets(app, uniformBuffers, materials, texSampler);
+		auto descriptorSets = createMultipassDescriptorSets(app, uniformBuffers, netRsrc.materials, texSampler);
 
-		// Store them into app resources
+		//// Store them into app resources
+		// A descriptor set for the view-dependant stuff
 		app.res.descriptorSets->add("view_res", descriptorSets[0]);
+		// One for the shader-dependant stuff
 		app.res.descriptorSets->add("shader_res", descriptorSets[1]);
-		for (unsigned i = 0; i < materials.size(); ++i) {
+		// One descriptor set per material
+		for (unsigned i = 0; i < netRsrc.materials.size(); ++i) {
+			auto& mat = netRsrc.materials[i];
 			auto descSet = descriptorSets[2 + i];
-			netRsrc.materials[materialNames[i]].descriptorSet = descSet;
-			app.res.descriptorSets->add(materialNames[i], descSet);
+			mat.descriptorSet = descSet;
+			app.res.descriptorSets->add(mat.name, descSet);
 		}
-		// TODO multiple objects (models)
+		// TODO One descriptor set per object (model)
 		app.res.descriptorSets->add("obj_res", descriptorSets[descriptorSets.size() - 1]);
 	}
 
@@ -1044,9 +1033,11 @@ private:
 			// Toggle windowed fullscreen
 			const auto mode = glfwGetVideoMode(appl->app.monitor);
 			if (appl->fullscreen) {
-				glfwSetWindowMonitor(window, nullptr, 100, 100, cfg::WIDTH, cfg::HEIGHT, mode->refreshRate);
+				glfwSetWindowMonitor(
+					window, nullptr, 100, 100, cfg::WIDTH, cfg::HEIGHT, mode->refreshRate);
 			} else {
-				glfwSetWindowMonitor(window, nullptr, 0, 0, mode->width, mode->height, mode->refreshRate);
+				glfwSetWindowMonitor(
+					window, nullptr, 0, 0, mode->width, mode->height, mode->refreshRate);
 			}
 			appl->fullscreen = !appl->fullscreen;
 		} break;

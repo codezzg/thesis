@@ -533,9 +533,6 @@ void recordSwapChainDebugCommandBuffers(const Application& app,
 				VK_INDEX_TYPE_UINT32);
 
 			for (const auto& mesh : model.meshes) {
-				const auto& matName =
-					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
-
 				vkCmdBindDescriptorSets(commandBuffers[i],
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					app.res.pipelineLayouts->get("swap"),

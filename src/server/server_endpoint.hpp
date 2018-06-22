@@ -86,14 +86,6 @@ class ServerReliableEndpoint : public Endpoint {
 	/** Sends all the one-time data the client needs. */
 	bool sendOneTimeData(socket_t clientSocket);
 
-	/** Sends a single texture via `clientSocket`.
-	 *  The first packet sent contains a header with the metadata and the beginning of the
-	 *  actual texture data.
-	 *  Then, if the complete data doesn't fit one packet, more packets are sent until all
-	 *  bytes are sent. These extra packets have no header.
-	 */
-	bool sendTexture(socket_t clientSocket, const std::string& texName, shared::TextureFormat format);
-
 public:
 	std::string serverIp;
 

@@ -28,8 +28,9 @@ public:
 	StackAllocator allocator;
 
 	std::unordered_map<StringId, shared::Texture> textures;
-	std::unordered_map<StringId, shared::Material> materials;
+	std::vector<shared::Material> materials;
 	std::vector<ModelInfo> models;
+	std::vector<shared::PointLight> pointLights;
 
 	explicit ClientTmpResources(std::size_t size)
 		: memory(size)
@@ -42,11 +43,11 @@ struct NetworkResources {
 	/** Map textureId => texture */
 	std::unordered_map<StringId, Image> textures;
 
-	/** Map materialId => material */
-	std::unordered_map<StringId, Material> materials;
+	std::vector<Material> materials;
 
-	/** List of model info */
 	std::vector<ModelInfo> models;
+
+	std::vector<shared::PointLight> pointLights;
 
 	/** Default resources, used when actual ones are missing */
 	struct {

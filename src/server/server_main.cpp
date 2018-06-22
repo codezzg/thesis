@@ -78,8 +78,9 @@ int main(int argc, char** argv)
 
 void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond)
 {
-	const auto usage = [argv] () {
-		std::cerr << "Usage: " << argv[0] << " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)]\n";
+	const auto usage = [argv]() {
+		std::cerr << "Usage: " << argv[0]
+			  << " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)]\n";
 		std::exit(EXIT_FAILURE);
 	};
 

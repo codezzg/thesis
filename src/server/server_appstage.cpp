@@ -3,7 +3,6 @@
 #include "frame_utils.hpp"
 #include "geom_update.hpp"
 #include "logging.hpp"
-#include "serialization.hpp"
 #include "server.hpp"
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
@@ -82,7 +81,18 @@ void transformVertices(Model& model,
 	int& nVertices,
 	int& nIndices)
 {
-	const auto camera = deserializeCamera(clientData);
+	Camera camera;
+	{
+		// TODO: make this a function (but have to come up with a consistent framework
+		// of client serialize/deserialize funcs first)
+		const auto shCam = *reinterpret_cast<const shared::Camera*>(clientData.data());
+		camera.position.x = shCam.x;
+		camera.position.y = shCam.y;
+		camera.position.z = shCam.z;
+		camera.yaw = shCam.yaw;
+		camera.pitch = shCam.pitch;
+		camera.updateVectors();
+	}
 
 	// STUB
 	wiggle(model);

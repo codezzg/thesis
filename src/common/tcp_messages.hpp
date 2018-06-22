@@ -20,7 +20,8 @@ enum class MsgType : uint8_t {
 	// RSRC_CONT           = 0x09,
 	RSRC_TYPE_MATERIAL = 0x0A,
 	RSRC_TYPE_MODEL = 0x0B,
-	END_RSRC_EXCHANGE = 0x0C,
+	RSRC_TYPE_POINT_LIGHT = 0x0C,
+	END_RSRC_EXCHANGE = 0x1F,
 	/** Tell client to start receiving UDP data */
 	START_STREAMING = 0x20,
 	END_STREAMING = 0x21,
