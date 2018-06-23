@@ -27,7 +27,7 @@ static constexpr auto BUFSIZE = megabytes(16);
 void ClientPassiveEndpoint::loopFunc()
 {
 	// This will be densely filled like this:
-	// [chunk0.header|chunk0.payload|chunk1.header|chunk1.payload|...]
+	// [chunk0.type|chunk0.header|chunk0.payload|chunk1.type|chunk1.header|chunk1.payload|...]
 	buffer = new uint8_t[BUFSIZE];
 	usedBufSize = 0;
 
@@ -35,14 +35,14 @@ void ClientPassiveEndpoint::loopFunc()
 
 	// Receive datagrams and copy them into `buffer`.
 	while (!terminated) {
-		std::array<uint8_t, sizeof(udp::UpdatePacket)> packetBuf = {};
+		std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packetBuf = {};
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
 		if (!validateUDPPacket(packetBuf.data(), packetGen))
 			continue;
 
-		const auto packet = reinterpret_cast<const udp::UpdatePacket*>(packetBuf.data());
+		const auto packet = reinterpret_cast<const UdpPacket*>(packetBuf.data());
 		packetGen = packet->header.packetGen;
 
 		const auto size = packet->header.size;
@@ -104,7 +104,7 @@ void ClientActiveEndpoint::loopFunc()
 
 		// Prepare data
 		FrameData data;
-		data.header.magic = cfg::PACKET_MAGIC;
+		// data.header.magic = cfg::PACKET_MAGIC;
 		data.header.frameId = frameId;
 		data.header.packetId = packetId;
 		/* Payload:
@@ -134,31 +134,31 @@ void ClientActiveEndpoint::loopFunc()
 bool ClientReliableEndpoint::performHandshake()
 {
 	// send HELO message
-	if (!sendTCPMsg(socket, MsgType::HELO))
+	if (!sendTCPMsg(socket, TcpMsgType::HELO))
 		return false;
 
 	uint8_t buffer;
-	return expectTCPMsg(socket, &buffer, 1, MsgType::HELO_ACK);
+	return expectTCPMsg(socket, &buffer, 1, TcpMsgType::HELO_ACK);
 }
 
 bool ClientReliableEndpoint::expectStartResourceExchange()
 {
 	uint8_t buffer;
-	return expectTCPMsg(socket, &buffer, 1, MsgType::START_RSRC_EXCHANGE);
+	return expectTCPMsg(socket, &buffer, 1, TcpMsgType::START_RSRC_EXCHANGE);
 }
 
 bool ClientReliableEndpoint::sendReadyAndWait()
 {
-	if (!sendTCPMsg(socket, MsgType::READY))
+	if (!sendTCPMsg(socket, TcpMsgType::READY))
 		return false;
 
 	uint8_t buf;
-	return expectTCPMsg(socket, &buf, 1, MsgType::READY);
+	return expectTCPMsg(socket, &buf, 1, TcpMsgType::READY);
 }
 
 bool ClientReliableEndpoint::sendRsrcExchangeAck()
 {
-	return sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK);
+	return sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK);
 }
 
 static void keepaliveTask(socket_t socket, std::condition_variable& cv)
@@ -173,7 +173,7 @@ static void keepaliveTask(socket_t socket, std::condition_variable& cv)
 			info("keepalive task: interrupted");
 			break;
 		}
-		if (!sendTCPMsg(socket, MsgType::KEEPALIVE))
+		if (!sendTCPMsg(socket, TcpMsgType::KEEPALIVE))
 			warn("Failed to send keepalive.");
 	}
 }
@@ -191,14 +191,14 @@ void ClientReliableEndpoint::loopFunc()
 	debug("ep :: Starting msg receiving loop");
 	connected = true;
 	while (connected) {
-		MsgType type;
+		TcpMsgType type;
 		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), type)) {
 			connected = false;
 			break;
 		}
 
 		switch (type) {
-		case MsgType::DISCONNECT:
+		case TcpMsgType::DISCONNECT:
 			connected = false;
 			break;
 		default:
@@ -224,7 +224,7 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 
 	// Receive data
 	while (true) {
-		MsgType incomingDataType = MsgType::UNKNOWN;
+		auto incomingDataType = TcpMsgType::UNKNOWN;
 
 		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), incomingDataType)) {
 			err("Error receiving data packet.");
@@ -233,13 +233,13 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 
 		switch (incomingDataType) {
 
-		case MsgType::DISCONNECT:
+		case TcpMsgType::DISCONNECT:
 			return false;
 
-		case MsgType::END_RSRC_EXCHANGE:
+		case TcpMsgType::END_RSRC_EXCHANGE:
 			return true;
 
-		case MsgType::RSRC_TYPE_TEXTURE:
+		case TcpMsgType::RSRC_TYPE_TEXTURE:
 
 			if (!receiveTexture(socket, buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive texture.");
@@ -247,14 +247,14 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 			}
 
 			// All green, send ACK
-			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
+			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
 			}
 
 			break;
 
-		case MsgType::RSRC_TYPE_MATERIAL:
+		case TcpMsgType::RSRC_TYPE_MATERIAL:
 
 			if (!receiveMaterial(buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive material");
@@ -262,14 +262,14 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 			}
 
 			// All green, send ACK
-			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
+			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
 			}
 
 			break;
 
-		case MsgType::RSRC_TYPE_MODEL:
+		case TcpMsgType::RSRC_TYPE_MODEL:
 
 			if (!receiveModel(socket, buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive model");
@@ -277,21 +277,21 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 			}
 
 			// All green, send ACK
-			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
+			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
 			}
 
 			break;
 
-		case MsgType::RSRC_TYPE_POINT_LIGHT:
+		case TcpMsgType::RSRC_TYPE_POINT_LIGHT:
 			if (!receivePointLight(buffer.data(), buffer.size(), resources)) {
 				err("Failed to receive point light");
 				return false;
 			}
 
 			// All green, send ACK
-			if (!sendTCPMsg(socket, MsgType::RSRC_EXCHANGE_ACK)) {
+			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
 			}
@@ -308,5 +308,5 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 
 bool ClientReliableEndpoint::disconnect()
 {
-	return sendTCPMsg(socket, MsgType::DISCONNECT);
+	return sendTCPMsg(socket, TcpMsgType::DISCONNECT);
 }

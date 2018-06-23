@@ -26,36 +26,33 @@
 
 using namespace logging;
 using namespace std::chrono_literals;
-using shared::ResourcePacket;
 
-static void writeGeomUpdateHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen)
+/** Writes an UDP header into `buffer`. */
+static void writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen)
 {
-	assert(bufsize >= sizeof(udp::Header));
+	assert(bufsize >= sizeof(UdpHeader));
 
-	udp::Header header;
-	header.magic = cfg::PACKET_MAGIC;
+	UdpHeader header;
 	header.packetGen = packetGen;
 	header.size = 0;
 
 	// DEBUG
 	// memset(buffer, 0xAA, bufsize);
-	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(udp::Header));
+	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(UdpHeader));
 }
 
-/** Writes a geometry update chunk into `buffer`, starting at `offset`.
+/** Writes a geometry update chunk (including the header) into `buffer`, starting at `offset`.
  *  @return the number of bytes written, or 0 if the buffer hadn't enough room.
  */
 static std::size_t addGeomUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
-	const udp::ChunkHeader& geomUpdate,
+	const GeomUpdateHeader& geomUpdate,
 	const ServerResources& resources)
 {
-	using namespace udp;
-
 	assert(offset < bufsize);
 	assert(geomUpdate.modelId != SID_NONE);
-	assert(geomUpdate.dataType < DataType::INVALID);
+	assert(geomUpdate.dataType < GeomDataType::INVALID);
 
 	// Retreive data from the model
 	const auto& model_it = resources.models.find(geomUpdate.modelId);
@@ -64,11 +61,11 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	void* dataPtr;
 	std::size_t dataSize;
 	switch (geomUpdate.dataType) {
-	case DataType::VERTEX:
+	case GeomDataType::VERTEX:
 		dataPtr = model_it->second.vertices;
 		dataSize = sizeof(Vertex);
 		break;
-	case DataType::INDEX:
+	case GeomDataType::INDEX:
 		dataPtr = model_it->second.indices;
 		dataSize = sizeof(Index);
 		break;
@@ -80,29 +77,34 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	verbose("start: ", geomUpdate.start, ", len: ", geomUpdate.len);
 	verbose("offset: ", offset, ", payload size: ", payloadSize, ", bufsize: ", bufsize);
 	// Prevent infinite loops
-	assert(sizeof(ChunkHeader) + payloadSize < bufsize);
+	assert(sizeof(UdpMsgType) + sizeof(GeomUpdateHeader) + payloadSize < bufsize);
 
-	if (offset + sizeof(ChunkHeader) + payloadSize > bufsize) {
+	if (offset + sizeof(UdpMsgType) + sizeof(GeomUpdateHeader) + payloadSize > bufsize) {
 		// Not enough room
 		verbose("Not enough room!");
 		return 0;
 	}
 
-	uint32_t written = 0;
+	std::size_t written = 0;
+
+	// Write chunk type
+	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
+	buffer[offset] = udpmsg2byte(UdpMsgType::GEOM_UPDATE);
+	written += sizeof(UdpMsgType);
 
 	// Write chunk header
-	memcpy(buffer + offset, &geomUpdate, sizeof(ChunkHeader));
-	written += sizeof(ChunkHeader);
+	memcpy(buffer + offset + written, &geomUpdate, sizeof(GeomUpdateHeader));
+	written += sizeof(GeomUpdateHeader);
 
 	// Write chunk payload
-	memcpy(buffer + offset + sizeof(ChunkHeader),
+	memcpy(buffer + offset + written,
 		reinterpret_cast<uint8_t*>(dataPtr) + dataSize * geomUpdate.start,
 		payloadSize);
 	written += payloadSize;
 
 	// Update size in header
-	reinterpret_cast<Header*>(buffer)->size += written;
-	verbose("Packet size is now ", reinterpret_cast<Header*>(buffer)->size);
+	reinterpret_cast<UdpHeader*>(buffer)->size += written;
+	verbose("Packet size is now ", reinterpret_cast<UdpHeader*>(buffer)->size);
 
 	return written;
 }
@@ -157,8 +159,8 @@ void ServerActiveEndpoint::loopFunc()
 				ulk, [this]() { return terminated || server.shared.geomUpdate.size() > 0; });
 		}
 
-		std::size_t offset = sizeof(udp::Header);
-		writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
+		std::size_t offset = sizeof(UdpHeader);
+		writeUdpHeader(buffer.data(), buffer.size(), packetGen);
 		verbose("geomUpdate.size now = ", server.shared.geomUpdate.size());
 
 		// TODO: use a more efficient approach for erasing elements
@@ -184,12 +186,12 @@ void ServerActiveEndpoint::loopFunc()
 						buffer.size());
 				}
 				sendPacket(socket, buffer.data(), buffer.size());
-				writeGeomUpdateHeader(buffer.data(), buffer.size(), packetGen);
-				offset = sizeof(udp::Header);
+				writeUdpHeader(buffer.data(), buffer.size(), packetGen);
+				offset = sizeof(UdpHeader);
 			}
 		}
 
-		if (offset > sizeof(udp::Header)) {
+		if (offset > sizeof(UdpHeader)) {
 			// Need to send the last packet
 			if (gDebugLv >= LOGLV_VERBOSE) {
 				dumpFullPacket(buffer.data(), buffer.size());
@@ -295,17 +297,17 @@ static void keepaliveTask(socket_t clientSocket,
 	std::array<uint8_t, 1> buffer = {};
 
 	while (true) {
-		MsgType type;
+		TcpMsgType type;
 		if (!receiveTCPMsg(clientSocket, buffer.data(), buffer.size(), type)) {
 			cv.notify_one();
 			break;
 		}
 
 		switch (type) {
-		case MsgType::KEEPALIVE:
+		case TcpMsgType::KEEPALIVE:
 			latestPing = std::chrono::system_clock::now();
 			break;
-		case MsgType::DISCONNECT:
+		case TcpMsgType::DISCONNECT:
 			// Special value used to signal disconnection
 			latestPing = std::chrono::time_point<std::chrono::system_clock>::max();
 			break;
@@ -324,28 +326,28 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		std::array<uint8_t, 1> buffer = {};
 
 		// Perform handshake
-		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::HELO))
+		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::HELO))
 			goto dropclient;
 
-		if (!sendTCPMsg(clientSocket, MsgType::HELO_ACK))
+		if (!sendTCPMsg(clientSocket, TcpMsgType::HELO_ACK))
 			goto dropclient;
 
 		// Send one-time data
 		info("Sending one time data...");
-		if (!sendTCPMsg(clientSocket, MsgType::START_RSRC_EXCHANGE))
+		if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
 			goto dropclient;
 
-		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::RSRC_EXCHANGE_ACK))
+		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::RSRC_EXCHANGE_ACK))
 			goto dropclient;
 
 		if (!sendOneTimeData(clientSocket))
 			goto dropclient;
 
-		if (!sendTCPMsg(clientSocket, MsgType::END_RSRC_EXCHANGE))
+		if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
 			goto dropclient;
 
 		// Wait for ready signal from client
-		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), MsgType::READY))
+		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::READY))
 			goto dropclient;
 
 		// Starts UDP loops and send ready to client
@@ -354,7 +356,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		// server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
 		// server.passiveEP.runLoop();
 
-		if (!sendTCPMsg(clientSocket, MsgType::READY))
+		if (!sendTCPMsg(clientSocket, TcpMsgType::READY))
 			goto dropclient;
 	}
 
@@ -396,7 +398,7 @@ dropclient:
 	info("TCP: Dropping client ", readableAddr);
 	{
 		// Send disconnect message
-		sendTCPMsg(clientSocket, MsgType::DISCONNECT);
+		sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
 	}
 	server.shared.clientDataCv.notify_all();
 	server.shared.geomUpdateCv.notify_all();
@@ -429,7 +431,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 				return false;
 			}
 
-			ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+			ok = expectTCPMsg(clientSocket, packet.data(), 1, TcpMsgType::RSRC_EXCHANGE_ACK);
 			if (!ok) {
 				warn("Not received RSRC_EXCHANGE_ACK!");
 				return false;
@@ -451,7 +453,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 			err("Failed sending model");
 			return false;
 		}
-		ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+		ok = expectTCPMsg(clientSocket, packet.data(), 1, TcpMsgType::RSRC_EXCHANGE_ACK);
 		if (!ok) {
 			warn("Not received RSRC_EXCHANGE_ACK!");
 			return false;
@@ -468,7 +470,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 				return false;
 			}
 
-			ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+			ok = expectTCPMsg(clientSocket, packet.data(), 1, TcpMsgType::RSRC_EXCHANGE_ACK);
 			if (!ok) {
 				warn("Not received RSRC_EXCHANGE_ACK!");
 				return false;
@@ -487,7 +489,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 			err("Failed sending point light");
 			return false;
 		}
-		ok = expectTCPMsg(clientSocket, packet.data(), 1, MsgType::RSRC_EXCHANGE_ACK);
+		ok = expectTCPMsg(clientSocket, packet.data(), 1, TcpMsgType::RSRC_EXCHANGE_ACK);
 		if (!ok) {
 			warn("Not received RSRC_EXCHANGE_ACK!");
 			return false;

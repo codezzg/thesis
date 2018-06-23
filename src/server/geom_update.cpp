@@ -5,21 +5,21 @@
 using namespace logging;
 
 // TODO: for now, we just update all vertices and indices
-std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
+std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 {
-	std::vector<udp::ChunkHeader> updates;
+	std::vector<GeomUpdateHeader> updates;
 
 	// Figure out how many Chunks we need
-	constexpr auto payloadSize = udp::UpdatePacket().payload.size();
-	const auto maxVerticesPerPayload = (payloadSize - sizeof(udp::ChunkHeader)) / sizeof(Vertex);
-	const auto maxIndicesPerPayload = (payloadSize - sizeof(udp::ChunkHeader)) / sizeof(Index);
+	constexpr auto payloadSize = UdpPacket().payload.size();
+	const auto maxVerticesPerPayload = (payloadSize - sizeof(GeomUpdateHeader)) / sizeof(Vertex);
+	const auto maxIndicesPerPayload = (payloadSize - sizeof(GeomUpdateHeader)) / sizeof(Index);
 
 	updates.reserve(model.nVertices / maxVerticesPerPayload + model.nIndices / maxIndicesPerPayload + 2);
 
 	unsigned i = 0;
-	udp::ChunkHeader header;
+	GeomUpdateHeader header;
 	header.modelId = model.name;
-	header.dataType = udp::DataType::VERTEX;
+	header.dataType = GeomDataType::VERTEX;
 	// Shove in all the vertices
 	while (i < model.nVertices) {
 		header.start = i;
@@ -30,12 +30,12 @@ std::vector<udp::ChunkHeader> buildUpdatePackets(const Model& model)
 		i += header.len;
 	}
 
-	header.dataType = udp::DataType::INDEX;
+	header.dataType = GeomDataType::INDEX;
 	// We're likely to have spare space in the last packet: fill it with indices if we can
 	const auto spareBytes = maxVerticesPerPayload - i + maxVerticesPerPayload * (i / maxVerticesPerPayload);
-	if (spareBytes >= sizeof(udp::ChunkHeader) + sizeof(Index)) {
+	if (spareBytes >= sizeof(GeomUpdateHeader) + sizeof(Index)) {
 		header.start = 0;
-		header.len = (spareBytes - sizeof(udp::ChunkHeader)) / sizeof(Index);
+		header.len = (spareBytes - sizeof(GeomUpdateHeader)) / sizeof(Index);
 		updates.emplace_back(header);
 
 		i = header.len;

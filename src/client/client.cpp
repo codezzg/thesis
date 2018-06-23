@@ -436,17 +436,10 @@ private:
 
 		// streamingBuffer now contains [chunk0|chunk1|...]
 
-		unsigned bytesProcessed = 0;
 		int64_t bytesLeft = totBytes;
 		assert(bytesLeft <= static_cast<int64_t>(streamingBuffer.size()));
 
-		verbose("vertexBuffer: ",
-			std::hex,
-			uintptr_t(geometry.vertexBuffer.ptr),
-			",  indexBuffer: ",
-			uintptr_t(geometry.indexBuffer.ptr),
-			std::dec);
-
+		unsigned bytesProcessed = 0;
 		unsigned nChunksProcessed = 0;
 		while (bytesProcessed < totBytes) {
 			verbose("Processing chunk at offset ", bytesProcessed);
@@ -484,31 +477,54 @@ private:
 #endif
 	}
 
-	/** Receives a pointer to a byte buffer and tries to read an UpdatePacket chunk from it.
+	/** Receives a pointer to a byte buffer and tries to read a chunk from it.
 	 *  Will not try to read more than `maxBytesToRead` bytes from the buffer.
-	 *  An UpdatePacket chunk consists of a ChunkHeader followed by a payload.
-	 *  If a chunk is correctly read from the buffer, its content is interpreted and used to
-	 *  update the proper vertices or indices of a model.
 	 *  @return The number of bytes read, (aka the offset of the next chunk if there are more chunks after this)
 	 */
 	std::size_t processChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
 	{
-		if (maxBytesToRead <= sizeof(udp::ChunkHeader)) {
-			err("Buffer given to processChunk has not enough room for a Header + Payload!");
+		//// Read the chunk type
+		static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
+
+		switch (byte2udpmsg(ptr[0])) {
+		case UdpMsgType::GEOM_UPDATE:
+			return sizeof(UdpMsgType) +
+			       processGeomUpdateChunk(ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType));
+		case UdpMsgType::POINT_LIGHT_UPDATE:
+			return sizeof(UdpMsgType) + processPointLightUpdateChunk(ptr + sizeof(UdpMsgType),
+							    maxBytesToRead - sizeof(UdpMsgType));
+		default:
+			break;
+		}
+
+		err("Invalid chunk type ", int(ptr[0]));
+		return maxBytesToRead;
+	}
+
+	/** Tries to read a GeomUpdate chunk from given `ptr`.
+	 *  Will not read more than `maxBytesToRead`.
+	 *  If a chunk is correctly read from the buffer, its content is interpreted and used to
+	 *  update the proper vertices or indices of a model.
+	 *  @return The number of bytes read
+	 */
+	std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
+	{
+		if (maxBytesToRead <= sizeof(GeomUpdateHeader)) {
+			err("Buffer given to processGeomUpdateChunk has not enough room for a Header + Payload!");
 			return maxBytesToRead;
 		}
 
-		//// Read the header
-		const auto header = reinterpret_cast<const udp::ChunkHeader*>(ptr);
+		//// Read the chunk header
+		const auto header = reinterpret_cast<const GeomUpdateHeader*>(ptr);
 
 		std::size_t dataSize = 0;
 		void* dataPtr = nullptr;
 		switch (header->dataType) {
-		case udp::DataType::VERTEX:
+		case GeomDataType::VERTEX:
 			dataSize = sizeof(Vertex);
 			dataPtr = geometry.vertexBuffer.ptr;
 			break;
-		case udp::DataType::INDEX:
+		case GeomDataType::INDEX:
 			dataSize = sizeof(Index);
 			dataPtr = geometry.indexBuffer.ptr;
 			break;
@@ -521,7 +537,7 @@ private:
 
 		assert(dataSize != 0 && dataPtr != nullptr);
 
-		const auto chunkSize = sizeof(udp::ChunkHeader) + dataSize * header->len;
+		const auto chunkSize = sizeof(GeomUpdateHeader) + dataSize * header->len;
 
 		if (chunkSize > maxBytesToRead) {
 			err("processChunk would read past the allowed memory area!");
@@ -547,27 +563,27 @@ private:
 			header->start + header->len);
 		auto& loc = it->second;
 		// Use the correct offset into the vertex/index buffer
-		const auto baseOffset = header->dataType == udp::DataType::VERTEX ? loc.vertexOff : loc.indexOff;
+		const auto baseOffset = header->dataType == GeomDataType::VERTEX ? loc.vertexOff : loc.indexOff;
 		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + baseOffset;
 		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + header->start * dataSize;
 
 		{
 			// Ensure we don't write past the buffers area
 			const auto ptrStart = reinterpret_cast<uintptr_t>(dataPtr);
-			const auto actualPtrStart = reinterpret_cast<uintptr_t>(
-				header->dataType == udp::DataType::VERTEX ? geometry.vertexBuffer.ptr
-									  : geometry.indexBuffer.ptr);
-			const auto ptrLen = actualPtrStart + (header->dataType == udp::DataType::VERTEX
-									     ? geometry.vertexBuffer.size
-									     : geometry.indexBuffer.size);
+			const auto actualPtrStart = reinterpret_cast<uintptr_t>(header->dataType == GeomDataType::VERTEX
+											? geometry.vertexBuffer.ptr
+											: geometry.indexBuffer.ptr);
+			const auto ptrLen =
+				actualPtrStart + (header->dataType == GeomDataType::VERTEX ? geometry.vertexBuffer.size
+											   : geometry.indexBuffer.size);
 			verbose("writing at offset ", std::hex, ptrStart, " / ", actualPtrStart, " / ", ptrLen);
 			assert(actualPtrStart <= ptrStart && ptrStart <= ptrLen - dataSize * header->len);
 		}
 
-		if (header->dataType == udp::DataType::INDEX) {
+		if (header->dataType == GeomDataType::INDEX) {
 			Index maxIdx = 0;
 			for (unsigned i = 0; i < header->len; ++i) {
-				auto idx = reinterpret_cast<const Index*>(ptr + sizeof(udp::ChunkHeader))[i];
+				auto idx = reinterpret_cast<const Index*>(ptr + sizeof(GeomUpdateHeader))[i];
 				if (idx > maxIdx)
 					maxIdx = idx;
 			}
@@ -576,19 +592,24 @@ private:
 
 		verbose("Copying from ",
 			std::hex,
-			uintptr_t(ptr + sizeof(udp::ChunkHeader)),
+			uintptr_t(ptr + sizeof(GeomUpdateHeader)),
 			" --> ",
 			uintptr_t(dataPtr),
 			std::dec,
 			"  (",
 			dataSize * header->len,
 			")");
-		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
-		dumpBytes(ptr + sizeof(udp::ChunkHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
-		memcpy(dataPtr, ptr + sizeof(udp::ChunkHeader), dataSize * header->len);
+		dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
+		dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
+		memcpy(dataPtr, ptr + sizeof(GeomUpdateHeader), dataSize * header->len);
 
 		return chunkSize;
 	};
+
+	std::size_t processPointLightUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
+	{
+		return maxBytesToRead;
+	}
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime)
 	{

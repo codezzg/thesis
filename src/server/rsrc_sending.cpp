@@ -8,13 +8,12 @@
 #include <array>
 #include <vector>
 
-using shared::ResourcePacket;
 using namespace logging;
 
 bool sendMaterial(socket_t clientSocket, const Material& material)
 {
 	ResourcePacket<shared::Material> packet;
-	packet.type = MsgType::RSRC_TYPE_MATERIAL;
+	packet.type = TcpMsgType::RSRC_TYPE_MATERIAL;
 	packet.res.name = material.name;
 	packet.res.diffuseTex = material.diffuseTex.length() > 0 ? sid(material.diffuseTex) : SID_NONE;
 	packet.res.specularTex = material.specularTex.length() > 0 ? sid(material.specularTex) : SID_NONE;
@@ -47,7 +46,7 @@ bool sendPointLight(socket_t clientSocket, const shared::PointLight& light)
 	info("Sending point light ", light.name, " (", sidToString(light.name), ")");
 
 	ResourcePacket<shared::PointLightInfo> packet;
-	packet.type = MsgType::RSRC_TYPE_POINT_LIGHT;
+	packet.type = TcpMsgType::RSRC_TYPE_POINT_LIGHT;
 	packet.res.name = light.name;
 	packet.res.x = light.position.x;
 	packet.res.y = light.position.y;
@@ -91,7 +90,7 @@ bool sendModel(socket_t clientSocket, const Model& model)
 
 	// Prepare header
 	ResourcePacket<shared::Model> header;
-	header.type = MsgType::RSRC_TYPE_MODEL;
+	header.type = TcpMsgType::RSRC_TYPE_MODEL;
 	header.res.name = model.name;
 	header.res.nVertices = model.nVertices;
 	header.res.nIndices = model.nIndices;
@@ -165,7 +164,7 @@ bool sendTexture(socket_t clientSocket,
 	const auto texNameSid = sid(texName);
 	const auto& texture = resources.textures[texNameSid];
 	ResourcePacket<TextureInfo> header;
-	header.type = MsgType::RSRC_TYPE_TEXTURE;
+	header.type = TcpMsgType::RSRC_TYPE_TEXTURE;
 	header.res.name = texNameSid;
 	header.res.format = format;
 	header.res.size = texture.size;

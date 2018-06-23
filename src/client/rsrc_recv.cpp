@@ -22,8 +22,8 @@ bool receiveTexture(socket_t socket,
 	// [6] tex.size   (8 B)
 
 	// TODO: use a reinterpret_cast to the header struct
-	const auto header = *reinterpret_cast<const shared::ResourcePacket<shared::TextureInfo>*>(buffer);
-	constexpr auto sizeOfHeader = sizeof(shared::ResourcePacket<shared::TextureInfo>);
+	const auto header = *reinterpret_cast<const ResourcePacket<shared::TextureInfo>*>(buffer);
+	constexpr auto sizeOfHeader = sizeof(ResourcePacket<shared::TextureInfo>);
 	const auto expectedSize = header.res.size;
 
 	if (expectedSize > cfg::MAX_TEXTURE_SIZE) {
@@ -92,7 +92,7 @@ bool receiveMaterial(const uint8_t* buffer,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources)
 {
-	assert(bufsize >= sizeof(shared::ResourcePacket<shared::Material>));
+	assert(bufsize >= sizeof(ResourcePacket<shared::Material>));
 	static_assert(sizeof(StringId) == 4, "StringId size should be 4!");
 
 	// [0] MsgType (1 B)
@@ -130,8 +130,6 @@ bool receiveModel(socket_t socket,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources)
 {
-	using shared::ResourcePacket;
-
 	assert(bufsize >= sizeof(ResourcePacket<shared::Model>));
 
 	// Parse header
@@ -230,7 +228,7 @@ bool receivePointLight(const uint8_t* buffer,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources)
 {
-	assert(bufsize >= sizeof(shared::ResourcePacket<shared::PointLightInfo>));
+	assert(bufsize >= sizeof(ResourcePacket<shared::PointLightInfo>));
 
 	const auto lightInfo = *reinterpret_cast<const shared::PointLightInfo*>(buffer + 1);
 

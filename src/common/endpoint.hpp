@@ -31,15 +31,15 @@ bool validateUDPPacket(const uint8_t* packetBuf, uint64_t packetGen);
 
 /** Receives a message from socket expecting it to be a TCP message conforming to
  *  our protocol, and fills both `buffer` with the entire packet receives and
- *  `type` with the MsgType extracted from that message.
+ *  `type` with the TcpMsgType extracted from that message.
  */
-bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t len, MsgType& type);
+bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t len, TcpMsgType& type);
 
 /** Like `receiveTCPMsg`, but returns true if and only if a message of type `type` was received. */
-bool expectTCPMsg(socket_t socket, uint8_t* buffer, std::size_t len, MsgType type);
+bool expectTCPMsg(socket_t socket, uint8_t* buffer, std::size_t len, TcpMsgType type);
 
 /** Sends a header-only TCP message of type `type` */
-bool sendTCPMsg(socket_t socket, MsgType type);
+bool sendTCPMsg(socket_t socket, TcpMsgType type);
 //
 
 /** Base abstract class for a network endpoint running in a separate thread.

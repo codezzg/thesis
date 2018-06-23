@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <ostream>
 
-enum class MsgType : uint8_t {
+enum class TcpMsgType : uint8_t {
 	/** Handshake */
 	HELO = 0x01,
 	HELO_ACK = 0x02,
@@ -28,10 +28,10 @@ enum class MsgType : uint8_t {
 	UNKNOWN,
 };
 
-inline std::ostream& operator<<(std::ostream& s, MsgType msg)
+inline std::ostream& operator<<(std::ostream& s, TcpMsgType msg)
 {
 	switch (msg) {
-		using M = MsgType;
+		using M = TcpMsgType;
 	case M::HELO:
 		s << "HELO";
 		break;
@@ -81,13 +81,28 @@ inline std::ostream& operator<<(std::ostream& s, MsgType msg)
 	return s;
 }
 
-constexpr MsgType byte2msg(uint8_t byte)
+constexpr TcpMsgType byte2tcpmsg(uint8_t byte)
 {
-	return byte == 0 || byte > static_cast<uint8_t>(MsgType::UNKNOWN) ? MsgType::UNKNOWN
-									  : static_cast<MsgType>(byte);
+	return byte == 0 || byte > static_cast<uint8_t>(TcpMsgType::UNKNOWN) ? TcpMsgType::UNKNOWN
+									     : static_cast<TcpMsgType>(byte);
 }
 
-constexpr uint8_t msg2byte(MsgType type)
+constexpr uint8_t tcpmsg2byte(TcpMsgType type)
 {
-	return type == MsgType::UNKNOWN ? 0 : static_cast<uint8_t>(type);
+	return type == TcpMsgType::UNKNOWN ? 0 : static_cast<uint8_t>(type);
 }
+
+#pragma pack(push, 1)
+
+/** Template for the TCP messages used to send resources.
+ *  It consists of a common header and a payload of type `ResType`.
+ *  `ResType` is the actual content of the message, and is typically one of
+ *  the structs defined in shared_resources.hpp.
+ */
+template <typename ResType>
+struct ResourcePacket {
+	TcpMsgType type;
+	ResType res;
+};
+
+#pragma pack(pop)

@@ -151,12 +151,8 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len, int* bytes
 
 bool validateUDPPacket(const uint8_t* packetBuf, uint64_t packetGen)
 {
-	const auto packet = reinterpret_cast<const udp::UpdatePacket*>(packetBuf);
-	if (packet->header.magic != cfg::PACKET_MAGIC) {
-		info("Packet has invalid magic: dropping.");
-		return false;
-	}
-	if (packet->header.packetGen < packetGen) {
+	const auto packet = reinterpret_cast<const UdpHeader*>(packetBuf);
+	if (packet->packetGen < packetGen) {
 		info("Packet is old: dropping");
 		return false;
 	}
@@ -200,10 +196,9 @@ bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 /** Receives a message from `socket` into `buffer` and fills the `msgType` variable according to the
  *  type of message received (i.e. the message header)
  */
-bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, MsgType& msgType)
+bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, TcpMsgType& msgType)
 {
-
-	msgType = MsgType::UNKNOWN;
+	msgType = TcpMsgType::UNKNOWN;
 
 	if (!receivePacket(socket, buffer, bufsize))
 		return false;
@@ -211,22 +206,22 @@ bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, MsgTyp
 	// TODO: validate message header
 
 	// Check type of message (TODO) -- currently the message type is determined by its first byte.
-	msgType = byte2msg(buffer[0]);
+	msgType = byte2tcpmsg(buffer[0]);
 
 	info("<<< Received message type: ", msgType);
 
 	return true;
 }
 
-bool expectTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, MsgType expectedType)
+bool expectTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, TcpMsgType expectedType)
 {
-	MsgType type;
+	TcpMsgType type;
 	return receiveTCPMsg(socket, buffer, bufsize, type) && type == expectedType;
 }
 
-bool sendTCPMsg(socket_t socket, MsgType type)
+bool sendTCPMsg(socket_t socket, TcpMsgType type)
 {
-	const uint8_t b = msg2byte(type);
+	const uint8_t b = tcpmsg2byte(type);
 	const bool r = sendPacket(socket, &b, 1);
 	if (r)
 		info(">>> Sent message type: ", type);

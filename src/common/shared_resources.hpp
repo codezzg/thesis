@@ -4,8 +4,8 @@
 #include "tcp_messages.hpp"
 #include <glm/glm.hpp>
 
-/** The common data shared via network.
- *  The format of this data is valid for both the server and the client.
+/**
+ *  The common data structure whose format is valid for both the server and the client.
  */
 
 namespace shared {
@@ -62,12 +62,6 @@ struct PointLight {
 
 // The following structures are all sent directly through the network
 #pragma pack(push, 1)
-/** ResType should be one of the structs below */
-template <typename ResType>
-struct ResourcePacket {
-	MsgType type;
-	ResType res;
-};
 
 struct TextureInfo {
 	StringId name;

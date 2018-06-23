@@ -27,7 +27,7 @@ struct ServerSharedData final {
 	//// Geometry updating
 
 	/** List of update chunks to send */
-	std::vector<udp::ChunkHeader> geomUpdate;
+	std::vector<GeomUpdateHeader> geomUpdate;
 
 	/** Mutex guarding geomUpdate */
 	std::mutex geomUpdateMtx;
