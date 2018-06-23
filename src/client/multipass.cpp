@@ -24,7 +24,8 @@ void recordMultipassCommandBuffers(const Application& app,
 	// Norm
 	clearValues[3].color = { 0.f, 0.f, 0.f, 0.f };
 	// "Sky" color (TODO replace with skybox)
-	clearValues[4].color = { 0.41f, 0.84f, 0.87f, 0.f };
+	// clearValues[4].color = { 0.41f, 0.84f, 0.87f, 0.f };
+	clearValues[4].color = { 0.2f, 0.2f, 0.2f, 0.f };
 
 	VkRenderPassBeginInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

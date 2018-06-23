@@ -49,10 +49,8 @@ void main() {
 	float attenuation = 100.0 * pointLight.intensity / pow(lightFragDist, 2.0);
 
 	// Ambient
-	float isSky = float(fragPos == vec3(0.0)); // HACK!
+	float isSky = float(length(fragPos) > 1000.0); // HACK!
 	vec3 ambient = (isSky + (1.0 - isSky) * AMBIENT_INTENSITY) * ambientColor * albedo;
-	// XXX: debug
-	ambient *= attenuation;
 
 	// Diffuse
 	vec3 lightDir = normalize(lightFragVec);

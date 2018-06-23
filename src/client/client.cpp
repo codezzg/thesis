@@ -17,6 +17,7 @@
 #include "images.hpp"
 #include "logging.hpp"
 #include "multipass.hpp"
+#include "network_data.hpp"
 #include "phys_device.hpp"
 #include "pipelines.hpp"
 #include "profile.hpp"
@@ -414,44 +415,7 @@ private:
 	void runFrame()
 	{
 		// Receive network data
-		receiveData();
-
-		updateMVPUniformBuffer();
-		updateCompUniformBuffer();
-
-		cameraCtrl->processInput(app.window);
-
-		drawFrame();
-	}
-
-	void receiveData()
-	{
-		if (!passiveEP.dataAvailable())
-			return;
-
-		auto totBytes = passiveEP.retreive(streamingBuffer.data(), streamingBuffer.size());
-
-		verbose("BYTES READ (", totBytes, ") = ");
-		dumpBytes(streamingBuffer.data(), streamingBuffer.size(), 50, LOGLV_UBER_VERBOSE);
-
-		// streamingBuffer now contains [chunk0|chunk1|...]
-
-		int64_t bytesLeft = totBytes;
-		assert(bytesLeft <= static_cast<int64_t>(streamingBuffer.size()));
-
-		unsigned bytesProcessed = 0;
-		unsigned nChunksProcessed = 0;
-		while (bytesProcessed < totBytes) {
-			verbose("Processing chunk at offset ", bytesProcessed);
-			const auto bytesInChunk = processChunk(streamingBuffer.data() + bytesProcessed, bytesLeft);
-			++nChunksProcessed;
-			verbose("bytes in chunk: ", bytesInChunk);
-			bytesLeft -= bytesInChunk;
-			bytesProcessed += bytesInChunk;
-			assert(bytesLeft >= 0);
-		}
-		debug("Processed ", nChunksProcessed, " chunks.");
-
+		receiveData(passiveEP, streamingBuffer, geometry);
 #ifndef NDEBUG
 		if (gDebugLv >= LOGLV_VERBOSE) {
 			dumpBytesIntoFileBin("dumps/sb.data", streamingBuffer.data(), streamingBuffer.size());
@@ -464,6 +428,7 @@ private:
 		}
 
 		{
+			// Check max index is < vertices.size
 			Index maxIdx = 0;
 			assert(netRsrc.models.begin()->nIndices == geometry.indexBuffer.size / sizeof(Index));
 			for (unsigned i = 0; i < netRsrc.models.begin()->nIndices; ++i) {
@@ -475,140 +440,13 @@ private:
 			assert(maxIdx < geometry.vertexBuffer.size / sizeof(Vertex));
 		}
 #endif
-	}
 
-	/** Receives a pointer to a byte buffer and tries to read a chunk from it.
-	 *  Will not try to read more than `maxBytesToRead` bytes from the buffer.
-	 *  @return The number of bytes read, (aka the offset of the next chunk if there are more chunks after this)
-	 */
-	std::size_t processChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
-	{
-		//// Read the chunk type
-		static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
+		updateMVPUniformBuffer();
+		updateCompUniformBuffer();
 
-		switch (byte2udpmsg(ptr[0])) {
-		case UdpMsgType::GEOM_UPDATE:
-			return sizeof(UdpMsgType) +
-			       processGeomUpdateChunk(ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType));
-		case UdpMsgType::POINT_LIGHT_UPDATE:
-			return sizeof(UdpMsgType) + processPointLightUpdateChunk(ptr + sizeof(UdpMsgType),
-							    maxBytesToRead - sizeof(UdpMsgType));
-		default:
-			break;
-		}
+		cameraCtrl->processInput(app.window);
 
-		err("Invalid chunk type ", int(ptr[0]));
-		return maxBytesToRead;
-	}
-
-	/** Tries to read a GeomUpdate chunk from given `ptr`.
-	 *  Will not read more than `maxBytesToRead`.
-	 *  If a chunk is correctly read from the buffer, its content is interpreted and used to
-	 *  update the proper vertices or indices of a model.
-	 *  @return The number of bytes read
-	 */
-	std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
-	{
-		if (maxBytesToRead <= sizeof(GeomUpdateHeader)) {
-			err("Buffer given to processGeomUpdateChunk has not enough room for a Header + Payload!");
-			return maxBytesToRead;
-		}
-
-		//// Read the chunk header
-		const auto header = reinterpret_cast<const GeomUpdateHeader*>(ptr);
-
-		std::size_t dataSize = 0;
-		void* dataPtr = nullptr;
-		switch (header->dataType) {
-		case GeomDataType::VERTEX:
-			dataSize = sizeof(Vertex);
-			dataPtr = geometry.vertexBuffer.ptr;
-			break;
-		case GeomDataType::INDEX:
-			dataSize = sizeof(Index);
-			dataPtr = geometry.indexBuffer.ptr;
-			break;
-		default: {
-			std::stringstream ss;
-			ss << "Invalid data type " << int(header->dataType) << " in Update Chunk!";
-			throw std::runtime_error(ss.str());
-		} break;
-		}
-
-		assert(dataSize != 0 && dataPtr != nullptr);
-
-		const auto chunkSize = sizeof(GeomUpdateHeader) + dataSize * header->len;
-
-		if (chunkSize > maxBytesToRead) {
-			err("processChunk would read past the allowed memory area!");
-			return maxBytesToRead;
-		}
-
-		auto it = geometry.locations.find(header->modelId);
-		if (it == geometry.locations.end()) {
-			warn("Received an Update Chunk for inexistent model ", header->modelId, "!");
-			// XXX
-			return chunkSize;
-		}
-
-		//// Update the model
-
-		verbose("Updating model ",
-			header->modelId,
-			" / (type = ",
-			int(header->dataType),
-			") from ",
-			header->start,
-			" to ",
-			header->start + header->len);
-		auto& loc = it->second;
-		// Use the correct offset into the vertex/index buffer
-		const auto baseOffset = header->dataType == GeomDataType::VERTEX ? loc.vertexOff : loc.indexOff;
-		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + baseOffset;
-		dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + header->start * dataSize;
-
-		{
-			// Ensure we don't write past the buffers area
-			const auto ptrStart = reinterpret_cast<uintptr_t>(dataPtr);
-			const auto actualPtrStart = reinterpret_cast<uintptr_t>(header->dataType == GeomDataType::VERTEX
-											? geometry.vertexBuffer.ptr
-											: geometry.indexBuffer.ptr);
-			const auto ptrLen =
-				actualPtrStart + (header->dataType == GeomDataType::VERTEX ? geometry.vertexBuffer.size
-											   : geometry.indexBuffer.size);
-			verbose("writing at offset ", std::hex, ptrStart, " / ", actualPtrStart, " / ", ptrLen);
-			assert(actualPtrStart <= ptrStart && ptrStart <= ptrLen - dataSize * header->len);
-		}
-
-		if (header->dataType == GeomDataType::INDEX) {
-			Index maxIdx = 0;
-			for (unsigned i = 0; i < header->len; ++i) {
-				auto idx = reinterpret_cast<const Index*>(ptr + sizeof(GeomUpdateHeader))[i];
-				if (idx > maxIdx)
-					maxIdx = idx;
-			}
-			verbose("max idx of chunk at location ", uintptr_t(ptr), " = ", maxIdx);
-		}
-
-		verbose("Copying from ",
-			std::hex,
-			uintptr_t(ptr + sizeof(GeomUpdateHeader)),
-			" --> ",
-			uintptr_t(dataPtr),
-			std::dec,
-			"  (",
-			dataSize * header->len,
-			")");
-		dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
-		dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
-		memcpy(dataPtr, ptr + sizeof(GeomUpdateHeader), dataSize * header->len);
-
-		return chunkSize;
-	};
-
-	std::size_t processPointLightUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
-	{
-		return maxBytesToRead;
+		drawFrame();
 	}
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime)
@@ -661,56 +499,6 @@ private:
 	{
 		imageAvailableSemaphore = app.res.semaphores->create("image_available");
 		renderFinishedSemaphore = app.res.semaphores->create("render_finished");
-	}
-
-	void drawFrameForward()
-	{
-		uint32_t imageIndex;
-		if (!acquireNextSwapImage(app, imageAvailableSemaphore, imageIndex)) {
-			recreateSwapChain();
-			return;
-		}
-
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-		VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
-		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = waitSemaphores;
-		submitInfo.pWaitDstStageMask = waitStages;
-
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &app.commandBuffers[imageIndex];
-
-		VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = signalSemaphores;
-
-		if (vkQueueSubmit(app.queues.graphics, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-			throw std::runtime_error("failed to submit draw command buffer!");
-		}
-
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = signalSemaphores;
-
-		VkSwapchainKHR swapChains[] = { app.swapChain.handle };
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = swapChains;
-
-		presentInfo.pImageIndices = &imageIndex;
-
-		auto result = vkQueuePresentKHR(app.queues.present, &presentInfo);
-
-		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-			recreateSwapChain();
-		} else if (result != VK_SUCCESS) {
-			throw std::runtime_error("failed to present swap chain image!");
-		}
-
-		VLKCHECK(vkQueueWaitIdle(app.queues.present));
 	}
 
 	void drawFrame()
