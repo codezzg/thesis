@@ -6,7 +6,7 @@
 
 struct Material;
 struct Model;
-struct ServerResources;
+class ServerResources;
 
 bool sendMaterial(socket_t clientSocket, const Material& material);
 bool sendPointLight(socket_t clientSocket, const shared::PointLight& light);

@@ -5,7 +5,7 @@
 #include <cstdint>
 
 struct GeomUpdateHeader;
-struct ServerResources;
+class ServerResources;
 namespace shared {
 struct PointLight;
 }
