@@ -29,7 +29,7 @@ using shared::Mesh;
 
 static Material saveMaterial(const char* modelPath, const aiMaterial* mat);
 
-Model loadModel(const char* modelPath, void* buffer)
+Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 {
 	Model model = {};
 
@@ -112,6 +112,10 @@ Model loadModel(const char* modelPath, void* buffer)
 			if (uniqueVertices.count(vertex) == 0) {
 				// This vertex is new: insert new index
 				uniqueVertices[vertex] = model.nVertices;
+				if (sizeof(Vertex) * model.nVertices >= bufsize) {
+					err("loadModel(", modelPath, "): out of memory!");
+					return model;
+				}
 				reinterpret_cast<Vertex*>(buffer)[model.nVertices] = vertex;
 				model.nVertices++;
 			}
@@ -121,6 +125,11 @@ Model loadModel(const char* modelPath, void* buffer)
 
 		mesh.len = indices.size() - mesh.offset;
 		model.meshes.emplace_back(mesh);
+	}
+
+	if (sizeof(Vertex) * model.nVertices + sizeof(Index) * indices.size() >= bufsize) {
+		err("loadModel(", modelPath, "): out of memory!");
+		return model;
 	}
 
 	model.name = sid(modelPath);

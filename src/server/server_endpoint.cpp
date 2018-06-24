@@ -9,11 +9,12 @@
 #include "geom_update.hpp"
 #include "logging.hpp"
 #include "model.hpp"
-#include "rsrc_sending.hpp"
 #include "server.hpp"
 #include "server_appstage.hpp"
 #include "tcp_messages.hpp"
+#include "tcp_serialize.hpp"
 #include "udp_messages.hpp"
+#include "udp_serialize.hpp"
 #include "utils.hpp"
 #include <algorithm>
 #include <chrono>
@@ -27,122 +28,6 @@
 using namespace logging;
 using namespace std::chrono_literals;
 
-/** Writes an UDP header into `buffer`. */
-static void writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen)
-{
-	assert(bufsize >= sizeof(UdpHeader));
-
-	UdpHeader header;
-	header.packetGen = packetGen;
-	header.size = 0;
-
-	// DEBUG
-	// memset(buffer, 0xAA, bufsize);
-	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(UdpHeader));
-}
-
-/** Writes a geometry update chunk (including the header) into `buffer`, starting at `offset`.
- *  @return the number of bytes written, or 0 if the buffer hadn't enough room.
- */
-static std::size_t addGeomUpdate(uint8_t* buffer,
-	std::size_t bufsize,
-	std::size_t offset,
-	const GeomUpdateHeader& geomUpdate,
-	const ServerResources& resources)
-{
-	assert(offset < bufsize);
-	assert(geomUpdate.modelId != SID_NONE);
-	assert(geomUpdate.dataType < GeomDataType::INVALID);
-
-	// Retreive data from the model
-	const auto& model_it = resources.models.find(geomUpdate.modelId);
-	assert(model_it != resources.models.end());
-
-	void* dataPtr;
-	std::size_t dataSize;
-	switch (geomUpdate.dataType) {
-	case GeomDataType::VERTEX:
-		dataPtr = model_it->second.vertices;
-		dataSize = sizeof(Vertex);
-		break;
-	case GeomDataType::INDEX:
-		dataPtr = model_it->second.indices;
-		dataSize = sizeof(Index);
-		break;
-	default:
-		assert(false);
-	}
-
-	const auto payloadSize = dataSize * geomUpdate.len;
-	verbose("start: ", geomUpdate.start, ", len: ", geomUpdate.len);
-	verbose("offset: ", offset, ", payload size: ", payloadSize, ", bufsize: ", bufsize);
-	// Prevent infinite loops
-	assert(sizeof(UdpMsgType) + sizeof(GeomUpdateHeader) + payloadSize < bufsize);
-
-	if (offset + sizeof(UdpMsgType) + sizeof(GeomUpdateHeader) + payloadSize > bufsize) {
-		// Not enough room
-		verbose("Not enough room!");
-		return 0;
-	}
-
-	std::size_t written = 0;
-
-	// Write chunk type
-	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
-	buffer[offset] = udpmsg2byte(UdpMsgType::GEOM_UPDATE);
-	written += sizeof(UdpMsgType);
-
-	// Write chunk header
-	memcpy(buffer + offset + written, &geomUpdate, sizeof(GeomUpdateHeader));
-	written += sizeof(GeomUpdateHeader);
-
-	// Write chunk payload
-	memcpy(buffer + offset + written,
-		reinterpret_cast<uint8_t*>(dataPtr) + dataSize * geomUpdate.start,
-		payloadSize);
-	written += payloadSize;
-
-	// Update size in header
-	reinterpret_cast<UdpHeader*>(buffer)->size += written;
-	verbose("Packet size is now ", reinterpret_cast<UdpHeader*>(buffer)->size);
-
-	return written;
-}
-
-static void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize)
-{
-	verbose("Magic:");
-	dumpBytes(buffer, sizeof(uint32_t), 50, LOGLV_VERBOSE);
-	verbose("Packet Gen:");
-	dumpBytes(buffer + sizeof(uint32_t), sizeof(uint64_t), 50, LOGLV_VERBOSE);
-	verbose("Size:");
-	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t), sizeof(uint32_t), 50, LOGLV_VERBOSE);
-	verbose("ModelID:");
-	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t), sizeof(uint32_t), 50, LOGLV_VERBOSE);
-	verbose("DataType:");
-	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t),
-		sizeof(uint8_t),
-		50,
-		LOGLV_VERBOSE);
-	verbose("Start:");
-	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint8_t),
-		sizeof(uint32_t),
-		50,
-		LOGLV_VERBOSE);
-	verbose("Len:");
-	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint8_t) +
-			  sizeof(uint32_t),
-		sizeof(uint32_t),
-		50,
-		LOGLV_VERBOSE);
-	verbose("Payload:");
-	dumpBytes(buffer + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint8_t) +
-			  sizeof(uint32_t) + sizeof(uint32_t),
-		bufsize,
-		100,
-		LOGLV_VERBOSE);
-}
-
 void ServerActiveEndpoint::loopFunc()
 {
 	uint64_t packetGen = 0;
@@ -153,14 +38,23 @@ void ServerActiveEndpoint::loopFunc()
 	while (!terminated) {
 
 		if (server.shared.geomUpdate.size() == 0) {
+			// TODO
+			auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
+			offset += addPointLightUpdate(
+				buffer.data(), buffer.size(), offset, server.resources.pointLights[0]);
+			sendPacket(socket, buffer.data(), buffer.size());
+			// dumpFullPacket(buffer.data(), buffer.size(), LOGLV_INFO);
+			++packetGen;
+			std::this_thread::sleep_for(16ms);
+			continue;
+
 			// Wait for updates
-			std::unique_lock<std::mutex> ulk{ server.shared.geomUpdateMtx };
-			server.shared.geomUpdateCv.wait(
-				ulk, [this]() { return terminated || server.shared.geomUpdate.size() > 0; });
+			// std::unique_lock<std::mutex> ulk{ server.shared.geomUpdateMtx };
+			// server.shared.geomUpdateCv.wait(
+			// ulk, [this]() { return terminated || server.shared.geomUpdate.size() > 0; });
 		}
 
-		std::size_t offset = sizeof(UdpHeader);
-		writeUdpHeader(buffer.data(), buffer.size(), packetGen);
+		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
 		verbose("geomUpdate.size now = ", server.shared.geomUpdate.size());
 
 		// TODO: use a more efficient approach for erasing elements
@@ -178,7 +72,7 @@ void ServerActiveEndpoint::loopFunc()
 			} else {
 				// Not enough room: send the packet and go on
 				if (gDebugLv >= LOGLV_VERBOSE) {
-					dumpFullPacket(buffer.data(), buffer.size());
+					dumpFullPacket(buffer.data(), buffer.size(), LOGLV_VERBOSE);
 					dumpBytesIntoFileBin(
 						(std::string{ "dumps/server_packet" } + std::to_string(i - 1) + ".data")
 							.c_str(),
@@ -194,7 +88,7 @@ void ServerActiveEndpoint::loopFunc()
 		if (offset > sizeof(UdpHeader)) {
 			// Need to send the last packet
 			if (gDebugLv >= LOGLV_VERBOSE) {
-				dumpFullPacket(buffer.data(), buffer.size());
+				dumpFullPacket(buffer.data(), buffer.size(), LOGLV_VERBOSE);
 				dumpBytesIntoFileBin(
 					(std::string{ "dumps/server_packet" } + std::to_string(i - 1) + ".data")
 						.c_str(),

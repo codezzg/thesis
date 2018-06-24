@@ -9,6 +9,9 @@ struct Geometry;
 struct NetworkResources;
 
 /** Receives network data from `passiveEP`, storing them into the staging buffer `buffer`.
- *  Then interprets the chunks received and updates `geometry` accordingly.
+ *  Then interprets the chunks received and updates `geometry` and `netRsrc` accordingly.
  */
-void receiveData(ClientPassiveEndpoint& passiveEP, std::vector<uint8_t>& buffer, Geometry& geometry);
+void receiveData(ClientPassiveEndpoint& passiveEP,
+	std::vector<uint8_t>& buffer,
+	Geometry& geometry,
+	NetworkResources& netRsrc);

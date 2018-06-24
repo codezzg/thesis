@@ -66,4 +66,5 @@ struct Model {
  *  @return a valid model, or one with nullptr `vertices` and `indices` if there were errors.
  */
 Model loadModel(const char* modelPath,
-	/* inout */ void* buffer);
+	/* inout */ void* buffer,
+	std::size_t bufsize);

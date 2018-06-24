@@ -13,26 +13,23 @@ namespace shared {
 enum class TextureFormat : uint8_t { RGBA, GREY, UNKNOWN };
 
 /** Used to map parameters to bit in lights' `dynMask` */
-enum class LightDynFlags : uint8_t {
+enum LightDynFlags : uint8_t {
 	POSITION = 0,
 	COLOR = 1,
 	INTENSITY = 2,
 };
 
-template <typename L>
-constexpr bool isLightPositionFixed(const L& light)
+constexpr bool isLightPositionFixed(uint8_t dynMask)
 {
-	return light.dynMask & (1 << static_cast<uint8_t>(LightDynFlags::POSITION));
+	return !((dynMask >> static_cast<uint8_t>(LightDynFlags::POSITION)) & 1);
 }
-template <typename L>
-constexpr bool isLightColorFixed(const L& light)
+constexpr bool isLightColorFixed(uint8_t dynMask)
 {
-	return light.dynMask & (1 << static_cast<uint8_t>(LightDynFlags::COLOR));
+	return !((dynMask >> static_cast<uint8_t>(LightDynFlags::COLOR)) & 1);
 }
-template <typename L>
-constexpr bool isLightIntensityFixed(const L& light)
+constexpr bool isLightIntensityFixed(uint8_t dynMask)
 {
-	return light.dynMask & (1 << static_cast<uint8_t>(LightDynFlags::INTENSITY));
+	return !((dynMask >> static_cast<uint8_t>(LightDynFlags::INTENSITY)) & 1);
 }
 
 /** Texture information. Note that this structure is only used to *store*

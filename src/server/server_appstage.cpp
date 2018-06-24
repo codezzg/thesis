@@ -4,6 +4,7 @@
 #include "geom_update.hpp"
 #include "logging.hpp"
 #include "server.hpp"
+#include "to_string.hpp"
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -159,9 +160,13 @@ void appstageLoop(Server& server)
 		idxToPick[i] = i;
 
 	std::uniform_int_distribution<unsigned> nSentDist{ 1, 100 };
+	float t = 0;
+
+	Clock clock;
+	auto beginTime = std::chrono::high_resolution_clock::now();
 
 	while (true) {
-		const LimitFrameTime lft{ 500ms };
+		const LimitFrameTime lft{ 33ms };
 
 		// Model updating simulation
 		/*
@@ -186,5 +191,22 @@ void appstageLoop(Server& server)
 		*/
 
 		// Move dyn lights
+		auto& light = server.resources.pointLights[0];
+		t += clock.deltaTime();
+		light.position = glm::vec3{ 10 * std::sin(t), 5 + 5 * std::sin(t * 0.7), 10 * std::cos(t) };
+		light.color = glm::vec3{
+			0.5 + 0.5 * std::sin(t), 0.5 + 0.5 * std::sin(t * 0.33), 0.5 + 0.5 * std::cos(t * 0.66)
+		};
+		light.intensity = std::abs(4 * std::sin(t * 0.75));
+
+		// debug("t = ", t, ", light: ", toString(light));
+
+		const auto endTime = std::chrono::high_resolution_clock::now();
+		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
+			   1'000'000.f;
+		if (dt > 1.f)
+			dt = clock.targetDeltaTime;
+		clock.update(dt);
+		beginTime = endTime;
 	}
 }

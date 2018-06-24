@@ -3,9 +3,11 @@
 #include "client_resources.hpp"
 #include "geometry.hpp"
 #include "logging.hpp"
+#include "shared_resources.hpp"
 #include "udp_messages.hpp"
 #include "utils.hpp"
 #include "vertex.hpp"
+#include <algorithm>
 #include <cassert>
 
 using namespace logging;
@@ -49,7 +51,7 @@ static std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxByt
 	const auto chunkSize = sizeof(GeomUpdateHeader) + dataSize * header->len;
 
 	if (chunkSize > maxBytesToRead) {
-		err("processChunk would read past the allowed memory area!");
+		err("processGeomUpdateChunk would read past the allowed memory area!");
 		return maxBytesToRead;
 	}
 
@@ -89,16 +91,6 @@ static std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxByt
 		assert(actualPtrStart <= ptrStart && ptrStart <= ptrLen - dataSize * header->len);
 	}
 
-	if (header->dataType == GeomDataType::INDEX) {
-		Index maxIdx = 0;
-		for (unsigned i = 0; i < header->len; ++i) {
-			auto idx = reinterpret_cast<const Index*>(ptr + sizeof(GeomUpdateHeader))[i];
-			if (idx > maxIdx)
-				maxIdx = idx;
-		}
-		verbose("max idx of chunk at location ", uintptr_t(ptr), " = ", maxIdx);
-	}
-
 	verbose("Copying from ",
 		std::hex,
 		uintptr_t(ptr + sizeof(GeomUpdateHeader)),
@@ -110,21 +102,93 @@ static std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxByt
 		")");
 	dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
 	dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
+
+	// Do the actual update
 	memcpy(dataPtr, ptr + sizeof(GeomUpdateHeader), dataSize * header->len);
 
 	return chunkSize;
 }
 
-static std::size_t processPointLightUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead)
+/** Tries to read a PointLightUpdate chunk from `ptr`.
+ *  Won't try to read more than `maxBytesToRead`.
+ *  In case of success, the corresponding point light is updated accordingly.
+ *  @return The number of bytes read from `ptr`.
+ */
+static std::size_t
+	processPointLightUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead, NetworkResources& netRsrc)
 {
-	return maxBytesToRead;
+	using shared::isLightColorFixed;
+	using shared::isLightIntensityFixed;
+	using shared::isLightPositionFixed;
+
+	if (maxBytesToRead <= sizeof(PointLightUpdateHeader)) {
+		err("Buffer given to processPointLightUpdateChunk has not enough room for a Header + Payload!");
+		return maxBytesToRead;
+	}
+
+	//// Read header
+	const auto header = reinterpret_cast<const PointLightUpdateHeader*>(ptr);
+
+	// Figure out chunk size.
+	// Payload is:
+	// [vec3] newPosition (if position is dynamic in updateMask)
+	// [vec3] newColor (if color is dynamic in updateMask)
+	// [float] newIntensity (if intensity is dynamic in updateMask)
+	std::size_t chunkSize = sizeof(PointLightUpdateHeader);
+	const auto mask = header->updateMask;
+	if (mask == 0) {
+		warn("Received empty PointLight update for light ", header->lightId, "!");
+		return chunkSize;
+	}
+	if (!isLightPositionFixed(mask))
+		chunkSize += 3 * sizeof(float);
+	if (!isLightColorFixed(mask))
+		chunkSize += 3 * sizeof(float);
+	if (!isLightIntensityFixed(mask))
+		chunkSize += sizeof(float);
+
+	// Find the referenced light
+	auto it = std::find_if(netRsrc.pointLights.begin(),
+		netRsrc.pointLights.end(),
+		[name = header->lightId](const auto light) { return light.name == name; });
+	if (it == netRsrc.pointLights.end()) {
+		warn("Received an Update Chunk for inexistent pointLight ", header->lightId, "!");
+		// XXX
+		return chunkSize;
+	}
+
+	if (chunkSize > maxBytesToRead) {
+		err("processPointLightUpdateChunk would read past the allowed memory area!");
+		return maxBytesToRead;
+	}
+
+	//// Update the light
+	auto payloadPtr = ptr + sizeof(PointLightUpdateHeader);
+	if (!isLightPositionFixed(mask)) {
+		const auto newPos = *reinterpret_cast<const glm::vec3*>(payloadPtr);
+		it->position = newPos;
+		payloadPtr += sizeof(glm::vec3);
+	}
+	if (!isLightColorFixed(mask)) {
+		const auto newCol = *reinterpret_cast<const glm::vec3*>(payloadPtr);
+		it->color = newCol;
+		payloadPtr += sizeof(glm::vec3);
+	}
+	if (!isLightIntensityFixed(mask)) {
+		const auto newInt = *reinterpret_cast<const float*>(payloadPtr);
+		it->intensity = newInt;
+		payloadPtr += sizeof(float);
+	}
+
+	return chunkSize;
 }
 
 /** Receives a pointer to a byte buffer and tries to read a chunk from it.
  *  Will not try to read more than `maxBytesToRead` bytes from the buffer.
  *  @return The number of bytes read, (aka the offset of the next chunk if there are more chunks after this)
  */
-static std::size_t processChunk(const uint8_t* ptr, std::size_t maxBytesToRead, Geometry& geometry)
+static std::size_t
+	processChunk(const uint8_t* ptr, std::size_t maxBytesToRead, Geometry& geometry, NetworkResources& netRsrc)
 {
 	//// Read the chunk type
 	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
@@ -134,8 +198,9 @@ static std::size_t processChunk(const uint8_t* ptr, std::size_t maxBytesToRead, 
 		return sizeof(UdpMsgType) +
 		       processGeomUpdateChunk(ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType), geometry);
 	case UdpMsgType::POINT_LIGHT_UPDATE:
-		return sizeof(UdpMsgType) +
-		       processPointLightUpdateChunk(ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType));
+		return sizeof(UdpMsgType) + processPointLightUpdateChunk(ptr + sizeof(UdpMsgType),
+						    maxBytesToRead - sizeof(UdpMsgType),
+						    netRsrc);
 	default:
 		break;
 	}
@@ -144,7 +209,10 @@ static std::size_t processChunk(const uint8_t* ptr, std::size_t maxBytesToRead, 
 	return maxBytesToRead;
 }
 
-void receiveData(ClientPassiveEndpoint& passiveEP, std::vector<uint8_t>& buffer, Geometry& geometry)
+void receiveData(ClientPassiveEndpoint& passiveEP,
+	std::vector<uint8_t>& buffer,
+	Geometry& geometry,
+	NetworkResources& netRsrc)
 {
 	if (!passiveEP.dataAvailable())
 		return;
@@ -163,7 +231,7 @@ void receiveData(ClientPassiveEndpoint& passiveEP, std::vector<uint8_t>& buffer,
 	unsigned nChunksProcessed = 0;
 	while (bytesProcessed < totBytes) {
 		verbose("Processing chunk at offset ", bytesProcessed);
-		const auto bytesInChunk = processChunk(buffer.data() + bytesProcessed, bytesLeft, geometry);
+		const auto bytesInChunk = processChunk(buffer.data() + bytesProcessed, bytesLeft, geometry, netRsrc);
 		++nChunksProcessed;
 		verbose("bytes in chunk: ", bytesInChunk);
 		bytesLeft -= bytesInChunk;

@@ -415,7 +415,7 @@ private:
 	void runFrame()
 	{
 		// Receive network data
-		receiveData(passiveEP, streamingBuffer, geometry);
+		receiveData(passiveEP, streamingBuffer, geometry, netRsrc);
 #ifndef NDEBUG
 		if (gDebugLv >= LOGLV_VERBOSE) {
 			dumpBytesIntoFileBin("dumps/sb.data", streamingBuffer.data(), streamingBuffer.size());

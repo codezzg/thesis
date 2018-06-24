@@ -15,10 +15,13 @@ Model ServerResources::loadModel(const char* file)
 	}
 
 	// Reserve the whole remaining memory for loading the resource, then shrink to fit.
-	auto buffer = allocator.allocAll();
+	std::size_t bufsize;
+	auto buffer = allocator.allocAll(&bufsize);
 
 	auto& model = models[fileSid];
-	model = ::loadModel(file, buffer);
+	model = ::loadModel(file, buffer, bufsize);
+
+	assert(model.vertices && "Failed to load model!");
 
 	allocator.deallocLatest();
 	allocator.alloc(model.size());

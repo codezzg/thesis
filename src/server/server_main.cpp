@@ -77,7 +77,8 @@ int main(int argc, char** argv)
 		light.color = glm::vec3(0.6, 0.0, 0.9);
 		light.intensity = 1.5;
 		light.dynMask = (1 << static_cast<uint8_t>(shared::LightDynFlags::POSITION)) |
-				(1 << static_cast<uint8_t>(shared::LightDynFlags::COLOR));
+				(1 << static_cast<uint8_t>(shared::LightDynFlags::COLOR)) |
+				(1 << static_cast<uint8_t>(shared::LightDynFlags::INTENSITY));
 		server.resources.pointLights.emplace_back(light);
 	}
 
