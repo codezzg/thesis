@@ -6,6 +6,7 @@
 
 struct GeomUpdateHeader;
 class ServerResources;
+struct QueuedUpdate;
 namespace shared {
 struct PointLight;
 }
@@ -15,21 +16,13 @@ struct PointLight;
  */
 std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen);
 
-/** Writes a geometry update chunk (including the header) into `buffer`, starting at `offset`.
+/** Transforms a generic queued update into an udp update chunk and writes it into `buffer`, starting at `offset`.
  *  @return the number of bytes written, or 0 if the buffer hadn't enough room.
  */
-std::size_t addGeomUpdate(uint8_t* buffer,
+std::size_t addUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
-	const GeomUpdateHeader& geomUpdate,
+	const QueuedUpdate* update,
 	const ServerResources& resources);
-
-/** Writes a point light update chunk (including the header) into `buffer`, starting at `offset`.
- *  @return the number of bytes written, or 0 if the buffer hadn't enough room.
- */
-std::size_t addPointLightUpdate(uint8_t* buffer,
-	std::size_t bufsize,
-	std::size_t offset,
-	const shared::PointLight& pointLight);
 
 void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize, LogLevel loglv);

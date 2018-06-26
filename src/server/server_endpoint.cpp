@@ -34,41 +34,29 @@ void ServerActiveEndpoint::loopFunc()
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer = {};
 
-	// Send geometry datagrams to the client
+	// Send datagrams to the client
 	while (!terminated) {
 
-		if (server.shared.geomUpdate.size() == 0) {
-			// TODO
-			auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-			offset += addPointLightUpdate(
-				buffer.data(), buffer.size(), offset, server.resources.pointLights[0]);
-			sendPacket(socket, buffer.data(), buffer.size());
-			// dumpFullPacket(buffer.data(), buffer.size(), LOGLV_INFO);
-			++packetGen;
-			std::this_thread::sleep_for(16ms);
-			continue;
-
+		if (server.shared.updates.size() == 0) {
 			// Wait for updates
-			// std::unique_lock<std::mutex> ulk{ server.shared.geomUpdateMtx };
-			// server.shared.geomUpdateCv.wait(
-			// ulk, [this]() { return terminated || server.shared.geomUpdate.size() > 0; });
+			std::unique_lock<std::mutex> ulk{ server.shared.updatesMtx };
+			server.shared.updatesCv.wait(
+				ulk, [this]() { return terminated || server.shared.updates.size() > 0; });
 		}
 
 		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-		verbose("geomUpdate.size now = ", server.shared.geomUpdate.size());
+		verbose("updates.size now = ", server.shared.updates.size());
 
 		// TODO: use a more efficient approach for erasing elements
-		auto write = server.shared.geomUpdate.begin();
 		unsigned i = 0;
-		for (auto read = write; read != server.shared.geomUpdate.end();) {
-			verbose("update: ", i, ": ", read->start, " / ", read->len);
+		for (auto it = server.shared.updates.begin(); it != server.shared.updates.end();) {
 
 			const auto written =
-				addGeomUpdate(buffer.data(), buffer.size(), offset, *read, server.resources);
+				addUpdate(buffer.data(), buffer.size(), offset, it->get(), server.resources);
 			if (written > 0) {
 				offset += written;
 				++i;
-				read = server.shared.geomUpdate.erase(read);
+				it = server.shared.updates.erase(it);
 			} else {
 				// Not enough room: send the packet and go on
 				if (gDebugLv >= LOGLV_VERBOSE) {
@@ -150,19 +138,24 @@ void ServerReliableEndpoint::loopFunc()
 	info("Listening...");
 	::listen(socket, MAX_CLIENTS);
 
-	auto& geomUpdate = server.shared.geomUpdate;
+	auto& updates = server.shared.updates;
 
 	while (!terminated) {
-		for (const auto& modelpair : server.resources.models) {
-			const auto updates = buildUpdatePackets(modelpair.second);
-			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-			// TODO
-			// This is done to send each update multiple times hoping that the client will
-			// eventually get them all. Find a better solution!
-			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+		{
+			std::lock_guard<std::mutex> mtx{ server.shared.updatesMtx };
+			for (const auto& modelpair : server.resources.models) {
+				const auto updatePackets = buildUpdatePackets(modelpair.second);
+				for (const auto& up : updatePackets) {
+					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
+					// TODO
+					// This is done to send each update multiple times hoping that the client will
+					// eventually get them all. Find a better solution!
+					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
+					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
+					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
+					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
+				}
+			}
 		}
 
 		sockaddr_in clientAddr;
@@ -297,7 +290,7 @@ dropclient:
 		sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
 	}
 	server.shared.clientDataCv.notify_all();
-	server.shared.geomUpdateCv.notify_all();
+	server.shared.updatesCv.notify_all();
 	// server.passiveEP.close();
 	info("Closing activeEP");
 	server.activeEP.close();

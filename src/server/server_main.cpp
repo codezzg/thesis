@@ -149,6 +149,8 @@ bool loadAssets(Server& server)
 	const auto cwd = xplatGetCwd();
 	info("Starting server. cwd: ", cwd);
 
+	//// Load the models first: they'll remain at the bottom of our stack allocator
+
 	const auto loadSingleModel = [&](const char* name) {
 		auto model = server.resources.loadModel((cwd + xplatPath(name)).c_str());
 
@@ -187,15 +189,8 @@ bool loadAssets(Server& server)
 	if (!loadSingleModel("/models/wall/wall2.obj"))
 		return false;
 
-	// Load the models first: they'll remain at the bottom of our stack allocator
 	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
 		return false;
-	// xplatPath("/models/tiny/Tiny.obj")) .c_str());
-	// xplatPath("/models/cube/silver.obj")) .c_str());
-	// xplatPath("/models/wall/wall2.obj")) .c_str());
-	// xplatPath("/models/mill.obj")) .c_str());
-	// xplatPath("/models/cat/cat.obj")) .c_str());
-	// xplatPath("/models/car/Avent.obj")) .c_str());
 
 	if (!loadSingleModel("/models/cat/cat.obj"))
 		return false;

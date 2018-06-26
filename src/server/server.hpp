@@ -1,16 +1,18 @@
 #pragma once
 
+#include "queued_update.hpp"
 #include "server_endpoint.hpp"
 #include "server_resources.hpp"
 #include "udp_messages.hpp"
 #include <array>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <vector>
 
 /** This struct contains data that is shared between the server's endpoints. */
 struct ServerSharedData final {
-	//// Client per-frame data
+	//// Client-to-server data
 
 	/** The latest frame received from client */
 	int64_t clientFrame = -1;
@@ -24,16 +26,16 @@ struct ServerSharedData final {
 	/** Payload received from the client goes here*/
 	std::array<uint8_t, FrameData().payload.size()> clientData;
 
-	//// Geometry updating
+	//// Server-to-client data
 
-	/** List of update chunks to send */
-	std::vector<GeomUpdateHeader> geomUpdate;
+	/** List of chunk headers to send. Their payload, if any, can always be deduced by the header itself. */
+	std::vector<std::unique_ptr<QueuedUpdate>> updates;
 
-	/** Mutex guarding geomUpdate */
-	std::mutex geomUpdateMtx;
+	/** Mutex guarding updates */
+	std::mutex updatesMtx;
 
-	/** Notified whenever there are geometry updates to send to the client*/
-	std::condition_variable geomUpdateCv;
+	/** Notified whenever there are updates to send to the client*/
+	std::condition_variable updatesCv;
 };
 
 /** The Server wraps the endpoints and provides a mean to sharing data between the server threads.

@@ -4,6 +4,7 @@
 #include "hashing.hpp"
 #include <array>
 #include <cstddef>
+#include <glm/glm.hpp>
 #include <ostream>
 
 enum class UdpMsgType : uint8_t {
@@ -11,6 +12,8 @@ enum class UdpMsgType : uint8_t {
 	GEOM_UPDATE = 0x01,
 	/** A PointLightUpdatePacket, which modifies a light's position and/or color and/or intensity */
 	POINT_LIGHT_UPDATE = 0x02,
+	/** A TransformUpdatePacket, which modifies a model's transform */
+	TRANSFORM_UPDATE = 0x03,
 	UNKNOWN
 };
 
@@ -23,6 +26,9 @@ inline std::ostream& operator<<(std::ostream& s, UdpMsgType msg)
 		break;
 	case M::POINT_LIGHT_UPDATE:
 		s << "POINT_LIGHT_UPDATE";
+		break;
+	case M::TRANSFORM_UPDATE:
+		s << "TRANSFORM_UPDATE";
 		break;
 	default:
 		s << "UNKNOWN";
@@ -74,6 +80,7 @@ struct UdpPacket {
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES - sizeof(UdpHeader)> payload;
 };
 
+/** Update vertex/index buffers of existing model */
 struct GeomUpdateHeader {
 	StringId modelId;
 	GeomDataType dataType;
@@ -83,10 +90,20 @@ struct GeomUpdateHeader {
 	uint32_t len;
 };
 
+/** Update position/color/intensity of existing point light */
 struct PointLightUpdateHeader {
 	StringId lightId;
 	/** Defines what kind of updates follow. It must be equal to the light's dynmask and uses the same flags. */
 	uint8_t updateMask;
+};
+
+/** Update transform of an object (currently, only a model).
+ *  Note: this chunk is header-only.
+ */
+struct TransformUpdateHeader {
+	StringId objectId;
+	// TODO: we may compress this information, as some elements of the matrix are always 0.
+	glm::mat4 transform;
 };
 
 #pragma pack(pop)

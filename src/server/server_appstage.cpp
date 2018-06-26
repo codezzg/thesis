@@ -209,5 +209,12 @@ void appstageLoop(Server& server)
 			dt = clock.targetDeltaTime;
 		clock.update(dt);
 		beginTime = endTime;
+
+		// Add the update to the list of stuff to send
+		{
+			std::lock_guard<std::mutex> lock{ server.shared.updatesMtx };
+			server.shared.updates.emplace_back(new QueuedUpdatePointLight{ light.name });
+		}
+		server.shared.updatesCv.notify_one();
 	}
 }

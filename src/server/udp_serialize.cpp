@@ -1,8 +1,11 @@
 #include "udp_serialize.hpp"
+#include "queued_update.hpp"
 #include "server_resources.hpp"
 #include "shared_resources.hpp"
 #include "udp_messages.hpp"
+#include <algorithm>
 #include <cassert>
+#include <glm/glm.hpp>
 
 using namespace logging;
 
@@ -21,7 +24,7 @@ std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packet
 	return sizeof(UdpHeader);
 }
 
-std::size_t addGeomUpdate(uint8_t* buffer,
+static std::size_t addGeomUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
 	const GeomUpdateHeader& geomUpdate,
@@ -34,6 +37,8 @@ std::size_t addGeomUpdate(uint8_t* buffer,
 
 	// Retreive data from the model
 	const auto& model_it = resources.models.find(geomUpdate.modelId);
+	if (model_it == resources.models.end())
+		err("inexisting model ", int(geomUpdate.modelId));
 	assert(model_it != resources.models.end());
 
 	void* dataPtr;
@@ -85,12 +90,12 @@ std::size_t addGeomUpdate(uint8_t* buffer,
 	return written;
 }
 
-std::size_t addPointLightUpdate(uint8_t* buffer,
+static std::size_t addPointLightUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
 	const shared::PointLight& pointLight)
 {
-	assert(offset < bufsize);
+	// assert(offset < bufsize);
 	assert(pointLight.dynMask != 0);
 
 	const std::size_t payloadSize = sizeof(glm::vec3) * !shared::isLightPositionFixed(pointLight.dynMask) +
@@ -141,6 +146,86 @@ std::size_t addPointLightUpdate(uint8_t* buffer,
 	dumpFullPacket(buffer, bufsize, LOGLV_DEBUG);
 
 	return written;
+}
+
+static std::size_t addTransformUpdate(uint8_t* buffer, std::size_t bufsize, std::size_t offset, const Model& model)
+{
+	// assert(offset < bufsize);
+
+	// Header-only type of chunk
+	const std::size_t payloadSize = 0;
+
+	// Prevent infinite loops
+	assert(sizeof(UdpMsgType) + sizeof(TransformUpdateHeader) + payloadSize < bufsize);
+
+	if (offset + sizeof(UdpMsgType) + sizeof(TransformUpdateHeader) + payloadSize > bufsize) {
+		verbose("Not enough room!");
+		return 0;
+	}
+
+	std::size_t written = 0;
+
+	// Write chunk type
+	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
+	buffer[offset] = udpmsg2byte(UdpMsgType::TRANSFORM_UPDATE);
+	written += sizeof(UdpMsgType);
+
+	// Write header
+	TransformUpdateHeader header;
+	header.objectId = model.name;
+	header.transform = glm::mat4{ 1.0 };   // TODO
+
+	memcpy(buffer + offset + written, &header, sizeof(TransformUpdateHeader));
+	written += sizeof(TransformUpdateHeader);
+
+	// Update size in header
+	reinterpret_cast<UdpHeader*>(buffer)->size += written;
+	verbose("Packet size is now ", reinterpret_cast<UdpHeader*>(buffer)->size);
+
+	dumpFullPacket(buffer, bufsize, LOGLV_DEBUG);
+
+	return written;
+}
+
+std::size_t addUpdate(uint8_t* buffer,
+	std::size_t bufsize,
+	std::size_t offset,
+	const QueuedUpdate* update,
+	const ServerResources& resources)
+{
+	switch (update->updateType) {
+		using M = UdpMsgType;
+	case M::GEOM_UPDATE:
+		return addGeomUpdate(
+			buffer, bufsize, offset, static_cast<const QueuedUpdateGeom*>(update)->data, resources);
+
+	case M::POINT_LIGHT_UPDATE: {
+		const auto lightId = static_cast<const QueuedUpdatePointLight*>(update)->lightId;
+		const auto it = std::find_if(resources.pointLights.begin(),
+			resources.pointLights.end(),
+			[lightId](const auto& light) { return light.name == lightId; });
+		if (it == resources.pointLights.end()) {
+			throw std::runtime_error("addUpdate: tried to send update for inexisting point light " +
+						 std::to_string(lightId) + "!");
+		}
+		return addPointLightUpdate(buffer, bufsize, offset, *it);
+	}
+
+	case M::TRANSFORM_UPDATE: {
+		const auto objId = static_cast<const QueuedUpdateTransform*>(update)->objectId;
+		const auto it = resources.models.find(objId);
+		if (it == resources.models.end()) {
+			throw std::runtime_error(
+				"addUpdate: tried to send update for inexisting object " + std::to_string(objId) + "!");
+		}
+		return addTransformUpdate(buffer, bufsize, offset, it->second);
+	}
+
+	default:
+		break;
+	}
+
+	throw std::runtime_error("Unknown QueuedUpdate type: " + std::to_string(int(update->updateType)));
 }
 
 void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize, LogLevel loglv)

@@ -5,9 +5,9 @@
 using namespace logging;
 
 // TODO: for now, we just update all vertices and indices
-std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
+std::vector<QueuedUpdateGeom> buildUpdatePackets(const Model& model)
 {
-	std::vector<GeomUpdateHeader> updates;
+	std::vector<QueuedUpdateGeom> updates;
 
 	// Figure out how many Chunks we need
 	constexpr auto payloadSize = UdpPacket().payload.size();
@@ -25,7 +25,7 @@ std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 		header.start = i;
 		header.len = std::min(
 			static_cast<decltype(maxVerticesPerPayload)>(model.nVertices - i), maxVerticesPerPayload);
-		updates.emplace_back(header);
+		updates.emplace_back(QueuedUpdateGeom{ header });
 
 		i += header.len;
 	}
@@ -36,7 +36,7 @@ std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 	if (spareBytes >= sizeof(GeomUpdateHeader) + sizeof(Index)) {
 		header.start = 0;
 		header.len = (spareBytes - sizeof(GeomUpdateHeader)) / sizeof(Index);
-		updates.emplace_back(header);
+		updates.emplace_back(QueuedUpdateGeom{ header });
 
 		i = header.len;
 	} else {
@@ -48,7 +48,7 @@ std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 		header.start = i;
 		header.len =
 			std::min(static_cast<decltype(maxIndicesPerPayload)>(model.nIndices - i), maxIndicesPerPayload);
-		updates.emplace_back(header);
+		updates.emplace_back(QueuedUpdateGeom{ header });
 
 		i += header.len;
 	}
