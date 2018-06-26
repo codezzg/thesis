@@ -16,7 +16,9 @@ void ImageAllocator::addImage(Image& image,
 	VkFormat format,
 	VkImageTiling tiling,
 	VkImageUsageFlags usage,
-	VkMemoryPropertyFlags properties)
+	VkMemoryPropertyFlags properties,
+	VkImageCreateFlags flags,
+	uint32_t arrayLayers)
 {
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -25,13 +27,14 @@ void ImageAllocator::addImage(Image& image,
 	imageInfo.extent.height = height;
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = 1;
-	imageInfo.arrayLayers = 1;
+	imageInfo.arrayLayers = arrayLayers;
 	imageInfo.format = format;
 	imageInfo.tiling = tiling;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = usage;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.flags = flags;
 
 	createInfos.emplace_back(imageInfo);
 	this->properties.emplace_back(properties);
@@ -102,7 +105,9 @@ Image createImage(const Application& app,
 	VkFormat format,
 	VkImageTiling tiling,
 	VkImageUsageFlags usage,
-	VkMemoryPropertyFlags properties)
+	VkMemoryPropertyFlags properties,
+	VkImageCreateFlags flags,
+	uint32_t arrayLayers)
 {
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -111,13 +116,14 @@ Image createImage(const Application& app,
 	imageInfo.extent.height = height;
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = 1;
-	imageInfo.arrayLayers = 1;
+	imageInfo.arrayLayers = arrayLayers;
 	imageInfo.format = format;
 	imageInfo.tiling = tiling;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = usage;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.flags = flags;
 
 	VkImage imageHandle;
 	VLKCHECK(vkCreateImage(app.device, &imageInfo, nullptr, &imageHandle));
@@ -160,6 +166,30 @@ VkImageView createImageView(const Application& app, VkImage image, VkFormat form
 	createInfo.subresourceRange.levelCount = 1;
 	createInfo.subresourceRange.baseArrayLayer = 0;
 	createInfo.subresourceRange.layerCount = 1;
+
+	VkImageView imageView;
+	VLKCHECK(vkCreateImageView(app.device, &createInfo, nullptr, &imageView));
+	app.validation.addObjectInfo(imageView, __FILE__, __LINE__);
+
+	return imageView;
+}
+
+VkImageView createImageCubeView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+{
+	VkImageViewCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	createInfo.image = image;
+	createInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+	createInfo.format = format;
+	createInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	createInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	createInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	createInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	createInfo.subresourceRange.aspectMask = aspectFlags;
+	createInfo.subresourceRange.baseMipLevel = 0;
+	createInfo.subresourceRange.levelCount = 1;
+	createInfo.subresourceRange.baseArrayLayer = 0;
+	createInfo.subresourceRange.layerCount = 6;
 
 	VkImageView imageView;
 	VLKCHECK(vkCreateImageView(app.device, &createInfo, nullptr, &imageView));

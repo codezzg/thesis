@@ -38,6 +38,10 @@ struct Application final {
 	SwapChain swapChain;
 	GBuffer gBuffer;
 	Buffer screenQuadBuffer;
+	Image skyboxImage;
+
+	VkSampler texSampler;
+	VkSampler cubeSampler;
 
 	Resources res;
 

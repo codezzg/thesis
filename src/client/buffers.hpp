@@ -27,10 +27,9 @@ struct Buffer {
 	void* ptr = nullptr;
 };
 
-struct MVPUniformBufferObject final {
+/** This UBO contains the per-model data */
+struct ObjectUniformBufferObject final {
 	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 proj;
 };
 
 struct PointLight {
@@ -38,9 +37,17 @@ struct PointLight {
 	glm::vec4 color;
 };
 
-struct CompositionUniformBufferObject final {
+/** This UBO contains the per-view data */
+struct ViewUniformBufferObject final {
+	// TODO this probably doesn't belong here
 	PointLight pointLight;
+
+	// Camera stuff
+	glm::mat4 view;
+	glm::mat4 proj;
 	glm::vec4 viewPos;
+
+	// Shader options
 	glm::i32 opts;   // showGBufTex | useNormalMap
 };
 
@@ -49,19 +56,19 @@ struct CompositionUniformBufferObject final {
  */
 struct CombinedUniformBuffers : public Buffer {
 	struct {
-		VkDeviceSize mvp;
-		VkDeviceSize comp;
+		VkDeviceSize perObject;
+		VkDeviceSize perView;
 	} offsets;
 
-	MVPUniformBufferObject* getMVP() const
+	ObjectUniformBufferObject* getPerObject() const
 	{
-		return reinterpret_cast<MVPUniformBufferObject*>(reinterpret_cast<uint8_t*>(ptr) + offsets.mvp);
+		return reinterpret_cast<ObjectUniformBufferObject*>(
+			reinterpret_cast<uint8_t*>(ptr) + offsets.perObject);
 	}
 
-	CompositionUniformBufferObject* getComp() const
+	ViewUniformBufferObject* getPerView() const
 	{
-		return reinterpret_cast<CompositionUniformBufferObject*>(
-			reinterpret_cast<uint8_t*>(ptr) + offsets.comp);
+		return reinterpret_cast<ViewUniformBufferObject*>(reinterpret_cast<uint8_t*>(ptr) + offsets.perView);
 	}
 };
 
@@ -108,7 +115,8 @@ void copyBufferToImage(const Application& app,
 	VkImage image,
 	uint32_t width,
 	uint32_t height,
-	VkDeviceSize bufOffset = 0);
+	VkDeviceSize bufOffset = 0,
+	uint32_t baseArrayLayer = 0);
 
 void destroyBuffer(VkDevice device, Buffer& buffer);
 

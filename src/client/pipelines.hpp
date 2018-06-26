@@ -10,3 +10,5 @@ VkPipelineLayout createPipelineLayout(const Application& app,
 	const std::vector<VkPushConstantRange>& pushConstantRanges = {});
 
 VkPipelineCache createPipelineCache(const Application& app);
+
+std::vector<VkPipeline> createPipelines(const Application& app);

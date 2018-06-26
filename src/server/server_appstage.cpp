@@ -191,6 +191,7 @@ void appstageLoop(Server& server)
 		*/
 
 		// Move dyn lights
+		// TODO
 		auto& light = server.resources.pointLights[0];
 		t += clock.deltaTime();
 		light.position = glm::vec3{ 10 * std::sin(t), 5 + 5 * std::sin(t * 0.7), 10 * std::cos(t) };

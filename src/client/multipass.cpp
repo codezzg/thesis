@@ -147,14 +147,14 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 	{
 		//// Set #0: view resources
 
-		// CompUbo
-		VkDescriptorSetLayoutBinding compUboBinding = {};
-		compUboBinding.binding = 0;
-		compUboBinding.descriptorCount = 1;
-		compUboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		compUboBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		// ViewUbo
+		VkDescriptorSetLayoutBinding viewUboBinding = {};
+		viewUboBinding.binding = 0;
+		viewUboBinding.descriptorCount = 1;
+		viewUboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		viewUboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { compUboBinding };
+		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { viewUboBinding };
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -251,14 +251,14 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 	{
 		//// Set #3: object resources
 
-		// MVP
-		VkDescriptorSetLayoutBinding mvpUboLayoutBinding = {};
-		mvpUboLayoutBinding.binding = 0;
-		mvpUboLayoutBinding.descriptorCount = 1;
-		mvpUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		mvpUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		// ObjectUbo
+		VkDescriptorSetLayoutBinding objectUboLayoutBinding = {};
+		objectUboLayoutBinding.binding = 0;
+		objectUboLayoutBinding.descriptorCount = 1;
+		objectUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		objectUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { mvpUboLayoutBinding };
+		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { objectUboLayoutBinding };
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -300,13 +300,12 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
 
 	std::vector<VkWriteDescriptorSet> descriptorWrites;
-	descriptorWrites.reserve(descriptorSets.size());
 
 	//// Set #0: view resources
-	VkDescriptorBufferInfo compUboInfo = {};
-	compUboInfo.buffer = uniformBuffers.handle;
-	compUboInfo.offset = uniformBuffers.offsets.comp;
-	compUboInfo.range = sizeof(CompositionUniformBufferObject);
+	VkDescriptorBufferInfo viewUboInfo = {};
+	viewUboInfo.buffer = uniformBuffers.handle;
+	viewUboInfo.offset = uniformBuffers.offsets.perView;
+	viewUboInfo.range = sizeof(ViewUniformBufferObject);
 	{
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -315,7 +314,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &compUboInfo;
+		descriptorWrite.pBufferInfo = &viewUboInfo;
 
 		descriptorWrites.emplace_back(descriptorWrite);
 	}
@@ -428,10 +427,10 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	}
 
 	//// Set #3: object resources
-	VkDescriptorBufferInfo mvpUboInfo = {};
-	mvpUboInfo.buffer = uniformBuffers.handle;
-	mvpUboInfo.offset = uniformBuffers.offsets.mvp;
-	mvpUboInfo.range = sizeof(MVPUniformBufferObject);
+	VkDescriptorBufferInfo objUboInfo = {};
+	objUboInfo.buffer = uniformBuffers.handle;
+	objUboInfo.offset = uniformBuffers.offsets.perObject;
+	objUboInfo.range = sizeof(ObjectUniformBufferObject);
 	{
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -440,7 +439,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &mvpUboInfo;
+		descriptorWrite.pBufferInfo = &objUboInfo;
 
 		descriptorWrites.emplace_back(descriptorWrite);
 	}

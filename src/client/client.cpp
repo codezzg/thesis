@@ -24,6 +24,7 @@
 #include "renderpass.hpp"
 #include "shader_opts.hpp"
 #include "shared_resources.hpp"
+#include "skybox.hpp"
 #include "swap.hpp"
 #include "textures.hpp"
 #include "to_string.hpp"
@@ -128,7 +129,6 @@ private:
 
 	/** Stores resources received via network */
 	NetworkResources netRsrc;
-	VkSampler texSampler = VK_NULL_HANDLE;
 
 	/** Memory area staging vertices and indices coming from the server */
 	std::vector<uint8_t> streamingBuffer;
@@ -317,6 +317,8 @@ private:
 			destroyBuffer(app.device, stagingBuffer);
 		});
 
+		loadSkybox();
+
 		// Save models into permanent storage
 		// NOTE: resources.models becomes invalid after this move
 		netRsrc.models = std::move(resources.models);
@@ -347,6 +349,7 @@ private:
 				texLoadTasks.emplace_back(
 					texLoader.addTextureAsync(netRsrc.textures[pair.first], pair.second));
 			}
+
 			for (auto& res : texLoadTasks) {
 				if (!res.get()) {
 					err("Failed to load texture image! Latest error: ", texLoader.getLatestError());
@@ -355,7 +358,7 @@ private:
 			}
 
 			texLoader.create(app);
-			texSampler = createTextureSampler(app);
+			app.texSampler = createTextureSampler(app);
 		}
 
 		// Prepare materials
@@ -367,6 +370,7 @@ private:
 			netRsrc.materials.emplace_back(createMaterial(mat, netRsrc));
 		}
 
+		// Prepare buffers
 		prepareBufferMemory(stagingBuffer);
 
 		return true;
@@ -379,8 +383,8 @@ private:
 		FPSCounter fps;
 		fps.start();
 
-		updateMVPUniformBuffer();
-		updateCompUniformBuffer();
+		updateObjectsUniformBuffer();
+		updateViewUniformBuffer();
 
 		auto beginTime = std::chrono::high_resolution_clock::now();
 
@@ -441,8 +445,8 @@ private:
 		}
 #endif
 
-		updateMVPUniformBuffer();
-		updateCompUniformBuffer();
+		updateObjectsUniformBuffer();
+		updateViewUniformBuffer();
 
 		cameraCtrl->processInput(app.window);
 
@@ -483,7 +487,7 @@ private:
 		app.gBuffer.createAttachments(app);
 		app.renderPass = createMultipassRenderPass(app);
 
-		updateGBufferDescriptors(app, app.res.descriptorSets->get("shader_res"), texSampler);
+		updateGBufferDescriptors(app, app.res.descriptorSets->get("shader_res"), app.texSampler);
 
 		app.gBuffer.pipeline = createGBufferPipeline(app);
 		app.swapChain.pipeline = createSwapChainPipeline(app);
@@ -491,8 +495,8 @@ private:
 		app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 
 		recordAllCommandBuffers();
-		updateMVPUniformBuffer();
-		updateCompUniformBuffer();
+		updateObjectsUniformBuffer();
+		updateViewUniformBuffer();
 	}
 
 	void createSemaphores()
@@ -560,11 +564,11 @@ private:
 		VLKCHECK(vkQueueWaitIdle(app.queues.graphics));
 	}
 
-	void updateMVPUniformBuffer()
+	void updateObjectsUniformBuffer()
 	{
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
-		auto ubo = uniformBuffers.getMVP();
+		auto ubo = uniformBuffers.getPerObject();
 
 		if (gUseCamera) {
 			ubo->model = glm::mat4{ 1.0f };
@@ -577,6 +581,12 @@ private:
 			// ubo->view = glm::lookAt(glm::vec3{ 14, 14, 14 },
 			// glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
 		}
+	}
+
+	void updateViewUniformBuffer()
+	{
+		auto ubo = uniformBuffers.getPerView();
+
 		ubo->view = camera.viewMatrix();
 		// ubo->proj = camera.projMatrix();
 		ubo->proj = glm::perspective(glm::radians(60.f),
@@ -585,11 +595,7 @@ private:
 			300.f);
 		// Flip y
 		ubo->proj[1][1] *= -1;
-	}
 
-	void updateCompUniformBuffer()
-	{
-		auto ubo = uniformBuffers.getComp();
 		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
 		if (netRsrc.pointLights.size() > 0) {
 			const auto& pl = netRsrc.pointLights[0];
@@ -606,20 +612,20 @@ private:
 		VkDeviceSize uboSize = 0;
 		const auto uboAlign = findMinUboAlign(app.physicalDevice);
 		// FIXME: this approach is only feasible for at most 2 UBOs, as it grows combinatorily
-		if (sizeof(MVPUniformBufferObject) <= uboAlign) {
-			uniformBuffers.offsets.mvp = 0;
-			uboSize += sizeof(MVPUniformBufferObject);
+		if (sizeof(ObjectUniformBufferObject) <= uboAlign) {
+			uniformBuffers.offsets.perObject = 0;
+			uboSize += sizeof(ObjectUniformBufferObject);
 			const auto padding = uboAlign - uboSize;
 			uboSize += padding;
-			uniformBuffers.offsets.comp = uboSize;
-			uboSize += sizeof(CompositionUniformBufferObject);
+			uniformBuffers.offsets.perView = uboSize;
+			uboSize += sizeof(ViewUniformBufferObject);
 		} else {
-			uniformBuffers.offsets.comp = 0;
-			uboSize += sizeof(CompositionUniformBufferObject);
+			uniformBuffers.offsets.perView = 0;
+			uboSize += sizeof(ViewUniformBufferObject);
 			const auto padding = uboAlign - uboSize;
 			uboSize += padding;
-			uniformBuffers.offsets.mvp = uboSize;
-			uboSize += sizeof(MVPUniformBufferObject);
+			uniformBuffers.offsets.perObject = uboSize;
+			uboSize += sizeof(ObjectUniformBufferObject);
 		}
 
 		// Create vertex, index and uniform buffers. These buffers are all created una-tantum.
@@ -672,12 +678,26 @@ private:
 		activeEP.setCamera(&camera);
 	}
 
+	void loadSkybox()
+	{
+		// TODO this may be allocated with the other textures, but for now let's keep it
+		// separate to keep the code cleaner
+		measure_ms("Load Skybox", LOGLV_INFO, [this]() {
+			app.skyboxImage = createSkybox(app);
+			if (app.skyboxImage.handle == VK_NULL_HANDLE) {
+				throw std::runtime_error("Failed to load skybox");
+			}
+		});
+		app.cubeSampler = createTextureCubeSampler(app);
+	}
+
 	void recordAllCommandBuffers() { recordMultipassCommandBuffers(app, app.commandBuffers, geometry, netRsrc); }
 
 	void createDescriptorSetsForMaterials()
 	{
 		// Create the descriptor sets
-		auto descriptorSets = createMultipassDescriptorSets(app, uniformBuffers, netRsrc.materials, texSampler);
+		auto descriptorSets =
+			createMultipassDescriptorSets(app, uniformBuffers, netRsrc.materials, app.texSampler);
 
 		//// Store them into app resources
 		// A descriptor set for the view-dependant stuff
@@ -721,7 +741,8 @@ private:
 				uniformBuffers,
 			});
 
-		vkDestroySampler(app.device, texSampler, nullptr);
+		vkDestroySampler(app.device, app.texSampler, nullptr);
+		vkDestroySampler(app.device, app.cubeSampler, nullptr);
 		{
 			std::vector<Image> imagesToDestroy;
 			imagesToDestroy.reserve(2 + netRsrc.textures.size());
@@ -732,6 +753,7 @@ private:
 				imagesToDestroy.emplace_back(tex.second);
 			destroyAllImages(app.device, imagesToDestroy);
 		}
+		destroyImage(app.device, app.skyboxImage);
 
 		destroyAllBuffers(app.device,
 			{ uniformBuffers, geometry.indexBuffer, geometry.vertexBuffer, app.screenQuadBuffer });

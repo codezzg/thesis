@@ -22,8 +22,15 @@ struct PointLight {
 	vec4 color;
 };
 
-layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
+layout (set = 0, binding = 0) uniform ViewUniformBuffer {
+	// unused
 	PointLight pointLight;
+
+	// unused
+	mat4 view;
+	// unused
+	mat4 proj;
+
 	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
 	// about avoiding using vec3
 	vec4 viewPos;

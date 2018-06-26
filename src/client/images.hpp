@@ -31,13 +31,16 @@ public:
 		VkFormat format,
 		VkImageTiling tiling,
 		VkImageUsageFlags usage,
-		VkMemoryPropertyFlags properties);
+		VkMemoryPropertyFlags properties,
+		VkImageCreateFlags flags = 0,
+		uint32_t arrayLayers = 1);
 
 	/** Creates the scheduled buffers and allocates their memory. */
 	void create(const Application& app);
 };
 
 VkImageView createImageView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+VkImageView createImageCubeView(const Application& app, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
 /** Creates a new image. The returned Image will NOT have a view attached.
  *  Note: prefer allocating many images at once using ImageAllocator.
@@ -48,7 +51,9 @@ Image createImage(const Application& app,
 	VkFormat format,
 	VkImageTiling tiling,
 	VkImageUsageFlags usage,
-	VkMemoryPropertyFlags properties);
+	VkMemoryPropertyFlags properties,
+	VkImageCreateFlags flags = 0,
+	uint32_t arrayLayers = 1);
 
 void transitionImageLayout(const Application& app,
 	VkImage image,
