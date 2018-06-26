@@ -68,6 +68,7 @@ bool xplatEnableExitHandler()
 	std::signal(SIGINT, wrapper);
 	std::signal(SIGTERM, wrapper);
 	std::signal(SIGPIPE, wrapper);
+	std::signal(SIGABRT, wrapper);
 	return true;
 #endif
 }

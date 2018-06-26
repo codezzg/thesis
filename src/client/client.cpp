@@ -433,12 +433,13 @@ private:
 				netRsrc.models.begin()->nIndices * sizeof(Index));
 		}
 
-		{
+		for (const auto& model : netRsrc.models) {
 			// Check max index is < vertices.size
 			Index maxIdx = 0;
-			assert(netRsrc.models.begin()->nIndices == geometry.indexBuffer.size / sizeof(Index));
-			for (unsigned i = 0; i < netRsrc.models.begin()->nIndices; ++i) {
-				auto idx = reinterpret_cast<Index*>(geometry.indexBuffer.ptr)[i];
+			const auto idxOff = geometry.locations[model.name].indexOff;
+			for (unsigned i = 0; i < model.nIndices; ++i) {
+				auto idx = reinterpret_cast<Index*>(
+					reinterpret_cast<uint8_t*>(geometry.indexBuffer.ptr) + idxOff)[i];
 				if (idx > maxIdx)
 					maxIdx = idx;
 			}
@@ -489,10 +490,13 @@ private:
 		app.gBuffer.createAttachments(app);
 		app.renderPass = createMultipassRenderPass(app);
 
-		updateGBufferDescriptors(app, app.res.descriptorSets->get("shader_res"), app.texSampler);
+		updateGBufferDescriptors(app, app.res.descriptorSets->get("gbuffer_res"), app.texSampler);
 
-		app.gBuffer.pipeline = createGBufferPipeline(app);
-		app.swapChain.pipeline = createSwapChainPipeline(app);
+		const auto pipelines = createPipelines(app);
+		app.gBuffer.pipeline = pipelines[0];
+		app.skybox.pipeline = pipelines[1];
+		app.swapChain.pipeline = pipelines[2];
+
 		app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 		app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 

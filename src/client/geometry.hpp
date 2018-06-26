@@ -14,6 +14,7 @@ struct Geometry {
 	/** Single buffer containing all indices for all models */
 	Buffer indexBuffer;
 
+	/** Offsets in byte of the first vertex/index inside the buffers for each model */
 	struct Location {
 		VkDeviceSize vertexOff;
 		VkDeviceSize indexOff;

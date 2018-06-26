@@ -153,15 +153,17 @@ void ServerReliableEndpoint::loopFunc()
 	auto& geomUpdate = server.shared.geomUpdate;
 
 	while (!terminated) {
-		const auto updates = buildUpdatePackets(server.resources.models.begin()->second);
-		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-		// TODO
-		// This is done to send each update multiple times hoping that the client will
-		// eventually get them all. Find a better solution!
-		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
-		geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+		for (const auto& modelpair : server.resources.models) {
+			const auto updates = buildUpdatePackets(modelpair.second);
+			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+			// TODO
+			// This is done to send each update multiple times hoping that the client will
+			// eventually get them all. Find a better solution!
+			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+			geomUpdate.insert(geomUpdate.end(), updates.begin(), updates.end());
+		}
 
 		sockaddr_in clientAddr;
 		socklen_t clientLen = sizeof(sockaddr_in);

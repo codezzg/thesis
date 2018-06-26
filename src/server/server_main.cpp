@@ -149,46 +149,56 @@ bool loadAssets(Server& server)
 	const auto cwd = xplatGetCwd();
 	info("Starting server. cwd: ", cwd);
 
+	const auto loadSingleModel = [&](const char* name) {
+		auto model = server.resources.loadModel((cwd + xplatPath(name)).c_str());
+
+		if (model.vertices == nullptr) {
+			err("Failed to load model.");
+			return false;
+		}
+		info("Loaded ",
+			model.nVertices,
+			" vertices + ",
+			model.nIndices,
+			" indices. ",
+			"Tot size = ",
+			(model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024,
+			" KiB");
+
+		// Ensure all needed textures exist
+		for (const auto& mat : model.materials) {
+			if (mat.diffuseTex.length() > 0 && !std::ifstream(mat.diffuseTex)) {
+				err("required texture ", mat.diffuseTex, " does not exist.");
+				return false;
+			}
+			if (mat.specularTex.length() > 0 && !std::ifstream(mat.specularTex)) {
+				err("required texture ", mat.specularTex, " does not exist.");
+				return false;
+			}
+			if (mat.normalTex.length() > 0 && !std::ifstream(mat.normalTex)) {
+				err("required texture ", mat.normalTex, " does not exist.");
+				return false;
+			}
+		}
+
+		return true;
+	};
+
+	if (!loadSingleModel("/models/wall/wall2.obj"))
+		return false;
+
 	// Load the models first: they'll remain at the bottom of our stack allocator
-	// clang-format off
-	auto model = server.resources.loadModel((cwd +
-			  xplatPath("/models/nanosuit/nanosuit.obj")).c_str());
-			 //xplatPath("/models/tiny/Tiny.obj")) .c_str());
-			 //xplatPath("/models/cube/silver.obj")) .c_str());
-	 //xplatPath("/models/wall/wall2.obj")) .c_str());
+	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+		return false;
+	// xplatPath("/models/tiny/Tiny.obj")) .c_str());
+	// xplatPath("/models/cube/silver.obj")) .c_str());
+	// xplatPath("/models/wall/wall2.obj")) .c_str());
 	// xplatPath("/models/mill.obj")) .c_str());
-	 //xplatPath("/models/cat/cat.obj")) .c_str());
+	// xplatPath("/models/cat/cat.obj")) .c_str());
 	// xplatPath("/models/car/Avent.obj")) .c_str());
-	// clang-format on
 
-	if (model.vertices == nullptr) {
-		err("Failed to load model.");
-		return EXIT_FAILURE;
-	}
-	info("Loaded ",
-		model.nVertices,
-		" vertices + ",
-		model.nIndices,
-		" indices. ",
-		"Tot size = ",
-		(model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024,
-		" KiB");
-
-	// Ensure all needed textures exist
-	for (const auto& mat : model.materials) {
-		if (mat.diffuseTex.length() > 0 && !std::ifstream(mat.diffuseTex)) {
-			err("required texture ", mat.diffuseTex, " does not exist.");
-			return false;
-		}
-		if (mat.specularTex.length() > 0 && !std::ifstream(mat.specularTex)) {
-			err("required texture ", mat.specularTex, " does not exist.");
-			return false;
-		}
-		if (mat.normalTex.length() > 0 && !std::ifstream(mat.normalTex)) {
-			err("required texture ", mat.normalTex, " does not exist.");
-			return false;
-		}
-	}
+	if (!loadSingleModel("/models/cat/cat.obj"))
+		return false;
 
 	return true;
 }

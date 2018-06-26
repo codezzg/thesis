@@ -128,6 +128,8 @@ void recordMultipassCommandBuffers(const Application& app,
 		//// Second subpass: draw skybox
 		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
 
+		// TODO make skybox work
+		/*
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.skybox.pipeline);
 		vertexBuffers[0] = app.skybox.buffer.handle;
 		vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers.data(), offsets.data());
@@ -142,8 +144,7 @@ void recordMultipassCommandBuffers(const Application& app,
 		const auto skyNIndices = (app.skybox.buffer.size - app.skybox.indexOff) / sizeof(uint16_t);
 		vkCmdBindIndexBuffer(cmdBuf, app.skybox.buffer.handle, skyFirstIndex, VK_INDEX_TYPE_UINT16);
 
-		// TODO make skybox work
-		// vkCmdDrawIndexed(cmdBuf, skyNIndices, 1, 0, 0, 0);
+		// vkCmdDrawIndexed(cmdBuf, skyNIndices, 1, 0, 0, 0);*/
 
 		//// Third subpass: draw combined gbuffer images into a fullscreen quad
 		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
