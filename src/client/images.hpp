@@ -55,11 +55,16 @@ Image createImage(const Application& app,
 	VkImageCreateFlags flags = 0,
 	uint32_t arrayLayers = 1);
 
+/** Transitions `image` from `oldLayout` to `newLayout`.
+ *  `subresourceRange` is used to specify the number of layers and mip levels of the image.
+ *  There is no need to specify the aspectMask, as this is automatically set by this function.
+ */
 void transitionImageLayout(const Application& app,
 	VkImage image,
 	VkFormat format,
 	VkImageLayout oldLayout,
-	VkImageLayout newLayout);
+	VkImageLayout newLayout,
+	VkImageSubresourceRange subresourceRange);
 
 Image createDepthImage(const Application& app);
 

@@ -6,6 +6,7 @@
 #include "logging.hpp"
 #include "materials.hpp"
 #include "utils.hpp"
+#include "vertex.hpp"
 #include <array>
 
 using namespace logging;
@@ -46,7 +47,7 @@ void recordMultipassCommandBuffers(const Application& app,
 
 		renderPassInfo.framebuffer = app.swapChain.framebuffers[i];
 
-		//// First subpass
+		//// First subpass: fill gbuffer
 		vkCmdBeginRenderPass(cmdBuf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		// Bind view resources
@@ -66,7 +67,7 @@ void recordMultipassCommandBuffers(const Application& app,
 			app.res.pipelineLayouts->get("multi"),
 			1,
 			1,
-			&app.res.descriptorSets->get("shader_res"),
+			&app.res.descriptorSets->get("gbuffer_res"),
 			0,
 			nullptr);
 
@@ -124,7 +125,27 @@ void recordMultipassCommandBuffers(const Application& app,
 			}
 		}
 
-		//// Second subpass: draw combined gbuffer images into a fullscreen quad
+		//// Second subpass: draw skybox
+		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.skybox.pipeline);
+		vertexBuffers[0] = app.skybox.buffer.handle;
+		vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers.data(), offsets.data());
+
+		// Retreive first index location inside the skybox's buffer.
+		// Since it stores [vertices|indices] and indexOff is given in bytes, we pretend that
+		// the previous vertices are unused indices (this is possible since sizeof(Vertex) is
+		// multiple of sizeof(uint16_t)) and use that as the offset.
+		static_assert(
+			sizeof(Vertex) % sizeof(uint16_t) == 0, "sizeof(Vertex) is not multiple of sizeof(uint16_t)!");
+		const auto skyFirstIndex = app.skybox.indexOff / sizeof(uint16_t);
+		const auto skyNIndices = (app.skybox.buffer.size - app.skybox.indexOff) / sizeof(uint16_t);
+		vkCmdBindIndexBuffer(cmdBuf, app.skybox.buffer.handle, skyFirstIndex, VK_INDEX_TYPE_UINT16);
+
+		// TODO make skybox work
+		// vkCmdDrawIndexed(cmdBuf, skyNIndices, 1, 0, 0, 0);
+
+		//// Third subpass: draw combined gbuffer images into a fullscreen quad
 		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
 
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
@@ -154,7 +175,14 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 		viewUboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		viewUboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { viewUboBinding };
+		// Skybox
+		VkDescriptorSetLayoutBinding skyboxLayoutBinding = {};
+		skyboxLayoutBinding.binding = 1;
+		skyboxLayoutBinding.descriptorCount = 1;
+		skyboxLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		skyboxLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		const std::array<VkDescriptorSetLayoutBinding, 2> bindings = { viewUboBinding, skyboxLayoutBinding };
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -169,7 +197,7 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 	}
 
 	{
-		//// Set #1: shader resources
+		//// Set #1: gbuffer resources
 
 		// gPosition: sampler2D
 		VkDescriptorSetLayoutBinding gPosLayoutBinding = {};
@@ -272,17 +300,21 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 		descriptorSetLayouts.emplace_back(descriptorSetLayout);
 	}
 
+	assert(descriptorSetLayouts.size() == 4);
+
 	return descriptorSetLayouts;
 }
 
 std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
 	const CombinedUniformBuffers& uniformBuffers,
 	const std::vector<Material>& materials,
-	VkSampler texSampler)
+	VkSampler texSampler,
+	VkSampler cubeSampler)
 {
 	std::vector<VkDescriptorSetLayout> layouts(1 + 1 + materials.size() + 1 /*TODO: n.objects*/);
-	layouts[0] = app.res.descriptorSetLayouts->get("view_res");     // we only have 1 view
-	layouts[1] = app.res.descriptorSetLayouts->get("shader_res");   // we only have 1 pipeline w/resources
+	layouts[0] = app.res.descriptorSetLayouts->get("view_res");   // we only have 1 view
+	// we have 1 pipelines w/resources: gbuffer
+	layouts[1] = app.res.descriptorSetLayouts->get("gbuffer_res");
 	for (unsigned i = 1; i < materials.size() + 1; ++i)
 		layouts[1 + i] = app.res.descriptorSetLayouts->get("mat_res");
 	layouts[materials.size() + 2] = app.res.descriptorSetLayouts->get("obj_res");   // we only have 1 model
@@ -319,7 +351,25 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrites.emplace_back(descriptorWrite);
 	}
 
-	//// Set #1: shader resources
+	// Skybox
+	VkDescriptorImageInfo skyboxInfo = {};
+	skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	skyboxInfo.imageView = app.skybox.image.view;
+	skyboxInfo.sampler = cubeSampler;
+	{
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[0];
+		descriptorWrite.dstBinding = 1;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &skyboxInfo;
+
+		descriptorWrites.emplace_back(descriptorWrite);
+	}
+
+	//// Set #1: gbuffer shader resources
 	VkDescriptorImageInfo gPositionInfo = {};
 	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	gPositionInfo.imageView = app.gBuffer.position.view;
@@ -371,7 +421,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrites.emplace_back(descriptorWrite);
 	}
 
-	//// Set #2: material resources
+	//// Sets #2-#materials.size()+1: material resources
 	std::vector<VkDescriptorImageInfo> diffuseInfos(materials.size());
 	std::vector<VkDescriptorImageInfo> specularInfos(materials.size());
 	std::vector<VkDescriptorImageInfo> normalInfos(materials.size());
@@ -426,7 +476,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		}
 	}
 
-	//// Set #3: object resources
+	//// Set #materials.size()+2: object resources
 	VkDescriptorBufferInfo objUboInfo = {};
 	objUboInfo.buffer = uniformBuffers.handle;
 	objUboInfo.offset = uniformBuffers.offsets.perObject;

@@ -130,6 +130,10 @@ void TextureLoader::create(const Application& app)
 	imgAlloc.create(app);
 
 	// Fill the images with pixel data from the staging buffer and create image views
+	VkImageSubresourceRange subresourceRange = {};
+	subresourceRange.levelCount = 1;
+	subresourceRange.layerCount = 1;
+
 	VkDeviceSize bufOffset = 0;
 	for (unsigned i = 0; i < images.size(); ++i) {
 		const auto& info = imageInfos[i];
@@ -140,7 +144,8 @@ void TextureLoader::create(const Application& app)
 			textureImage->handle,
 			info.format,
 			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			subresourceRange);
 
 		copyBufferToImage(app, stagingBuffer.handle, textureImage->handle, info.width, info.height, bufOffset);
 		bufOffset += imageSize;
@@ -149,7 +154,8 @@ void TextureLoader::create(const Application& app)
 			textureImage->handle,
 			info.format,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			subresourceRange);
 
 		textureImage->view =
 			createImageView(app, textureImage->handle, textureImage->format, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -271,9 +277,17 @@ Image createTextureCube(const Application& app, const std::array<std::string, 6>
 		stbi_image_free(pixels[i]);
 	}
 
+	VkImageSubresourceRange subresourceRange = {};
+	subresourceRange.levelCount = 1;
+	subresourceRange.layerCount = 6;
+
 	// Copy buffer to image
-	transitionImageLayout(
-		app, image.handle, image.format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	transitionImageLayout(app,
+		image.handle,
+		image.format,
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		subresourceRange);
 
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
@@ -286,7 +300,9 @@ Image createTextureCube(const Application& app, const std::array<std::string, 6>
 		region.imageSubresource.mipLevel = 0;
 		region.imageSubresource.baseArrayLayer = i;
 		region.imageSubresource.layerCount = 1;
-		region.imageExtent = { texInfos[i].width, texInfos[i].height, 1 };
+		region.imageExtent.width = texInfos[i].width;
+		region.imageExtent.height = texInfos[i].height;
+		region.imageExtent.depth = 1;
 		bufOffset += stride;
 	}
 
@@ -303,7 +319,8 @@ Image createTextureCube(const Application& app, const std::array<std::string, 6>
 		image.handle,
 		image.format,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		subresourceRange);
 
 	image.view = createImageCubeView(app, image.handle, image.format, VK_IMAGE_ASPECT_COLOR_BIT);
 

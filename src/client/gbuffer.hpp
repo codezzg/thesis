@@ -16,6 +16,9 @@ struct GBuffer final {
 
 	VkDescriptorSet descriptorSet;
 
+	// TODO: for now this is owned by gbuffer, as ResourceMap has not way to
+	// remove an element. In future, add that method and make this pipeline
+	// owned by app.res.
 	VkPipeline pipeline;
 
 	void createAttachments(const Application& app);
@@ -28,10 +31,6 @@ struct GBuffer final {
 				normal,
 				albedoSpec,
 			});
-		// position.destroy(device);
-		// normal.destroy(device);
-		// albedoSpec.destroy(device);
-		// depth.destroy(device);
 
 		vkDestroyPipeline(device, pipeline, nullptr);
 	}

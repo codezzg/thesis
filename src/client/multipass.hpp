@@ -24,4 +24,5 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
 	const CombinedUniformBuffers& uniformBuffers,
 	const std::vector<Material>& materials,
-	VkSampler texSampler);
+	VkSampler texSampler,
+	VkSampler cubeSampler);

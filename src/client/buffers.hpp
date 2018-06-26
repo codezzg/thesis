@@ -138,8 +138,19 @@ void unmapBuffersMemory(VkDevice device, const std::vector<Buffer>& buffers);
 /** @return the parameters to create a screen quad buffer with. */
 BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties();
 
+/** @return the parameters to create a skybox buffer with. */
+BufferAllocator::BufferCreateInfo getSkyboxBufferProperties();
+
 /** Fills `screenQuadBuf` with vertex data using `stagingBuf` as a staging buffer.
  *  Both of the buffers must already be valid.
  *  (Note: the staging buffer is needed because it's host-mapped, while screenQuadBuf isn't.)
+ *  @return true if the buffer was successfully filled.
  */
-void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf);
+bool fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf);
+
+/** Fills `skyboxBuffer` with vertex and indices data using `stagingBuf` as staging buffer.
+ *  Indices are of size uint16_t.
+ *  Both buffers must already be valid.
+ *  @return The offset of the first index in the buffer, or -1 in case of errors.
+ */
+int64_t fillSkyboxBuffer(const Application& app, Buffer& skyboxBuffer, Buffer& stagingBuf);

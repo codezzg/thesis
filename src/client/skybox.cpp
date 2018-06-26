@@ -102,7 +102,7 @@ std::vector<VkDescriptorSet> createSkyboxDescriptorSets(const Application& app,
 
 	VkDescriptorImageInfo skyboxInfo = {};
 	skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	skyboxInfo.imageView = app.skyboxImage.view;
+	skyboxInfo.imageView = app.skybox.image.view;
 	skyboxInfo.sampler = cubeSampler;
 	{
 		VkWriteDescriptorSet descriptorWrite = {};

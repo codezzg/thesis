@@ -4,6 +4,7 @@
 #include "gbuffer.hpp"
 #include "images.hpp"
 #include "resources.hpp"
+#include "skybox.hpp"
 #include "swap.hpp"
 #include "validation.hpp"
 #include <GLFW/glfw3.h>
@@ -38,7 +39,7 @@ struct Application final {
 	SwapChain swapChain;
 	GBuffer gBuffer;
 	Buffer screenQuadBuffer;
-	Image skyboxImage;
+	Skybox skybox;
 
 	VkSampler texSampler;
 	VkSampler cubeSampler;

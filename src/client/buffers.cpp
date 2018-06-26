@@ -249,10 +249,17 @@ BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties()
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 }
 
-void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf)
+BufferAllocator::BufferCreateInfo getSkyboxBufferProperties()
+{
+	return std::make_tuple(sizeof(Vertex) * 25 + sizeof(Index) * 36,
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+}
+
+bool fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf)
 {
 	const std::array<Vertex, 4> quadVertices = {
-		// position, normal, texCoords
+		// position, normal, texCoords, tangent, bitangent
 		Vertex{ glm::vec3{ -1.0f, 1.0f, 0.0f },
 			glm::vec3{},
 			glm::vec2{ 0.0f, 1.0f },
@@ -271,6 +278,71 @@ void fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer&
 			glm::vec3{} },
 	};
 
+	if (screenQuadBuf.size < quadVertices.size() * sizeof(Vertex)) {
+		err("Buffer given to fillScreenQuadBuffer is too small!");
+		return false;
+	}
+
 	memcpy(stagingBuf.ptr, quadVertices.data(), quadVertices.size() * sizeof(Vertex));
 	copyBuffer(app, stagingBuf.handle, screenQuadBuf.handle, quadVertices.size() * sizeof(Vertex));
+
+	return true;
+}
+
+int64_t fillSkyboxBuffer(const Application& app, Buffer& skyboxBuffer, Buffer& stagingBuf)
+{
+	const std::array<Vertex, 25> cubeVertices = {
+		Vertex{ glm::vec3{ -0.5f, -0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, 0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, -0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, 0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, -0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, -0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, 0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, 0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, 0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, 0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, -0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, -0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, 0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, -0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, 0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, -0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, -0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, -0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, -0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, -0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, 0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, 0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ 0.5f, 0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, 0.5f, 0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+		Vertex{ glm::vec3{ -0.5f, 0.5f, -0.5f }, glm::vec3{}, glm::vec3{}, glm::vec3{}, glm::vec3{} },
+	};
+	// clang-format off
+	const std::array<uint16_t,  36> cubeIndices = {
+		0,  1,  2,  1,  0,  3,
+		4,  5,  6,  6,  7,  4,
+		8,  9,  10, 10, 11, 8,
+		12, 13, 14, 13, 12, 15,
+		16, 17, 18, 18, 19, 16,
+		20, 21, 22, 23, 22, 24,
+	};
+	// clang-format on
+
+	if (skyboxBuffer.size < cubeVertices.size() * sizeof(Vertex) + cubeIndices.size() * sizeof(uint16_t)) {
+		err("Buffer given to fillSkyboxBuffer is too small!");
+		return -1;
+	}
+
+	// Copy vertices and indices in the buffer
+	memcpy(stagingBuf.ptr, cubeVertices.data(), cubeVertices.size() * sizeof(Vertex));
+	memcpy(reinterpret_cast<uint8_t*>(stagingBuf.ptr) + cubeVertices.size() * sizeof(Vertex),
+		cubeIndices.data(),
+		cubeIndices.size() * sizeof(Index));
+	copyBuffer(app,
+		stagingBuf.handle,
+		skyboxBuffer.handle,
+		cubeVertices.size() * sizeof(Vertex) + cubeIndices.size() * sizeof(uint16_t));
+
+	return cubeVertices.size() * sizeof(Vertex);
 }

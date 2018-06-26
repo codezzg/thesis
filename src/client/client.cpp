@@ -164,16 +164,18 @@ private:
 		// Create pipelines
 		const auto descSetLayouts = createMultipassDescriptorSetLayouts(app);
 		app.res.descriptorSetLayouts->add("view_res", descSetLayouts[0]);
-		app.res.descriptorSetLayouts->add("shader_res", descSetLayouts[1]);
+		app.res.descriptorSetLayouts->add("gbuffer_res", descSetLayouts[1]);
 		app.res.descriptorSetLayouts->add("mat_res", descSetLayouts[2]);
 		app.res.descriptorSetLayouts->add("obj_res", descSetLayouts[3]);
 
 		app.res.pipelineLayouts->add("multi", createPipelineLayout(app, descSetLayouts));
 
-		app.gBuffer.pipeline = createGBufferPipeline(app);
-		app.swapChain.pipeline = createSwapChainPipeline(app);
+		const auto pipelines = createPipelines(app);
+		app.gBuffer.pipeline = pipelines[0];
+		app.skybox.pipeline = pipelines[1];
+		app.swapChain.pipeline = pipelines[2];
 
-		createDescriptorSetsForMaterials();
+		createDescriptorSets();
 
 		recordAllCommandBuffers();
 
@@ -644,6 +646,8 @@ private:
 
 		// screen quad buffer
 		bufAllocator.addBuffer(app.screenQuadBuffer, getScreenQuadBufferProperties());
+		// skybox buffer
+		bufAllocator.addBuffer(app.skybox.buffer, getSkyboxBufferProperties());
 
 		bufAllocator.create(app);
 
@@ -662,7 +666,13 @@ private:
 		// return acc + pair.second.nVertices + pair.second.nIndices;
 		//}));
 
-		fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer);
+		if (!fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer))
+			throw std::runtime_error("Failed to create screenQuadBuffer!");
+
+		const auto off = fillSkyboxBuffer(app, app.skybox.buffer, stagingBuffer);
+		if (off < 0)
+			throw std::runtime_error("Failed to create skybox buffer!");
+		app.skybox.indexOff = static_cast<VkDeviceSize>(off);
 	}
 
 	void prepareCamera()
@@ -683,8 +693,8 @@ private:
 		// TODO this may be allocated with the other textures, but for now let's keep it
 		// separate to keep the code cleaner
 		measure_ms("Load Skybox", LOGLV_INFO, [this]() {
-			app.skyboxImage = createSkybox(app);
-			if (app.skyboxImage.handle == VK_NULL_HANDLE) {
+			app.skybox.image = createSkybox(app);
+			if (app.skybox.image.handle == VK_NULL_HANDLE) {
 				throw std::runtime_error("Failed to load skybox");
 			}
 		});
@@ -693,17 +703,17 @@ private:
 
 	void recordAllCommandBuffers() { recordMultipassCommandBuffers(app, app.commandBuffers, geometry, netRsrc); }
 
-	void createDescriptorSetsForMaterials()
+	void createDescriptorSets()
 	{
 		// Create the descriptor sets
-		auto descriptorSets =
-			createMultipassDescriptorSets(app, uniformBuffers, netRsrc.materials, app.texSampler);
+		auto descriptorSets = createMultipassDescriptorSets(
+			app, uniformBuffers, netRsrc.materials, app.texSampler, app.cubeSampler);
 
 		//// Store them into app resources
 		// A descriptor set for the view-dependant stuff
 		app.res.descriptorSets->add("view_res", descriptorSets[0]);
 		// One for the shader-dependant stuff
-		app.res.descriptorSets->add("shader_res", descriptorSets[1]);
+		app.res.descriptorSets->add("gbuffer_res", descriptorSets[1]);
 		// One descriptor set per material
 		for (unsigned i = 0; i < netRsrc.materials.size(); ++i) {
 			auto& mat = netRsrc.materials[i];
@@ -721,6 +731,7 @@ private:
 		app.gBuffer.destroyTransient(app.device);
 		// Destroy the swapchain and all its images and framebuffers
 		app.swapChain.destroyTransient(app.device);
+		vkDestroyPipeline(app.device, app.skybox.pipeline, nullptr);
 
 		vkDestroyRenderPass(app.device, app.renderPass, nullptr);
 
@@ -753,10 +764,14 @@ private:
 				imagesToDestroy.emplace_back(tex.second);
 			destroyAllImages(app.device, imagesToDestroy);
 		}
-		destroyImage(app.device, app.skyboxImage);
+		destroyImage(app.device, app.skybox.image);
 
 		destroyAllBuffers(app.device,
-			{ uniformBuffers, geometry.indexBuffer, geometry.vertexBuffer, app.screenQuadBuffer });
+			{ uniformBuffers,
+				geometry.indexBuffer,
+				geometry.vertexBuffer,
+				app.screenQuadBuffer,
+				app.skybox.buffer });
 
 		vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
 

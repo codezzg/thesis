@@ -24,6 +24,7 @@ struct SwapChain final {
 
 	VkDescriptorSet descriptorSet;
 
+	// @see comment of gbuffer.pipeline.
 	VkPipeline pipeline;
 
 	void destroyTransient(VkDevice device);
@@ -40,9 +41,6 @@ std::vector<VkImageView> createSwapChainImageViews(const Application& app, const
 /** Given a swapChain, returns a vector with the Framebuffers with its images attached.
  *  NOTE: app.renderPass must be valid before calling this function.
  */
-std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app, const SwapChain& swapChain);
-
-/** @see createSwapChainFramebuffers */
 std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app, const SwapChain& swapChain);
 
 /** Fills `index` with the index of the next swapchain image.

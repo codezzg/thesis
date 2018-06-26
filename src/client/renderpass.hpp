@@ -6,5 +6,4 @@
 
 struct Application;
 
-VkRenderPass createForwardRenderPass(const Application& app);
 VkRenderPass createMultipassRenderPass(const Application& app);

@@ -173,8 +173,46 @@ std::vector<VkPipeline> createPipelines(const Application& app)
 
 	/// Skybox
 	{
-		auto vertShaderModule = createShaderModule(app, "shaders/gbuffer.vert.spv");
-		auto fragShaderModule = createShaderModule(app, "shaders/gbuffer.frag.spv");
+		colorBlending.attachmentCount = 1;
+		pipelineInfo.subpass = 1;
+
+		auto vertShaderModule = createShaderModule(app, "shaders/skybox.vert.spv");
+		auto fragShaderModule = createShaderModule(app, "shaders/skybox.frag.spv");
+
+		VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
+		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertShaderStageInfo.module = vertShaderModule;
+		vertShaderStageInfo.pName = "main";
+		shaderStages[0] = vertShaderStageInfo;
+
+		VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
+		fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragShaderStageInfo.module = fragShaderModule;
+		fragShaderStageInfo.pName = "main";
+		shaderStages[1] = fragShaderStageInfo;
+
+		VkPipeline pipeline;
+		VLKCHECK(
+			vkCreateGraphicsPipelines(app.device, app.pipelineCache, 1, &pipelineInfo, nullptr, &pipeline));
+		app.validation.addObjectInfo(pipeline, __FILE__, __LINE__);
+		pipelines.emplace_back(pipeline);
+
+		// Cleanup
+		vkDestroyShaderModule(app.device, fragShaderModule, nullptr);
+		vkDestroyShaderModule(app.device, vertShaderModule, nullptr);
+	}
+
+	/// Swap
+	{
+		inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+		rasterizer.cullMode = VK_CULL_MODE_NONE;
+		colorBlending.attachmentCount = 1;
+		pipelineInfo.subpass = 2;
+
+		auto vertShaderModule = createShaderModule(app, "shaders/composition.vert.spv");
+		auto fragShaderModule = createShaderModule(app, "shaders/composition.frag.spv");
 
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

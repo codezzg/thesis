@@ -15,7 +15,7 @@ struct PointLight {
 	vec4 color;
 };
 
-layout (set = 0, binding = 0) uniform CompositionUniformBuffer {
+layout (set = 0, binding = 0) uniform ViewUniformBuffer {
 	PointLight pointLight;
 
 	// unused

@@ -202,7 +202,8 @@ void transitionImageLayout(const Application& app,
 	VkImage image,
 	VkFormat format,
 	VkImageLayout oldLayout,
-	VkImageLayout newLayout)
+	VkImageLayout newLayout,
+	VkImageSubresourceRange subresourceRange)
 {
 	auto commandBuffer = beginSingleTimeCommands(app, app.commandPool);
 
@@ -213,6 +214,7 @@ void transitionImageLayout(const Application& app,
 	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.image = image;
+	barrier.subresourceRange = subresourceRange;
 	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		if (hasStencilComponent(format))
@@ -220,10 +222,6 @@ void transitionImageLayout(const Application& app,
 	} else {
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	}
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
 	barrier.srcAccessMask = 0;
 	barrier.dstAccessMask = 0;
 
@@ -270,11 +268,16 @@ Image createDepthImage(const Application& app)
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	depthImage.view = createImageView(app, depthImage.handle, formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);
 
+	VkImageSubresourceRange subresourceRange = {};
+	subresourceRange.levelCount = 1;
+	subresourceRange.layerCount = 1;
+
 	transitionImageLayout(app,
 		depthImage.handle,
 		formats::depth,
 		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		subresourceRange);
 
 	return depthImage;
 }

@@ -174,33 +174,6 @@ std::vector<VkImageView> createSwapChainImageViews(const Application& app, const
 	return imageViews;
 }
 
-std::vector<VkFramebuffer> createSwapChainFramebuffers(const Application& app, const SwapChain& swapChain)
-{
-	assert(app.renderPass != VK_NULL_HANDLE && "app.renderPass must be valid!");
-
-	std::vector<VkFramebuffer> framebuffers{ swapChain.imageViews.size() };
-
-	for (std::size_t i = 0; i < swapChain.imageViews.size(); ++i) {
-		const std::array<VkImageView, 2> attachments = {
-			swapChain.imageViews[i],
-			swapChain.depthImage.view,
-		};
-
-		VkFramebufferCreateInfo framebufferInfo = {};
-		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = app.renderPass;
-		framebufferInfo.attachmentCount = attachments.size();
-		framebufferInfo.pAttachments = attachments.data();
-		framebufferInfo.width = swapChain.extent.width;
-		framebufferInfo.height = swapChain.extent.height;
-		framebufferInfo.layers = 1;
-
-		VLKCHECK(vkCreateFramebuffer(app.device, &framebufferInfo, nullptr, &framebuffers[i]));
-	}
-
-	return framebuffers;
-}
-
 std::vector<VkFramebuffer> createSwapChainMultipassFramebuffers(const Application& app, const SwapChain& swapChain)
 {
 	assert(app.renderPass != VK_NULL_HANDLE && "app.renderPass must be valid!");
