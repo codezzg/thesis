@@ -3,6 +3,7 @@
 #include "queued_update.hpp"
 #include "server_endpoint.hpp"
 #include "server_resources.hpp"
+#include "spatial.hpp"
 #include "udp_messages.hpp"
 #include <array>
 #include <condition_variable>
@@ -10,10 +11,7 @@
 #include <mutex>
 #include <vector>
 
-/** This struct contains data that is shared between the server's endpoints. */
-struct ServerSharedData final {
-	//// Client-to-server data
-
+struct ClientToServerData {
 	/** The latest frame received from client */
 	int64_t clientFrame = -1;
 
@@ -25,31 +23,34 @@ struct ServerSharedData final {
 
 	/** Payload received from the client goes here*/
 	std::array<uint8_t, FrameData().payload.size()> clientData;
+};
 
-	//// Server-to-client data
-
-	/** List of chunk headers to send. Their payload, if any, can always be deduced by the header itself. */
+struct ServerToClientData {
+	/** List of queued UDP updates to send to the client */
 	std::vector<std::unique_ptr<QueuedUpdate>> updates;
 
 	/** Mutex guarding updates */
 	std::mutex updatesMtx;
 
-	/** Notified whenever there are updates to send to the client*/
+	/** Notified whenever there are updates to send to the client */
 	std::condition_variable updatesCv;
 };
 
 /** The Server wraps the endpoints and provides a mean to sharing data between the server threads.
  *  It also functions as a convenient common entrypoint for starting and terminating threads.
  */
-struct Server final {
+struct Server {
 	std::vector<uint8_t> memory;
 
 	ServerActiveEndpoint activeEP;
 	ServerPassiveEndpoint passiveEP;
 	ServerReliableEndpoint relEP;
-	ServerSharedData shared;
+
+	ClientToServerData fromClient;
+	ServerToClientData toClient;
 
 	ServerResources resources;
+	Scene scene;
 
 	/** Constructs a Server with `memsize` internal memory. */
 	explicit Server(std::size_t memsize);

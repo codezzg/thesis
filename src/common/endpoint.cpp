@@ -36,12 +36,12 @@ static socket_t findFirstValidSocket(const addrinfo* result, socket_connect_op o
 	return xplatInvalidSocketID();
 }
 
-bool Endpoint::init()
+bool Endpoint::initEP()
 {
 	return xplatSocketInit();
 }
 
-bool Endpoint::cleanup()
+bool Endpoint::cleanupEP()
 {
 	return xplatSocketCleanup();
 }

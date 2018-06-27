@@ -70,9 +70,9 @@ protected:
 
 public:
 	// To be called once before using any Endpoint
-	static bool init();
+	static bool initEP();
 	// To be called once after closing all Endpoints
-	static bool cleanup();
+	static bool cleanupEP();
 
 	virtual ~Endpoint();
 

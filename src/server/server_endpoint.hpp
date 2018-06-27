@@ -1,6 +1,7 @@
 #pragma once
 
 #include "endpoint.hpp"
+#include "ext_mem_user.hpp"
 #include "frame_data.hpp"
 #include "hashing.hpp"
 #include "shared_resources.hpp"
@@ -16,13 +17,11 @@ struct ServerSharedData;
  *  via an UDP socket.
  *  It will send data at regular fixed intervals determined by `targetFrameTime`.
  */
-class ServerActiveEndpoint final : public Endpoint {
+class ServerActiveEndpoint final
+	: public Endpoint
+	, public ExternalMemoryUser {
 
 	Server& server;
-
-	/** This memory is owned externally */
-	uint8_t* memory = nullptr;
-	std::size_t memsize = 0;
 
 	void loopFunc() override;
 
@@ -35,15 +34,6 @@ public:
 		: server{ server }
 		, targetFrameTime{ std::chrono::milliseconds{ 33 } }
 	{}
-
-	/*  `memory` is a pointer into a valid memory buffer, which must be large enough to contain
-	 *  the processed data (TODO: enforce this requirement).
-	 */
-	void initialize(uint8_t* mem, std::size_t size)
-	{
-		memory = mem;
-		memsize = size;
-	}
 };
 
 /** This class implements the passive server thread which receives client information

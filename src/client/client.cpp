@@ -852,7 +852,7 @@ private:
 
 int main(int argc, char** argv)
 {
-	if (!Endpoint::init()) {
+	if (!Endpoint::initEP()) {
 		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;
 	}
@@ -861,7 +861,7 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 	xplatSetExitHandler([]() {
-		if (Endpoint::cleanup())
+		if (Endpoint::cleanupEP())
 			info("Successfully cleaned up sockets.");
 		else
 			err("Failed to cleanup sockets!");

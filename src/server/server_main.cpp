@@ -35,7 +35,7 @@ int main(int argc, char** argv)
 	std::cerr << "Debug level = " << static_cast<int>(gDebugLv) << "\n";
 
 	/// Initial setup
-	if (!Endpoint::init()) {
+	if (!Endpoint::initEP()) {
 		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;
 	}
@@ -51,7 +51,7 @@ int main(int argc, char** argv)
 	xplatSetExitHandler([]() {
 		gServer->closeNetwork();
 		gBandwidthLimiter.cleanup();
-		if (Endpoint::cleanup())
+		if (Endpoint::cleanupEP())
 			info("Successfully cleaned up sockets.");
 		else
 			warn("Error cleaning up sockets: ", xplatGetErrorString());

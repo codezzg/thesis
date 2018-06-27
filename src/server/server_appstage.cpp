@@ -187,7 +187,6 @@ void appstageLoop(Server& server)
 				server.shared.geomUpdate.emplace_back(updates[idxToPick[i]]);
 			}
 		}
-		server.shared.geomUpdateCv.notify_one();
 		*/
 
 		// Move dyn lights
@@ -212,9 +211,13 @@ void appstageLoop(Server& server)
 
 		// Add the update to the list of stuff to send
 		{
-			std::lock_guard<std::mutex> lock{ server.shared.updatesMtx };
-			server.shared.updates.emplace_back(new QueuedUpdatePointLight{ light.name });
+			std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
+			server.toClient.updates.emplace_back(new QueuedUpdatePointLight{ light.name });
 		}
-		server.shared.updatesCv.notify_one();
+
+		// Move objects
+		auto& model = server.resources.models.begin()->second;
+
+		server.toClient.updatesCv.notify_one();
 	}
 }

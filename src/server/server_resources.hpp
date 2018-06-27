@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ext_mem_user.hpp"
 #include "hashing.hpp"
 #include "logging.hpp"
 #include "model.hpp"
@@ -17,13 +18,7 @@
  *  stashing temporary ones on its top, where they can easily be allocated and
  *  deallocated in a LIFO style.
  */
-class ServerResources final {
-
-	/** Server memory, owned externally */
-	uint8_t* const memory = nullptr;
-	const std::size_t memsize = 0;
-
-public:
+struct ServerResources final : public ExternalMemoryUser {
 	/** Allocator containing the resources data. */
 	StackAllocator allocator;
 
@@ -36,12 +31,6 @@ public:
 	/** These have no data inside `allocator`, they're stored "inline" in the map */
 	std::vector<shared::PointLight> pointLights;
 
-	/** `memory` is a pointer into a valid buffer. The buffer should be large enough to contain all
-	 *  resources and should not be manipulated by other than this class.
-	 *  The buffer is freed externally, not by this class.
-	 */
-	explicit ServerResources(uint8_t* memory, std::size_t memsize);
-
 	/** Loads a model from `file` into `memory` and stores its info in `models`.
 	 *  @return The loaded Model information.
 	 */
@@ -52,4 +41,7 @@ public:
 	 *  @return The loaded Texture information
 	 */
 	shared::Texture loadTexture(const char* file);
+
+private:
+	void onInit() override { allocator.init(memory, memsize); }
 };

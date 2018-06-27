@@ -1,11 +1,5 @@
 #include "server_resources.hpp"
 
-ServerResources::ServerResources(uint8_t* memory, std::size_t memsize)
-	: memory{ memory }
-	, memsize{ memsize }
-	, allocator{ memory, memsize }
-{}
-
 Model ServerResources::loadModel(const char* file)
 {
 	const auto fileSid = sid(file);

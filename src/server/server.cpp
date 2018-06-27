@@ -1,14 +1,22 @@
 #include "server.hpp"
 
+/* Memory is used like this:
+ * [66%] resources
+ * [10%] scene
+ * [24%] active EP tmp buffer
+ */
 Server::Server(std::size_t memsize)
 	: memory(memsize)
 	, activeEP{ *this }
 	, passiveEP{ *this }
-	, relEP{ *this }   // First 2/3 of server memory are for resources
-	, resources{ memory.data(), memsize * 2 / 3 }
+	, relEP{ *this }
 {
-	// Last 1/3 of it is for the active EP's tmp buffer
-	activeEP.initialize(memory.data() + memsize * 2 / 3, memsize / 3);
+	resources.init(memory.data(), memsize * 2 / 3);
+	scene.init(memory.data() + resources.getMemsize(), memsize / 10);
+	activeEP.init(memory.data() + resources.getMemsize() + scene.getMemsize(),
+		memsize - resources.getMemsize() - scene.getMemsize());
+
+	assert(resources.getMemsize() + scene.getMemsize() + activeEP.getMemsize() <= memsize);
 }
 
 Server::~Server()

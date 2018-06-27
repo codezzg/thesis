@@ -37,26 +37,25 @@ void ServerActiveEndpoint::loopFunc()
 	// Send datagrams to the client
 	while (!terminated) {
 
-		if (server.shared.updates.size() == 0) {
+		if (server.toClient.updates.size() == 0) {
 			// Wait for updates
-			std::unique_lock<std::mutex> ulk{ server.shared.updatesMtx };
-			server.shared.updatesCv.wait(
-				ulk, [this]() { return terminated || server.shared.updates.size() > 0; });
+			std::unique_lock<std::mutex> ulk{ server.toClient.updatesMtx };
+			server.toClient.updatesCv.wait(
+				ulk, [this]() { return terminated || server.toClient.updates.size() > 0; });
 		}
 
 		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-		verbose("updates.size now = ", server.shared.updates.size());
+		verbose("updates.size now = ", server.toClient.updates.size());
 
-		// TODO: use a more efficient approach for erasing elements
 		unsigned i = 0;
-		for (auto it = server.shared.updates.begin(); it != server.shared.updates.end();) {
+		auto w = server.toClient.updates.begin();
+		for (auto it = w; it != server.toClient.updates.end(); ++it) {
 
 			const auto written =
 				addUpdate(buffer.data(), buffer.size(), offset, it->get(), server.resources);
 			if (written > 0) {
 				offset += written;
 				++i;
-				it = server.shared.updates.erase(it);
 			} else {
 				// Not enough room: send the packet and go on
 				if (gDebugLv >= LOGLV_VERBOSE) {
@@ -70,8 +69,12 @@ void ServerActiveEndpoint::loopFunc()
 				sendPacket(socket, buffer.data(), buffer.size());
 				writeUdpHeader(buffer.data(), buffer.size(), packetGen);
 				offset = sizeof(UdpHeader);
+				if (it != w)
+					*w = std::move(*it);
+				++w;
 			}
 		}
+		server.toClient.updates.erase(w, server.toClient.updates.end());
 
 		if (offset > sizeof(UdpHeader)) {
 			// Need to send the last packet
@@ -120,11 +123,11 @@ void ServerPassiveEndpoint::loopFunc()
 		latestFrame = packet->header.frameId;
 		{
 			// Update shared data
-			std::lock_guard<std::mutex> lock{ server.shared.clientDataMtx };
-			memcpy(server.shared.clientData.data(), packet->payload.data(), packet->payload.size());
-			server.shared.clientFrame = latestFrame;
+			std::lock_guard<std::mutex> lock{ server.fromClient.clientDataMtx };
+			memcpy(server.fromClient.clientData.data(), packet->payload.data(), packet->payload.size());
+			server.fromClient.clientFrame = latestFrame;
 		}
-		server.shared.clientDataCv.notify_one();
+		server.fromClient.clientDataCv.notify_one();
 	}
 }
 
@@ -138,11 +141,11 @@ void ServerReliableEndpoint::loopFunc()
 	info("Listening...");
 	::listen(socket, MAX_CLIENTS);
 
-	auto& updates = server.shared.updates;
+	auto& updates = server.toClient.updates;
 
 	while (!terminated) {
 		{
-			std::lock_guard<std::mutex> mtx{ server.shared.updatesMtx };
+			std::lock_guard<std::mutex> mtx{ server.toClient.updatesMtx };
 			for (const auto& modelpair : server.resources.models) {
 				const auto updatePackets = buildUpdatePackets(modelpair.second);
 				for (const auto& up : updatePackets) {
@@ -289,8 +292,8 @@ dropclient:
 		// Send disconnect message
 		sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
 	}
-	server.shared.clientDataCv.notify_all();
-	server.shared.updatesCv.notify_all();
+	server.fromClient.clientDataCv.notify_all();
+	server.toClient.updatesCv.notify_all();
 	// server.passiveEP.close();
 	info("Closing activeEP");
 	server.activeEP.close();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ext_mem_user.hpp"
 #include "logging.hpp"
 #include <vector>
 
@@ -7,21 +8,15 @@
  *  It does not perform any actual memory allocation or free, it merely gives back the
  *  proper pointers into the given buffer.
  */
-class StackAllocator final {
+class StackAllocator final : public ExternalMemoryUser {
 
-	uint8_t* const mem;
 	std::size_t used = 0;
 	/** Sizes of the allocations made so far */
 	std::vector<std::size_t> allocations;
 
+	void onInit() override { logging::info("StackAllocator initialized with ", memsize / 1024, " KiB of memory."); }
+
 public:
-	const std::size_t capacity;
-
-	explicit StackAllocator(uint8_t* buffer, std::size_t bufsize)
-		: mem{ buffer }
-		, capacity{ bufsize }
-	{}
-
 	template <typename T>
 	T* alloc()
 	{
@@ -30,12 +25,12 @@ public:
 
 	void* alloc(std::size_t size)
 	{
-		if (used + size > capacity) {
+		if (used + size > memsize) {
 			logging::err("StackAllocator: out of memory!");
 			return nullptr;
 		}
 
-		auto ptr = mem + used;
+		auto ptr = memory + used;
 		used += size;
 		allocations.emplace_back(size);
 		logging::debug("Allocating. # allocs so far: ",
@@ -43,9 +38,9 @@ public:
 			" (used: ",
 			used,
 			" / ",
-			capacity,
+			memsize,
 			" [",
-			float(used) / capacity * 100,
+			float(used) / memsize * 100,
 			"%])");
 
 		return ptr;
@@ -57,9 +52,9 @@ public:
 	void* allocAll(std::size_t* size = nullptr)
 	{
 		if (size != nullptr)
-			*size = capacity - used;
+			*size = memsize - used;
 
-		return alloc(capacity - used);
+		return alloc(memsize - used);
 	}
 
 	void deallocLatest()
@@ -76,9 +71,9 @@ public:
 			" (used: ",
 			used,
 			" / ",
-			capacity,
+			memsize,
 			" [",
-			float(used) / capacity * 100,
+			float(used) / memsize * 100,
 			"%])");
 	}
 
