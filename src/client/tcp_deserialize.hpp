@@ -2,7 +2,7 @@
 
 #include "endpoint.hpp"
 
-struct ClientTmpResources;
+class ClientTmpResources;
 
 /** Reads header data from `buffer` and starts reading a texture. If more packets
  *  need to be read for the texture, receive them from `socket` until completion.

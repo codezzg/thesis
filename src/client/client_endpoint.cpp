@@ -22,7 +22,7 @@
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr auto BUFSIZE = megabytes(16);
+static constexpr auto BUFSIZE = megabytes(32);
 
 void ClientPassiveEndpoint::loopFunc()
 {
