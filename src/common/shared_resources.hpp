@@ -50,6 +50,7 @@ struct Texture {
  *  light initial data are sent with PointLightInfo, and updates are sent as UDP packets.
  */
 struct PointLight {
+	// TODO: position should be a characteristic of a generic Node
 	glm::vec3 position{ 0.f, 0.f, 0.f };
 	glm::vec3 color{ 1.f, 1.f, 1.f };
 	float intensity = 1;

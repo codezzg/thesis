@@ -24,5 +24,6 @@ bool xplatEnableExitHandler();
 void xplatSetExitHandler(signal_handler_t handler);
 
 std::string xplatDirname(const char* path);
+std::string xplatBasename(const char* path);
 
 std::string xplatPath(std::string&& str);

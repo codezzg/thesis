@@ -5,7 +5,7 @@
 #include <cstdint>
 
 struct GeomUpdateHeader;
-class ServerResources;
+struct Server;
 struct QueuedUpdate;
 namespace shared {
 struct PointLight;
@@ -23,6 +23,6 @@ std::size_t addUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
 	const QueuedUpdate* update,
-	const ServerResources& resources);
+	const Server& server);
 
 void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize, LogLevel loglv);

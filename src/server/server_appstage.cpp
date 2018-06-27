@@ -150,16 +150,6 @@ void appstageLoop(Server& server)
 {
 	using namespace std::literals::chrono_literals;
 
-	std::default_random_engine rng;
-	rng.seed(std::random_device{}());
-
-	auto& model = server.resources.models.begin()->second;
-	auto updates = buildUpdatePackets(model);
-	std::vector<std::size_t> idxToPick(updates.size());
-	for (unsigned i = 0; i < idxToPick.size(); ++i)
-		idxToPick[i] = i;
-
-	std::uniform_int_distribution<unsigned> nSentDist{ 1, 100 };
 	float t = 0;
 
 	Clock clock;
@@ -167,27 +157,6 @@ void appstageLoop(Server& server)
 
 	while (true) {
 		const LimitFrameTime lft{ 33ms };
-
-		// Model updating simulation
-		/*
-		// Wiggle the model and schedule random portions of it to be updated
-		// wiggle(model);
-
-		// FIXME: simple but inefficient way to send random updates: we're creating all
-		// the update chunks and discarding most of them at each frame.
-		updates = buildUpdatePackets(model);
-
-		std::shuffle(idxToPick.begin(), idxToPick.end(), rng);
-
-		const auto nSent = nSentDist(rng);
-		{
-			std::lock_guard<std::mutex> lock{ server.shared.geomUpdateMtx };
-			for (unsigned i = 0; i < nSent; ++i) {
-				assert(i < idxToPick.size() && idxToPick[i] < updates.size());
-				server.shared.geomUpdate.emplace_back(updates[idxToPick[i]]);
-			}
-		}
-		*/
 
 		// Move dyn lights
 		// TODO
@@ -216,7 +185,22 @@ void appstageLoop(Server& server)
 		}
 
 		// Move objects
-		auto& model = server.resources.models.begin()->second;
+		int i = 0;
+		std::vector<QueuedUpdateTransform> updts;
+		updts.reserve(server.scene.nodes.size());
+		for (auto node : server.scene.nodes) {
+			if (node->type != NodeType::MODEL)
+				continue;
+			node->transform = setPosition(node->transform, glm::vec3{ 10 * std::sin(t + i * 0.4), 0, 0 });
+			updts.emplace_back(node->name);
+			++i;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
+			for (const auto& u : updts)
+				server.toClient.updates.emplace_back(new QueuedUpdateTransform(u));
+		}
 
 		server.toClient.updatesCv.notify_one();
 	}

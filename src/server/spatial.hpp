@@ -7,17 +7,27 @@
 #include <cmath>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/string_cast.hpp>
 #include <memory>
+#include <ostream>
+#include <unordered_map>
 #include <vector>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 
 struct Transform {
-	const glm::vec3 position{ 0.f, 0.f, 0.f };
-	const glm::quat rotation;
-	const glm::vec3 scale{ 1.f, 1.f, 1.f };
+	glm::vec3 position{ 0.f, 0.f, 0.f };
+	glm::quat rotation{ glm::vec3{ 0.f, 0.f, 0.f } };
+	glm::vec3 scale{ 1.f, 1.f, 1.f };
 };
+
+inline std::ostream& operator<<(std::ostream& s, Transform t)
+{
+	s << "{ pos: " << glm::to_string(t.position) << ", rot: " << glm::to_string(t.rotation)
+	  << ", scale: " << glm::to_string(t.scale) << " }";
+	return s;
+}
 
 constexpr Transform setPosition(Transform t, glm::vec3 pos)
 {
@@ -53,11 +63,30 @@ struct Node {
 	Node* parent = nullptr;
 };
 
-/** The "world" */
+/** A Scene is a graph of Nodes.
+ *  Nodes are allocated from a pool which uses the server's main memory
+ *  (helper data structures are allocated independently).
+ */
 struct Scene : public ExternalMemoryUser {
-	PoolAllocator<Node> allocator;
+
+	/** Allows fast iteration on all nodes */
+	std::vector<Node*> nodes;
+
 	Node* root = nullptr;
 
+	/** Adds node `name` of type `type` */
+	void addNode(StringId name, NodeType type, Transform transform);
+
+	/** Deallocates node `name` and removes it from the scene. */
+	void destroyNode(StringId name);
+
+	/** @return A pointer to node `name` or nullptr if that node is not in the scene. */
+	Node* getNode(StringId name) const;
+
 private:
-	void onInit() override { allocator.init(memory, memsize); }
+	PoolAllocator<Node> allocator;
+	/** Allows random access to nodes. Maps node name => node idx in the `nodes` vector. */
+	std::unordered_map<StringId, uint64_t> nodeMap;
+
+	void onInit() override;
 };

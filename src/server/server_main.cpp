@@ -82,6 +82,13 @@ int main(int argc, char** argv)
 		server.resources.pointLights.emplace_back(light);
 	}
 
+	info("Filling spatial data structures...");
+	/// Build and fill spatial data structures with the loaded objects
+	for (const auto& pair : server.resources.models) {
+		const auto& model = pair.second;
+		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
+	}
+
 	/// Start TCP socket and wait for connections
 	server.relEP.startPassive(ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
 	server.relEP.runLoop();

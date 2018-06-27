@@ -51,8 +51,7 @@ void ServerActiveEndpoint::loopFunc()
 		auto w = server.toClient.updates.begin();
 		for (auto it = w; it != server.toClient.updates.end(); ++it) {
 
-			const auto written =
-				addUpdate(buffer.data(), buffer.size(), offset, it->get(), server.resources);
+			const auto written = addUpdate(buffer.data(), buffer.size(), offset, it->get(), server);
 			if (written > 0) {
 				offset += written;
 				++i;

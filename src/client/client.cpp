@@ -324,6 +324,8 @@ private:
 		// Save models into permanent storage
 		// NOTE: resources.models becomes invalid after this move
 		netRsrc.models = std::move(resources.models);
+		for (const auto& model : netRsrc.models)
+			netRsrc.modelTransforms[model.name] = glm::mat4{ 1.f };
 
 		// Save lights into permanent storage
 		// TODO: do something more sophisticate to take advantage of the lights' dynMasks
@@ -577,7 +579,8 @@ private:
 		auto ubo = uniformBuffers.getPerObject();
 
 		if (gUseCamera) {
-			ubo->model = glm::mat4{ 1.0f };
+			// TODO
+			ubo->model = netRsrc.modelTransforms.begin()->second;
 		} else {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
@@ -587,6 +590,7 @@ private:
 			// ubo->view = glm::lookAt(glm::vec3{ 14, 14, 14 },
 			// glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
 		}
+		ubo->model = netRsrc.modelTransforms.begin()->second;
 	}
 
 	void updateViewUniformBuffer()

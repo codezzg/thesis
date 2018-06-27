@@ -183,6 +183,47 @@ static std::size_t
 	return chunkSize;
 }
 
+/** Tries to read a TransformUpdate chunk from `ptr`.
+ *  Won't try to read more than `maxBytesToRead`.
+ *  In case of success, the corresponding object is updated accordingly.
+ *  @return The number of bytes read from `ptr`.
+ */
+static std::size_t
+	processTransformUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead, NetworkResources& netRsrc)
+{
+	if (maxBytesToRead < sizeof(TransformUpdateHeader)) {
+		err("Buffer given to processTransformUpdateChunk has not enough room for a Header + Payload! ",
+			"(needed: ",
+			sizeof(TransformUpdateHeader),
+			", got: ",
+			maxBytesToRead,
+			")");
+		return maxBytesToRead;
+	}
+
+	//// Read header (which is the entire chunk)
+	const auto header = reinterpret_cast<const TransformUpdateHeader*>(ptr);
+	const auto chunkSize = sizeof(TransformUpdateHeader);
+
+	// Find the referenced object
+	auto it = netRsrc.modelTransforms.find(header->objectId);
+	if (it == netRsrc.modelTransforms.end()) {
+		warn("Received a Transform Update Chunk for inexistent node ", header->objectId, "!");
+		// XXX
+		return chunkSize;
+	}
+
+	if (chunkSize > maxBytesToRead) {
+		err("processTransformUpdateChunk would read past the allowed memory area!");
+		return maxBytesToRead;
+	}
+
+	//// Update the transform
+	it->second = header->transform;
+
+	return chunkSize;
+}
+
 /** Receives a pointer to a byte buffer and tries to read a chunk from it.
  *  Will not try to read more than `maxBytesToRead` bytes from the buffer.
  *  @return The number of bytes read, (aka the offset of the next chunk if there are more chunks after this)
@@ -194,11 +235,18 @@ static std::size_t
 	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
 
 	switch (byte2udpmsg(ptr[0])) {
+
 	case UdpMsgType::GEOM_UPDATE:
 		return sizeof(UdpMsgType) +
 		       processGeomUpdateChunk(ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType), geometry);
+
 	case UdpMsgType::POINT_LIGHT_UPDATE:
 		return sizeof(UdpMsgType) + processPointLightUpdateChunk(ptr + sizeof(UdpMsgType),
+						    maxBytesToRead - sizeof(UdpMsgType),
+						    netRsrc);
+
+	case UdpMsgType::TRANSFORM_UPDATE:
+		return sizeof(UdpMsgType) + processTransformUpdateChunk(ptr + sizeof(UdpMsgType),
 						    maxBytesToRead - sizeof(UdpMsgType),
 						    netRsrc);
 	default:

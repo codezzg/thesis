@@ -130,6 +130,23 @@ std::string xplatDirname(const char* path)
 	return res;
 }
 
+std::string xplatBasename(const char* path)
+{
+	// Copy path into a modifiable buffer
+	std::string res;
+	const auto len = strlen(path);
+	char* buf = new char[len + 1];
+	strncpy(buf, path, len + 1);
+#ifdef _WIN32
+	// TODO
+	res = path;
+#else
+	res = std::string{ basename(buf) };
+#endif
+	delete[] buf;
+	return res;
+}
+
 std::string xplatPath(std::string&& path)
 {
 #ifdef _WIN32

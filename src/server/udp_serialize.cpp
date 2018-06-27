@@ -1,11 +1,13 @@
 #include "udp_serialize.hpp"
 #include "queued_update.hpp"
-#include "server_resources.hpp"
+#include "server.hpp"
 #include "shared_resources.hpp"
+#include "spatial.hpp"
 #include "udp_messages.hpp"
 #include <algorithm>
 #include <cassert>
 #include <glm/glm.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 using namespace logging;
 
@@ -148,7 +150,7 @@ static std::size_t addPointLightUpdate(uint8_t* buffer,
 	return written;
 }
 
-static std::size_t addTransformUpdate(uint8_t* buffer, std::size_t bufsize, std::size_t offset, const Model& model)
+static std::size_t addTransformUpdate(uint8_t* buffer, std::size_t bufsize, std::size_t offset, const Node& node)
 {
 	// assert(offset < bufsize);
 
@@ -172,8 +174,8 @@ static std::size_t addTransformUpdate(uint8_t* buffer, std::size_t bufsize, std:
 
 	// Write header
 	TransformUpdateHeader header;
-	header.objectId = model.name;
-	header.transform = glm::mat4{ 1.0 };   // TODO
+	header.objectId = node.name;
+	header.transform = transformMatrix(node.transform);
 
 	memcpy(buffer + offset + written, &header, sizeof(TransformUpdateHeader));
 	written += sizeof(TransformUpdateHeader);
@@ -191,20 +193,20 @@ std::size_t addUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
 	const QueuedUpdate* update,
-	const ServerResources& resources)
+	const Server& server)
 {
 	switch (update->updateType) {
 		using M = UdpMsgType;
 	case M::GEOM_UPDATE:
 		return addGeomUpdate(
-			buffer, bufsize, offset, static_cast<const QueuedUpdateGeom*>(update)->data, resources);
+			buffer, bufsize, offset, static_cast<const QueuedUpdateGeom*>(update)->data, server.resources);
 
 	case M::POINT_LIGHT_UPDATE: {
 		const auto lightId = static_cast<const QueuedUpdatePointLight*>(update)->lightId;
-		const auto it = std::find_if(resources.pointLights.begin(),
-			resources.pointLights.end(),
+		const auto it = std::find_if(server.resources.pointLights.begin(),
+			server.resources.pointLights.end(),
 			[lightId](const auto& light) { return light.name == lightId; });
-		if (it == resources.pointLights.end()) {
+		if (it == server.resources.pointLights.end()) {
 			throw std::runtime_error("addUpdate: tried to send update for inexisting point light " +
 						 std::to_string(lightId) + "!");
 		}
@@ -213,12 +215,12 @@ std::size_t addUpdate(uint8_t* buffer,
 
 	case M::TRANSFORM_UPDATE: {
 		const auto objId = static_cast<const QueuedUpdateTransform*>(update)->objectId;
-		const auto it = resources.models.find(objId);
-		if (it == resources.models.end()) {
+		const auto node = server.scene.getNode(objId);
+		if (!node) {
 			throw std::runtime_error(
 				"addUpdate: tried to send update for inexisting object " + std::to_string(objId) + "!");
 		}
-		return addTransformUpdate(buffer, bufsize, offset, it->second);
+		return addTransformUpdate(buffer, bufsize, offset, *node);
 	}
 
 	default:

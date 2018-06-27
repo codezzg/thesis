@@ -47,7 +47,7 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 
 	const auto load_t_end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
-	info("load time: ", load_ms.count(), " ms");
+	info("model '", xplatBasename(modelPath), "' load time: ", load_ms.count(), " ms (sid: ", sid(modelPath), ")");
 
 	std::unordered_map<Vertex, uint32_t> uniqueVertices;
 	std::vector<Index> indices;
@@ -145,10 +145,8 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
 
-	info("Model loaded: ", modelPath);
-	info(model.toString());
-
-	info("max idx = ", *std::max_element(indices.begin(), indices.end()));
+	debug(model.toString());
+	debug("max idx = ", *std::max_element(indices.begin(), indices.end()));
 
 	return model;
 }
