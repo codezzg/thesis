@@ -29,21 +29,6 @@ inline std::ostream& operator<<(std::ostream& s, Transform t)
 	return s;
 }
 
-constexpr Transform setPosition(Transform t, glm::vec3 pos)
-{
-	return Transform{ pos, t.rotation, t.scale };
-}
-
-inline Transform setRotation(Transform t, glm::vec3 euler)
-{
-	return Transform{ t.position, glm::quat{ euler }, t.scale };
-}
-
-constexpr Transform setScale(Transform t, glm::vec3 scale)
-{
-	return Transform{ t.position, t.rotation, scale };
-}
-
 inline glm::mat4 transformMatrix(Transform t)
 {
 	return glm::translate(

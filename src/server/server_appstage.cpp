@@ -191,7 +191,7 @@ void appstageLoop(Server& server)
 		for (auto node : server.scene.nodes) {
 			if (node->type != NodeType::MODEL)
 				continue;
-			node->transform = setPosition(node->transform, glm::vec3{ 10 * std::sin(t + i * 0.4), 0, 0 });
+			node->transform.position = glm::vec3{ 10 * std::sin(t + i * 0.4), 0, 0 };
 			updts.emplace_back(node->name);
 			++i;
 		}

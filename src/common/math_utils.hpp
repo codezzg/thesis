@@ -5,7 +5,12 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 
-constexpr float quatAngle(glm::quat q)
+#ifdef _WIN32
+inline
+#else
+constexpr
+#endif
+float quatAngle(glm::quat q)
 {
 	return 2 * std::acos(q.w);
 }

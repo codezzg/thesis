@@ -3,6 +3,7 @@
 #include "logging.hpp"
 #include "textures.hpp"
 #include "vulk_errors.hpp"
+#include <array>
 
 using namespace logging;
 
