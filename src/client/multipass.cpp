@@ -103,6 +103,16 @@ void recordMultipassCommandBuffers(const Application& app,
 			vkCmdBindIndexBuffer(
 				cmdBuf, geometry.indexBuffer.handle, loc_it->second.indexOff, VK_INDEX_TYPE_UINT32);
 
+			// Bind object descriptor set
+			vkCmdBindDescriptorSets(cmdBuf,
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				app.res.pipelineLayouts->get("multi"),
+				3,
+				1,
+				&app.res.descriptorSets->get(model.name),
+				0,
+				nullptr);
+
 			for (const auto& mesh : model.meshes) {
 				const auto& matName =
 					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
@@ -114,15 +124,6 @@ void recordMultipassCommandBuffers(const Application& app,
 					2,
 					1,
 					&app.res.descriptorSets->get(matName),
-					0,
-					nullptr);
-				// Bind object descriptor set
-				vkCmdBindDescriptorSets(cmdBuf,
-					VK_PIPELINE_BIND_POINT_GRAPHICS,
-					app.res.pipelineLayouts->get("multi"),
-					3,
-					1,
-					&app.res.descriptorSets->get("obj_res"),
 					0,
 					nullptr);
 

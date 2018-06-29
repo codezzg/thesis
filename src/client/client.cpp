@@ -74,7 +74,7 @@ using std::size_t;
 constexpr auto RENDER_FRAME_TIME = std::chrono::milliseconds{ 16 };
 constexpr auto SERVER_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
-bool gUseCamera = false;
+bool gUseCamera = true;
 bool gLimitFrameTime = true;
 
 class VulkanClient final {
@@ -578,24 +578,28 @@ private:
 	{
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
-		auto objBuf = uniformBuffers.getBuffer(netRsrc.models[0].name);
-		assert(objBuf && objBuf->ptr && objBuf->size >= sizeof(ObjectUniformBufferObject));
+		for (const auto& model : netRsrc.models) {
+			auto objBuf = uniformBuffers.getBuffer(model.name);
+			assert(objBuf && objBuf->ptr && objBuf->size >= sizeof(ObjectUniformBufferObject));
 
-		auto ubo = reinterpret_cast<ObjectUniformBufferObject*>(objBuf->ptr);
+			auto ubo = reinterpret_cast<ObjectUniformBufferObject*>(objBuf->ptr);
 
-		if (gUseCamera) {
-			// TODO
-			ubo->model = netRsrc.modelTransforms.begin()->second;
-		} else {
-			auto currentTime = std::chrono::high_resolution_clock::now();
-			float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
-					     .count();
-			ubo->model =
-				glm::rotate(glm::mat4{ 1.0f }, time * glm::radians(89.f), glm::vec3{ 0.f, -1.f, 0.f });
-			// ubo->view = glm::lookAt(glm::vec3{ 14, 14, 14 },
-			// glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
+			if (gUseCamera) {
+				// TODO
+				ubo->model = netRsrc.modelTransforms[model.name];
+				info("filling ", ubo, " with transform ", glm::to_string(ubo->model));
+			} else {
+				auto currentTime = std::chrono::high_resolution_clock::now();
+				float time = std::chrono::duration<float, std::chrono::seconds::period>(
+					currentTime - startTime)
+						     .count();
+				ubo->model = glm::rotate(glm::mat4{ 1.0f },
+					(time + model.name % 259) * glm::radians(89.f),
+					glm::vec3{ 0.f, -1.f, 0.f });
+				// ubo->view = glm::lookAt(glm::vec3{ 14, 14, 14 },
+				// glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
+			}
 		}
-		ubo->model = netRsrc.modelTransforms.begin()->second;
 	}
 
 	void updateViewUniformBuffer()
@@ -725,8 +729,11 @@ private:
 			mat.descriptorSet = descSet;
 			app.res.descriptorSets->add(mat.name, descSet);
 		}
-		// TODO One descriptor set per object (model)
-		app.res.descriptorSets->add("obj_res", descriptorSets[descriptorSets.size() - 1]);
+		// One descriptor set per object (model)
+		for (unsigned i = 0; i < netRsrc.models.size(); ++i) {
+			app.res.descriptorSets->add(
+				netRsrc.models[i].name, descriptorSets[2 + netRsrc.materials.size() + i]);
+		}
 	}
 
 	void cleanupSwapChain()
@@ -876,7 +883,7 @@ int main(int argc, char** argv)
 		if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
 			case 'c':
-				gUseCamera = true;
+				gUseCamera = false;
 				break;
 			case 'v': {
 				int lv = 1;

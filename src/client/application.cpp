@@ -83,7 +83,9 @@ static void createLogicalDevice(Application& app)
 
 VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResources& netRsrc)
 {
-	/* We have 4 DescriptorSets, each updated at a different frequency:
+	// TODO: re-read and reason about this procedure, it's kinda messy
+
+	/* We have 4 kinds of DescriptorSets, each updated at a different frequency:
 	 * #0: view resources (CompUbo)
 	 * #1: gbuffer resources (G-pos, G-norm, G-albedoSpec)
 	 * #2: material resources (texDiffuse, texSpecular, texNormal)
@@ -92,7 +94,9 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	 */
 	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = 2;
+	// 1 uniform buffer for the view + 1 per model
+	poolSizes[0].descriptorCount = 1 + std::max(std::size_t(1), netRsrc.models.size());
+	;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	// TODO: use a less wasteful approach for image allocation than 2 per material
 	poolSizes[1].descriptorCount = 3 * (netRsrc.materials.size() + 1);   // diff/spec/normal + default ones
@@ -110,7 +114,8 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 3 + std::max(std::size_t(1), netRsrc.materials.size());
+	poolInfo.maxSets = 2 + std::max(std::size_t(1), netRsrc.models.size()) +
+			   std::max(std::size_t(1), netRsrc.materials.size());
 	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
 	VkDescriptorPool descriptorPool;
