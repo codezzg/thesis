@@ -1,10 +1,12 @@
 #pragma once
 
 #include "hashing.hpp"
+#include "models.hpp"
 #include <vector>
 #include <vulkan/vulkan.h>
 
 struct Application;
+class BufferArray;
 struct Buffer;
 struct CombinedUniformBuffers;
 struct Geometry;
@@ -22,7 +24,8 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
  *  @return A vector where each descriptorset correspond to the i-th material in input.
  */
 std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
-	const CombinedUniformBuffers& uniformBuffers,
+	const BufferArray& uniformBuffers,
 	const std::vector<Material>& materials,
+	const std::vector<ModelInfo>& models,
 	VkSampler texSampler,
 	VkSampler cubeSampler);

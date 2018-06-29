@@ -1,5 +1,6 @@
 #include "multipass.hpp"
 #include "application.hpp"
+#include "buffer_array.hpp"
 #include "buffers.hpp"
 #include "client_resources.hpp"
 #include "geometry.hpp"
@@ -72,6 +73,8 @@ void recordMultipassCommandBuffers(const Application& app,
 			nullptr);
 
 		// TODO: reorganize material / meshes hierarchy so that materials are higher
+		// (i.e. group all meshes using the same material and draw them with the same
+		// material descriptor set)
 
 		// Draw all models
 		assert(geometry.locations.size() == netRsrc.models.size() &&
@@ -104,6 +107,7 @@ void recordMultipassCommandBuffers(const Application& app,
 				const auto& matName =
 					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
 
+				// Bind material descriptor set
 				vkCmdBindDescriptorSets(cmdBuf,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					app.res.pipelineLayouts->get("multi"),
@@ -112,6 +116,7 @@ void recordMultipassCommandBuffers(const Application& app,
 					&app.res.descriptorSets->get(matName),
 					0,
 					nullptr);
+				// Bind object descriptor set
 				vkCmdBindDescriptorSets(cmdBuf,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,
 					app.res.pipelineLayouts->get("multi"),
@@ -161,6 +166,8 @@ void recordMultipassCommandBuffers(const Application& app,
 	}
 }
 
+// Rationale why I'm using different descriptor sets rather than just one:
+// https://developer.nvidia.com/vulkan-shader-resource-binding
 std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const Application& app)
 {
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
@@ -307,18 +314,23 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 }
 
 std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
-	const CombinedUniformBuffers& uniformBuffers,
+	const BufferArray& uniformBuffers,
 	const std::vector<Material>& materials,
+	const std::vector<ModelInfo>& models,
 	VkSampler texSampler,
 	VkSampler cubeSampler)
 {
-	std::vector<VkDescriptorSetLayout> layouts(1 + 1 + materials.size() + 1 /*TODO: n.objects*/);
-	layouts[0] = app.res.descriptorSetLayouts->get("view_res");   // we only have 1 view
+	std::vector<VkDescriptorSetLayout> layouts(1 + 1 + materials.size() + models.size());
+	// we only have 1 view
+	layouts[0] = app.res.descriptorSetLayouts->get("view_res");
 	// we have 1 pipelines w/resources: gbuffer
 	layouts[1] = app.res.descriptorSetLayouts->get("gbuffer_res");
-	for (unsigned i = 1; i < materials.size() + 1; ++i)
-		layouts[1 + i] = app.res.descriptorSetLayouts->get("mat_res");
-	layouts[materials.size() + 2] = app.res.descriptorSetLayouts->get("obj_res");   // we only have 1 model
+	// 1 descriptor set per material
+	for (unsigned i = 0; i < materials.size(); ++i)
+		layouts[2 + i] = app.res.descriptorSetLayouts->get("mat_res");
+	// 1 descriptor set per model
+	for (unsigned i = 0; i < models.size(); ++i)
+		layouts[2 + materials.size() + i] = app.res.descriptorSetLayouts->get("obj_res");
 
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -333,13 +345,18 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
 
 	std::vector<VkWriteDescriptorSet> descriptorWrites;
+	descriptorWrites.reserve(layouts.size());
 
 	//// Set #0: view resources
-	VkDescriptorBufferInfo viewUboInfo = {};
-	viewUboInfo.buffer = uniformBuffers.handle;
-	viewUboInfo.offset = uniformBuffers.offsets.perView;
-	viewUboInfo.range = sizeof(ViewUniformBufferObject);
 	{
+		auto viewBuf = uniformBuffers.getBuffer(sid("view"));
+		assert(viewBuf);
+
+		VkDescriptorBufferInfo viewUboInfo = {};
+		viewUboInfo.buffer = viewBuf->handle;
+		viewUboInfo.offset = viewBuf->bufOffset;
+		viewUboInfo.range = viewBuf->size;
+
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = descriptorSets[0];
@@ -353,11 +370,12 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	}
 
 	// Skybox
-	VkDescriptorImageInfo skyboxInfo = {};
-	skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	skyboxInfo.imageView = app.skybox.image.view;
-	skyboxInfo.sampler = cubeSampler;
 	{
+		VkDescriptorImageInfo skyboxInfo = {};
+		skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		skyboxInfo.imageView = app.skybox.image.view;
+		skyboxInfo.sampler = cubeSampler;
+
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = descriptorSets[0];
@@ -371,11 +389,12 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	}
 
 	//// Set #1: gbuffer shader resources
-	VkDescriptorImageInfo gPositionInfo = {};
-	gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	gPositionInfo.imageView = app.gBuffer.position.view;
-	gPositionInfo.sampler = texSampler;
 	{
+		VkDescriptorImageInfo gPositionInfo = {};
+		gPositionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		gPositionInfo.imageView = app.gBuffer.position.view;
+		gPositionInfo.sampler = texSampler;
+
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = descriptorSets[1];
@@ -388,11 +407,12 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrites.emplace_back(descriptorWrite);
 	}
 
-	VkDescriptorImageInfo gNormalInfo = {};
-	gNormalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	gNormalInfo.imageView = app.gBuffer.normal.view;
-	gNormalInfo.sampler = texSampler;
 	{
+		VkDescriptorImageInfo gNormalInfo = {};
+		gNormalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		gNormalInfo.imageView = app.gBuffer.normal.view;
+		gNormalInfo.sampler = texSampler;
+
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = descriptorSets[1];
@@ -405,11 +425,12 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrites.emplace_back(descriptorWrite);
 	}
 
-	VkDescriptorImageInfo gAlbedoSpecInfo = {};
-	gAlbedoSpecInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	gAlbedoSpecInfo.imageView = app.gBuffer.albedoSpec.view;
-	gAlbedoSpecInfo.sampler = texSampler;
 	{
+		VkDescriptorImageInfo gAlbedoSpecInfo = {};
+		gAlbedoSpecInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		gAlbedoSpecInfo.imageView = app.gBuffer.albedoSpec.view;
+		gAlbedoSpecInfo.sampler = texSampler;
+
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = descriptorSets[1];
@@ -428,10 +449,11 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	std::vector<VkDescriptorImageInfo> normalInfos(materials.size());
 
 	for (unsigned i = 0; i < materials.size(); ++i) {
-		diffuseInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		diffuseInfos[i].sampler = texSampler;
-		diffuseInfos[i].imageView = materials[i].diffuse;
 		{
+			diffuseInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			diffuseInfos[i].sampler = texSampler;
+			diffuseInfos[i].imageView = materials[i].diffuse;
+
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrite.dstSet = descriptorSets[2 + i];
@@ -444,10 +466,11 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 			descriptorWrites.emplace_back(descriptorWrite);
 		}
 
-		specularInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		specularInfos[i].sampler = texSampler;
-		specularInfos[i].imageView = materials[i].specular;
 		{
+			specularInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			specularInfos[i].sampler = texSampler;
+			specularInfos[i].imageView = materials[i].specular;
+
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrite.dstSet = descriptorSets[2 + i];
@@ -460,10 +483,11 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 			descriptorWrites.emplace_back(descriptorWrite);
 		}
 
-		normalInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		normalInfos[i].sampler = texSampler;
-		normalInfos[i].imageView = materials[i].normal;
 		{
+			normalInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			normalInfos[i].sampler = texSampler;
+			normalInfos[i].imageView = materials[i].normal;
+
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrite.dstSet = descriptorSets[2 + i];
@@ -477,15 +501,19 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		}
 	}
 
-	//// Set #materials.size()+2: object resources
-	VkDescriptorBufferInfo objUboInfo = {};
-	objUboInfo.buffer = uniformBuffers.handle;
-	objUboInfo.offset = uniformBuffers.offsets.perObject;
-	objUboInfo.range = sizeof(ObjectUniformBufferObject);
-	{
+	//// Set #materials.size()+2 - ...: object resources
+	for (unsigned i = 0; i < models.size(); ++i) {
+		auto objBuf = uniformBuffers.getBuffer(models[i].name);
+		assert(objBuf);
+
+		VkDescriptorBufferInfo objUboInfo = {};
+		objUboInfo.buffer = objBuf->handle;
+		objUboInfo.offset = objBuf->bufOffset;
+		objUboInfo.range = objBuf->size;
+
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = descriptorSets[2 + materials.size()];
+		descriptorWrite.dstSet = descriptorSets[2 + materials.size() + i];
 		descriptorWrite.dstBinding = 0;
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;

@@ -1,6 +1,7 @@
 /** @author Giacomo Parolini, 2018 */
 #include "FPSCounter.hpp"
 #include "application.hpp"
+#include "buffer_array.hpp"
 #include "buffers.hpp"
 #include "camera.hpp"
 #include "camera_ctrl.hpp"
@@ -125,7 +126,8 @@ private:
 	Geometry geometry;
 
 	/** Single buffer containing all uniform buffer objects needed */
-	CombinedUniformBuffers uniformBuffers;
+	BufferArray uniformBuffers{ VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
 
 	/** Stores resources received via network */
 	NetworkResources netRsrc;
@@ -576,7 +578,10 @@ private:
 	{
 		static auto startTime = std::chrono::high_resolution_clock::now();
 
-		auto ubo = uniformBuffers.getPerObject();
+		auto objBuf = uniformBuffers.getBuffer(netRsrc.models[0].name);
+		assert(objBuf && objBuf->ptr && objBuf->size >= sizeof(ObjectUniformBufferObject));
+
+		auto ubo = reinterpret_cast<ObjectUniformBufferObject*>(objBuf->ptr);
 
 		if (gUseCamera) {
 			// TODO
@@ -595,7 +600,10 @@ private:
 
 	void updateViewUniformBuffer()
 	{
-		auto ubo = uniformBuffers.getPerView();
+		auto viewBuf = uniformBuffers.getBuffer(sid("view"));
+		assert(viewBuf && viewBuf->ptr && viewBuf->size >= sizeof(ViewUniformBufferObject));
+
+		auto ubo = reinterpret_cast<ViewUniformBufferObject*>(viewBuf->ptr);
 
 		ubo->view = camera.viewMatrix();
 		// ubo->proj = camera.projMatrix();
@@ -618,25 +626,13 @@ private:
 
 	void prepareBufferMemory(Buffer& stagingBuffer)
 	{
-		// Find out the optimal offsets for uniform buffers, accounting for minimum align
-		VkDeviceSize uboSize = 0;
-		const auto uboAlign = findMinUboAlign(app.physicalDevice);
-		// FIXME: this approach is only feasible for at most 2 UBOs, as it grows combinatorily
-		if (sizeof(ObjectUniformBufferObject) <= uboAlign) {
-			uniformBuffers.offsets.perObject = 0;
-			uboSize += sizeof(ObjectUniformBufferObject);
-			const auto padding = uboAlign - uboSize;
-			uboSize += padding;
-			uniformBuffers.offsets.perView = uboSize;
-			uboSize += sizeof(ViewUniformBufferObject);
-		} else {
-			uniformBuffers.offsets.perView = 0;
-			uboSize += sizeof(ViewUniformBufferObject);
-			const auto padding = uboAlign - uboSize;
-			uboSize += padding;
-			uniformBuffers.offsets.perObject = uboSize;
-			uboSize += sizeof(ObjectUniformBufferObject);
-		}
+		const auto uboSize =
+			sizeof(ViewUniformBufferObject) + sizeof(ObjectUniformBufferObject) * netRsrc.models.size();
+		uniformBuffers.initialize(app);
+		uniformBuffers.reserve(uboSize);
+		uniformBuffers.addBuffer(sid("view"), sizeof(ViewUniformBufferObject));
+		for (const auto& model : netRsrc.models)
+			uniformBuffers.addBuffer(model.name, sizeof(ObjectUniformBufferObject));
 
 		// Create vertex, index and uniform buffers. These buffers are all created una-tantum.
 		BufferAllocator bufAllocator;
@@ -647,10 +643,10 @@ private:
 			bufAllocator, geometry.vertexBuffer, geometry.indexBuffer, netRsrc.models);
 
 		// uniform buffers
-		bufAllocator.addBuffer(uniformBuffers,
-			uboSize,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		// bufAllocator.addBuffer(uniformBuffers,
+		// uboSize,
+		// VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		// screen quad buffer
 		bufAllocator.addBuffer(app.screenQuadBuffer, getScreenQuadBufferProperties());
@@ -664,8 +660,8 @@ private:
 			{
 				&geometry.vertexBuffer,
 				&geometry.indexBuffer,
-				&uniformBuffers,
 			});
+		uniformBuffers.mapAllBuffers();
 
 		// Allocate enough memory to contain all vertices and indices
 		streamingBuffer.resize(megabytes(16));
@@ -715,7 +711,7 @@ private:
 	{
 		// Create the descriptor sets
 		auto descriptorSets = createMultipassDescriptorSets(
-			app, uniformBuffers, netRsrc.materials, app.texSampler, app.cubeSampler);
+			app, uniformBuffers, netRsrc.materials, netRsrc.models, app.texSampler, app.cubeSampler);
 
 		//// Store them into app resources
 		// A descriptor set for the view-dependant stuff
@@ -757,8 +753,8 @@ private:
 			{
 				geometry.vertexBuffer,
 				geometry.indexBuffer,
-				uniformBuffers,
 			});
+		uniformBuffers.unmapAllBuffers();
 
 		vkDestroySampler(app.device, app.texSampler, nullptr);
 		vkDestroySampler(app.device, app.cubeSampler, nullptr);
@@ -775,11 +771,8 @@ private:
 		destroyImage(app.device, app.skybox.image);
 
 		destroyAllBuffers(app.device,
-			{ uniformBuffers,
-				geometry.indexBuffer,
-				geometry.vertexBuffer,
-				app.screenQuadBuffer,
-				app.skybox.buffer });
+			{ geometry.indexBuffer, geometry.vertexBuffer, app.screenQuadBuffer, app.skybox.buffer });
+		uniformBuffers.cleanup();
 
 		vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
 

@@ -51,27 +51,6 @@ struct ViewUniformBufferObject final {
 	glm::i32 opts;   // showGBufTex | useNormalMap
 };
 
-/** A struct containing both an MVPUniformBuffer and a CompositionUniformBuffer
- *  inside a single Vulkan Buffer.
- */
-struct CombinedUniformBuffers : public Buffer {
-	struct {
-		VkDeviceSize perObject;
-		VkDeviceSize perView;
-	} offsets;
-
-	ObjectUniformBufferObject* getPerObject() const
-	{
-		return reinterpret_cast<ObjectUniformBufferObject*>(
-			reinterpret_cast<uint8_t*>(ptr) + offsets.perObject);
-	}
-
-	ViewUniformBufferObject* getPerView() const
-	{
-		return reinterpret_cast<ViewUniformBufferObject*>(reinterpret_cast<uint8_t*>(ptr) + offsets.perView);
-	}
-};
-
 /** Use this class to allocate a bunch of buffers at once.
  *  This allocator will attempt to minimize the number of allocations by reusing the same memory
  *  for multiple buffers with proper offsets.
