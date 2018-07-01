@@ -37,3 +37,14 @@ std::string listToString(const T& list)
 	ss << "}\n";
 	return ss.str();
 }
+
+template <typename T, typename F>
+std::string mapToString(const T& map, F&& toString = [](auto x) { return x; })
+{
+	std::stringstream ss;
+	ss << "{\n";
+	for (const auto& pair : map)
+		ss << "\t" << pair.first << " => " << toString(pair.second) << ",\n";
+	ss << "}\n";
+	return ss.str();
+}

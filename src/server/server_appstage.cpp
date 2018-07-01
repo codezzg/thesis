@@ -158,7 +158,7 @@ void appstageLoop(Server& server)
 	while (true) {
 		const LimitFrameTime lft{ 33ms };
 
-		// Move dyn lights
+		// Change point lights
 		// TODO
 		auto& light = server.resources.pointLights[0];
 		t += clock.deltaTime();
@@ -166,8 +166,6 @@ void appstageLoop(Server& server)
 			0.5 + 0.5 * std::sin(t), 0.5 + 0.5 * std::sin(t * 0.33), 0.5 + 0.5 * std::cos(t * 0.66)
 		};
 		light.intensity = std::abs(4 * std::sin(t * 0.75));
-
-		// debug("t = ", t, ", light: ", toString(light));
 
 		const auto endTime = std::chrono::high_resolution_clock::now();
 		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
@@ -188,13 +186,13 @@ void appstageLoop(Server& server)
 		std::vector<QueuedUpdateTransform> updts;
 		updts.reserve(server.scene.nodes.size());
 		for (auto node : server.scene.nodes) {
-			if (node->type != NodeType::MODEL)
-				continue;
 			node->transform.position = glm::vec3{ (5 + 3 * i) * std::sin(t + i * 0.4), 0, 0 };
-			node->transform.rotation = glm::vec3{ t * i, t * i, 0 };
-			node->transform.scale = glm::vec3{ 1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
-				1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
-				1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))) };
+			if (node->type == NodeType::MODEL) {
+				node->transform.rotation = glm::vec3{ t * i, t * i, 0 };
+				node->transform.scale = glm::vec3{ 1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
+					1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
+					1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))) };
+			}
 			updts.emplace_back(node->name);
 			++i;
 		}

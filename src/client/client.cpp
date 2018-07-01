@@ -343,6 +343,10 @@ private:
 		// TODO: do something more sophisticate to take advantage of the lights' dynMasks
 		// NOTE: resources.pointLights becomes invalid after this move
 		netRsrc.pointLights = std::move(resources.pointLights);
+		for (const auto& light : netRsrc.pointLights) {
+			objTransforms[light.name] = glm::mat4{ 1.f };
+			info("saved transform for light ", light.name);
+		}
 
 		{
 			/// Load textures

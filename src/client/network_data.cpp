@@ -10,6 +10,9 @@
 #include <algorithm>
 #include <cassert>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
+
 using namespace logging;
 
 /** Tries to read a GeomUpdate chunk from given `ptr`.
@@ -276,6 +279,8 @@ void updatePointLight(const UpdateReqPointLight& req, NetworkResources& netRsrc)
 void updateTransform(const UpdateReqTransform& req, ObjectTransforms& transforms)
 {
 	// Find the referenced object
+	// info("transforms = ", mapToString(transforms, [](auto x) -> std::string { return glm::to_string(x); }));
+
 	auto it = transforms.find(req.objectId);
 	if (it == transforms.end()) {
 		warn("Received a Transform Update Chunk for inexistent node ", req.objectId, "!");
