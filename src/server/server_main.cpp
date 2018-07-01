@@ -71,14 +71,16 @@ int main(int argc, char** argv)
 
 	// FIXME
 	{
+		using shared::LightDynFlags;
+
 		shared::PointLight light;
 		light.name = sid("Light 0");
 		light.position = glm::vec3(10, 15, 0);
 		light.color = glm::vec3(0.6, 0.0, 0.9);
 		light.intensity = 1.5;
-		light.dynMask = (1 << static_cast<uint8_t>(shared::LightDynFlags::POSITION)) |
-				(1 << static_cast<uint8_t>(shared::LightDynFlags::COLOR)) |
-				(1 << static_cast<uint8_t>(shared::LightDynFlags::INTENSITY));
+		light.dynMask = (1 << static_cast<uint8_t>(LightDynFlags::POSITION)) |
+				(1 << static_cast<uint8_t>(LightDynFlags::COLOR)) |
+				(1 << static_cast<uint8_t>(LightDynFlags::INTENSITY));
 		server.resources.pointLights.emplace_back(light);
 	}
 

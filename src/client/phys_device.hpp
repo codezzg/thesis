@@ -31,3 +31,4 @@ VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
 uint32_t findMemoryType(VkPhysicalDevice physDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
 VkDeviceSize findMinUboAlign(VkPhysicalDevice physDevice);
+VkDeviceSize findMaxUboRange(VkPhysicalDevice physDevice);

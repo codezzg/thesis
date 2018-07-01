@@ -5,11 +5,19 @@
 
 using namespace logging;
 
-void BufferArray::initialize(const Application& app)
+void BufferArray::initialize(const Application& app, VkDeviceSize minBufferSize)
 {
 	this->app = &app;
 	minAlign = findMinUboAlign(app.physicalDevice);
-	minBufferSize = minAlign * 4;
+	if (minBufferSize == 0)
+		this->minBufferSize = minAlign * 4;
+	else {
+		this->minBufferSize = minBufferSize;
+		if (minBufferSize % minAlign != 0) {
+			err("minBufferSize should be multiple of minAlign (", minAlign, ")");
+			throw;
+		}
+	}
 	debug("BufferArray: set minAlign to ", minAlign, " B");
 }
 

@@ -16,7 +16,8 @@ struct NetworkResources;
 void recordMultipassCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& commandBuffers,
 	const Geometry& geometry,
-	const NetworkResources& netRsrc);
+	const NetworkResources& netRsrc,
+	const BufferArray& uniformBuffers);
 
 std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const Application& app);
 

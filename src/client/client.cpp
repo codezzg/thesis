@@ -587,7 +587,13 @@ private:
 			if (gUseCamera) {
 				// TODO
 				ubo->model = netRsrc.modelTransforms[model.name];
-				info("filling ", ubo, " with transform ", glm::to_string(ubo->model));
+				verbose("filling ",
+					ubo,
+					" / ",
+					std::hex,
+					(uintptr_t)((uint8_t*)ubo + sizeof(ObjectUniformBufferObject)),
+					"  with transform ",
+					glm::to_string(ubo->model));
 			} else {
 				auto currentTime = std::chrono::high_resolution_clock::now();
 				float time = std::chrono::duration<float, std::chrono::seconds::period>(
@@ -632,7 +638,10 @@ private:
 	{
 		const auto uboSize =
 			sizeof(ViewUniformBufferObject) + sizeof(ObjectUniformBufferObject) * netRsrc.models.size();
-		uniformBuffers.initialize(app);
+		// We store all possible uniform buffers inside as little actual Buffers as possible.
+		// Then, we use descriptors of type UNIFORM_BUFFER_DYNAMIC with the subBuffers' bufOffset
+		// as dynamic offset.
+		uniformBuffers.initialize(app, findMaxUboRange(app.physicalDevice));
 		uniformBuffers.reserve(uboSize);
 		uniformBuffers.addBuffer(sid("view"), sizeof(ViewUniformBufferObject));
 		for (const auto& model : netRsrc.models)
@@ -709,7 +718,10 @@ private:
 		app.cubeSampler = createTextureCubeSampler(app);
 	}
 
-	void recordAllCommandBuffers() { recordMultipassCommandBuffers(app, app.commandBuffers, geometry, netRsrc); }
+	void recordAllCommandBuffers()
+	{
+		recordMultipassCommandBuffers(app, app.commandBuffers, geometry, netRsrc, uniformBuffers);
+	}
 
 	void createDescriptorSets()
 	{

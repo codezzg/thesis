@@ -144,3 +144,11 @@ VkDeviceSize findMinUboAlign(VkPhysicalDevice physDevice)
 	vkGetPhysicalDeviceProperties(physDevice, &props);
 	return props.limits.minUniformBufferOffsetAlignment;
 }
+
+VkDeviceSize findMaxUboRange(VkPhysicalDevice physDevice)
+{
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physDevice, &props);
+	return props.limits.maxUniformBufferRange;
+	;
+}

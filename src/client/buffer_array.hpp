@@ -33,6 +33,7 @@ class BufferArray {
 	const VkBufferUsageFlags usage;
 	const VkMemoryPropertyFlags properties;
 	VkDeviceSize minAlign;
+	/** Minimum size of the allocated buffers */
 	VkDeviceSize minBufferSize;
 
 	bool mappingBuffers = false;
@@ -60,8 +61,10 @@ public:
 		, properties{ properties }
 	{}
 
-	/** Needs to be called before calling reserve() or addBuffer() */
-	void initialize(const Application& app);
+	/** Needs to be called before calling reserve() or addBuffer().
+	 *  If `minBufferSize` == 0, it will be set to a small multiple of minAlign.
+	 */
+	void initialize(const Application& app, VkDeviceSize minBufferSize = 0);
 
 	/** Allocates a backing buffer which is at least `initialSize` bytes. */
 	void reserve(VkDeviceSize initialSize);

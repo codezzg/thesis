@@ -15,7 +15,8 @@ using namespace logging;
 void recordMultipassCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& commandBuffers,
 	const Geometry& geometry,
-	const NetworkResources& netRsrc)
+	const NetworkResources& netRsrc,
+	const BufferArray& uniformBuffers)
 {
 	std::array<VkClearValue, 5> clearValues = {};
 	constexpr auto fm = std::numeric_limits<float>::max();
@@ -103,6 +104,7 @@ void recordMultipassCommandBuffers(const Application& app,
 			vkCmdBindIndexBuffer(
 				cmdBuf, geometry.indexBuffer.handle, loc_it->second.indexOff, VK_INDEX_TYPE_UINT32);
 
+			const auto dynOff = static_cast<uint32_t>(uniformBuffers.getBuffer(model.name)->bufOffset);
 			// Bind object descriptor set
 			vkCmdBindDescriptorSets(cmdBuf,
 				VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -110,8 +112,8 @@ void recordMultipassCommandBuffers(const Application& app,
 				3,
 				1,
 				&app.res.descriptorSets->get(model.name),
-				0,
-				nullptr);
+				1,
+				&dynOff);
 
 			for (const auto& mesh : model.meshes) {
 				const auto& matName =
@@ -292,7 +294,7 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 		VkDescriptorSetLayoutBinding objectUboLayoutBinding = {};
 		objectUboLayoutBinding.binding = 0;
 		objectUboLayoutBinding.descriptorCount = 1;
-		objectUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		objectUboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		objectUboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 		const std::array<VkDescriptorSetLayoutBinding, 1> bindings = { objectUboLayoutBinding };
@@ -322,14 +324,20 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	VkSampler cubeSampler)
 {
 	std::vector<VkDescriptorSetLayout> layouts(1 + 1 + materials.size() + models.size());
-	// we only have 1 view
+
+	// 1 descriptor set per view
 	layouts[0] = app.res.descriptorSetLayouts->get("view_res");
-	// we have 1 pipelines w/resources: gbuffer
+
+	// 1 descriptor set for the gbuffer
 	layouts[1] = app.res.descriptorSetLayouts->get("gbuffer_res");
+
 	// 1 descriptor set per material
 	for (unsigned i = 0; i < materials.size(); ++i)
 		layouts[2 + i] = app.res.descriptorSetLayouts->get("mat_res");
+
 	// 1 descriptor set per model
+	// NOTE: technically we may only have 1 descriptor set per backing buffer inside the
+	// `uniformBuffers` BufferArray; however, for simplicity we just use 1 per model for now.
 	for (unsigned i = 0; i < models.size(); ++i)
 		layouts[2 + materials.size() + i] = app.res.descriptorSetLayouts->get("obj_res");
 
@@ -502,22 +510,23 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		}
 	}
 
-	//// Set #materials.size()+2 - ...: object resources
+	//// Sets #materials.size()+2 - ...: object resources
 	for (unsigned i = 0; i < models.size(); ++i) {
 		auto objBuf = uniformBuffers.getBuffer(models[i].name);
 		assert(objBuf);
 
 		VkDescriptorBufferInfo objUboInfo = {};
 		objUboInfo.buffer = objBuf->handle;
-		objUboInfo.offset = objBuf->bufOffset;
-		objUboInfo.range = objBuf->size;
+		// The actual dynamic offset is specified while recording the command buffers
+		objUboInfo.offset = 0;
+		objUboInfo.range = VK_WHOLE_SIZE;
 
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = descriptorSets[2 + materials.size() + i];
 		descriptorWrite.dstBinding = 0;
 		descriptorWrite.dstArrayElement = 0;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		descriptorWrite.descriptorCount = 1;
 		descriptorWrite.pBufferInfo = &objUboInfo;
 
