@@ -84,11 +84,22 @@ public:
 	 *  else, a new backing Buffer will be allocated.
 	 */
 	SubBuffer* addBuffer(StringId name, VkDeviceSize size);
+
+	/** @return The SubBuffer named `name` or nullptr if it doesn't exist. */
 	SubBuffer* getBuffer(StringId name) const;
+
+	/** Invalidates SubBuffer `name` and marks its memory as available. */
+	void rmBuffer(StringId name);
+
+	void dump()
+	{
+		for (unsigned i = 0; i < backingBuffers.size(); ++i)
+			std::cout << "freeRanges[" << i << "] = " << listToString(bufferFreeRanges[i]) << "\n";
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& s, BufferArray::BufferFreeRange r)
 {
-	s << "{ start: " << r.start << ", end: " << r.end << " }";
+	s << "{ start: " << r.start << ", end: " << r.end << " (len = " << r.len() << ") }";
 	return s;
 }

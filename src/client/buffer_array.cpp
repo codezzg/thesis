@@ -131,6 +131,8 @@ SubBuffer* BufferArray::addBuffer(StringId name, VkDeviceSize size)
 
 		freeRanges[0].start += size;
 		assert(freeRanges[0].len() >= 0);
+		if (freeRanges[0].len() == 0)
+			freeRanges.erase(freeRanges.begin());
 
 		debug("BufferArray: added buffer ",
 			name,
@@ -171,4 +173,52 @@ SubBuffer* BufferArray::getBuffer(StringId name) const
 		return nullptr;
 
 	return const_cast<SubBuffer*>(&it->second);
+}
+
+void BufferArray::rmBuffer(StringId name)
+{
+	auto it = allocatedBuffers.find(name);
+	if (it == allocatedBuffers.end()) {
+		warn("BufferArray: tried to remove inexistent buffer ", name);
+		return;
+	}
+
+	auto& buf = it->second;
+
+	const auto handle = buf.handle;
+	const auto start = buf.bufOffset;
+	const auto size = buf.size;
+
+	// Invalidate externally acquired buffers
+	buf.handle = VK_NULL_HANDLE;
+	buf.memory = VK_NULL_HANDLE;
+	buf.ptr = nullptr;
+	buf.size = 0;
+
+	allocatedBuffers.erase(it);
+
+	// Find its backing buffer
+	int64_t idx = -1;
+	for (unsigned i = 0; i < backingBuffers.size(); ++i) {
+		if (backingBuffers[i].handle == handle) {
+			idx = i;
+			break;
+		}
+	}
+	assert(idx >= 0);
+
+	// Insert a new element in that buffer's free space
+	auto& freeRanges = bufferFreeRanges[idx];
+	freeRanges.emplace_back(BufferFreeRange{ start, start + size });
+
+	// Merge with adjacent holes if needed
+	std::sort(freeRanges.begin(), freeRanges.end(), [](auto r1, auto r2) { return r1.start < r2.start; });
+	for (auto it = freeRanges.begin(); it != freeRanges.end() - 1;) {
+		if (it->end == (it + 1)->start) {
+			(it + 1)->start = it->start;
+			it = freeRanges.erase(it);
+		} else {
+			++it;
+		}
+	}
 }
