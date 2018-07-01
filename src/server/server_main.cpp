@@ -198,10 +198,10 @@ bool loadAssets(Server& server)
 	if (!loadSingleModel("/models/wall/wall2.obj"))
 		return false;
 
-	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+	if (!loadSingleModel("/models/cat/cat.obj"))
 		return false;
 
-	if (!loadSingleModel("/models/cat/cat.obj"))
+	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
 		return false;
 
 	return true;

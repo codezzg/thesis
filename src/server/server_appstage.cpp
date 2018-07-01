@@ -191,21 +191,11 @@ void appstageLoop(Server& server)
 		for (auto node : server.scene.nodes) {
 			if (node->type != NodeType::MODEL)
 				continue;
-			switch (i) {
-			case 0:
-				node->transform.position = glm::vec3{ 10 * std::sin(t + i * 0.4), 0, 0 };
-				break;
-			case 1:
-				node->transform.rotation = glm::vec3{ 0, t, 0 };
-				break;
-			case 2:
-				node->transform.scale = glm::vec3{ std::abs(std::cos(t * 0.5)),
-					std::abs(std::cos(t * 0.5)),
-					std::abs(std::cos(t * 0.5)) };
-				break;
-			default:
-				break;
-			}
+			node->transform.position = glm::vec3{ (5 + 3 * i) * std::sin(t + i * 0.4), 0, 0 };
+			node->transform.rotation = glm::vec3{ t * i, t * (i + 1), 0 };
+			node->transform.scale = glm::vec3{ 1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
+				1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
+				1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))) };
 			updts.emplace_back(node->name);
 			++i;
 		}
