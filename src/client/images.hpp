@@ -7,8 +7,8 @@
 struct Application;
 
 struct Image final {
-	VkImage handle;
-	VkDeviceMemory memory;
+	VkImage handle = VK_NULL_HANDLE;
+	VkDeviceMemory memory = VK_NULL_HANDLE;
 	VkDeviceSize offset;   // offset into underlying device memory
 	VkImageView view = VK_NULL_HANDLE;
 	VkFormat format;

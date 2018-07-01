@@ -73,6 +73,7 @@ struct UdpHeader {
  *  [chunk1 type]
  *  ...
  *  Note that a UdpPacket can contain different types of chunks.
+ *  A chunk has a payload only if it's of variable size.
  */
 struct UdpPacket {
 	UdpHeader header;
@@ -90,11 +91,13 @@ struct GeomUpdateHeader {
 	uint32_t len;
 };
 
-/** Update position/color/intensity of existing point light */
+/** Update color/intensity of existing point light
+ *  Note: this chunk is header-only.
+ */
 struct PointLightUpdateHeader {
 	StringId lightId;
-	/** Defines what kind of updates follow. It must be equal to the light's dynmask and uses the same flags. */
-	uint8_t updateMask;
+	glm::vec3 color;
+	float intensity;
 };
 
 /** Update transform of an object (currently, only a model).

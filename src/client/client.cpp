@@ -29,6 +29,7 @@
 #include "swap.hpp"
 #include "textures.hpp"
 #include "to_string.hpp"
+#include "transform.hpp"
 #include "udp_messages.hpp"
 #include "units.hpp"
 #include "utils.hpp"
@@ -132,8 +133,15 @@ private:
 	/** Stores resources received via network */
 	NetworkResources netRsrc;
 
+	/** Maps objId => world transform.
+	 *  Contains models and pointLights
+	 */
+	ObjectTransforms objTransforms;
+
 	/** Memory area staging vertices and indices coming from the server */
 	std::vector<uint8_t> streamingBuffer;
+	/** Memory area staging update requests read from the raw server data */
+	std::vector<UpdateReq> updateReqs;
 
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
@@ -195,6 +203,8 @@ private:
 		// activeEP.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
 		// activeEP.targetFrameTime = SERVER_UPDATE_TIME;
 		// activeEP.runLoop();
+
+		updateReqs.reserve(256);
 	}
 
 	bool connectToServer(const char* serverIp)
@@ -327,7 +337,7 @@ private:
 		// NOTE: resources.models becomes invalid after this move
 		netRsrc.models = std::move(resources.models);
 		for (const auto& model : netRsrc.models)
-			netRsrc.modelTransforms[model.name] = glm::mat4{ 1.f };
+			objTransforms[model.name] = glm::mat4{ 1.f };
 
 		// Save lights into permanent storage
 		// TODO: do something more sophisticate to take advantage of the lights' dynMasks
@@ -425,32 +435,26 @@ private:
 	void runFrame()
 	{
 		// Receive network data
-		receiveData(passiveEP, streamingBuffer, geometry, netRsrc);
-#ifndef NDEBUG
-		if (gDebugLv >= LOGLV_VERBOSE) {
-			dumpBytesIntoFileBin("dumps/sb.data", streamingBuffer.data(), streamingBuffer.size());
-			dumpBytesIntoFileBin("dumps/vb.data",
-				geometry.vertexBuffer.ptr,
-				netRsrc.models.begin()->nVertices * sizeof(Vertex));
-			dumpBytesIntoFileBin("dumps/ib.data",
-				(uint8_t*)geometry.indexBuffer.ptr,
-				netRsrc.models.begin()->nIndices * sizeof(Index));
-		}
+		updateReqs.clear();
+		receiveData(passiveEP, streamingBuffer, geometry, updateReqs);
 
-		for (const auto& model : netRsrc.models) {
-			// Check max index is < vertices.size
-			Index maxIdx = 0;
-			const auto idxOff = geometry.locations[model.name].indexOff;
-			for (unsigned i = 0; i < model.nIndices; ++i) {
-				auto idx = reinterpret_cast<Index*>(
-					reinterpret_cast<uint8_t*>(geometry.indexBuffer.ptr) + idxOff)[i];
-				if (idx > maxIdx)
-					maxIdx = idx;
+		// Apply update requests
+		for (const auto& req : updateReqs) {
+			switch (req.type) {
+			case UpdateReq::Type::GEOM:
+				updateModel(req.data.geom);
+				break;
+			case UpdateReq::Type::POINT_LIGHT:
+				updatePointLight(req.data.pointLight, netRsrc);
+				break;
+			case UpdateReq::Type::TRANSFORM:
+				updateTransform(req.data.transform, objTransforms);
+				break;
+			default:
+				assert(false);
+				break;
 			}
-			verbose("max idx = ", maxIdx);
-			assert(maxIdx < geometry.vertexBuffer.size / sizeof(Vertex));
 		}
-#endif
 
 		updateObjectsUniformBuffer();
 		updateViewUniformBuffer();
@@ -586,7 +590,7 @@ private:
 
 			if (gUseCamera) {
 				// TODO
-				ubo->model = netRsrc.modelTransforms[model.name];
+				ubo->model = objTransforms[model.name];
 				verbose("filling ",
 					ubo,
 					" / ",
@@ -627,8 +631,10 @@ private:
 		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
 		if (netRsrc.pointLights.size() > 0) {
 			const auto& pl = netRsrc.pointLights[0];
-			ubo->pointLight = PointLight{ { pl.position.x, pl.position.y, pl.position.z, pl.intensity },
-				{ pl.color.r, pl.color.g, pl.color.b, 0.0 } };
+			const auto& plt = transformFromMatrix(objTransforms[pl.name]);
+			ubo->pointLight =
+				UboPointLight{ { plt.position.x, plt.position.y, plt.position.z, pl.intensity },
+					{ pl.color.r, pl.color.g, pl.color.b, 0.0 } };
 		}
 		ubo->opts = shaderOpts.getRepr();
 		uberverbose("viewPos = ", glm::to_string(ubo->viewPos));
@@ -714,6 +720,7 @@ private:
 			if (app.skybox.image.handle == VK_NULL_HANDLE) {
 				throw std::runtime_error("Failed to load skybox");
 			}
+			assert(app.skybox.image.memory != VK_NULL_HANDLE);
 		});
 		app.cubeSampler = createTextureCubeSampler(app);
 	}

@@ -311,6 +311,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 
 	std::array<uint8_t, 1> packet = {};
 	std::unordered_set<std::string> texturesSent;
+	std::unordered_set<StringId> materialsSent;
 
 	const auto trySendTexture = [&](const std::string& texName, TextureFormat fmt = TextureFormat::RGBA) {
 		if (texName.length() > 0 && texturesSent.count(texName) == 0) {
@@ -353,6 +354,10 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 		info("model.materials = ", model.materials.size());
 		for (const auto& mat : model.materials) {
 
+			// Don't send the same material twice
+			if (materialsSent.count(mat.name) != 0)
+				continue;
+
 			info("sending new material ", mat.name);
 
 			ok = sendMaterial(clientSocket, mat);
@@ -360,6 +365,7 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 				err("Failed sending material");
 				return false;
 			}
+			materialsSent.emplace(mat.name);
 
 			ok = expectTCPMsg(clientSocket, packet.data(), 1, TcpMsgType::RSRC_EXCHANGE_ACK);
 			if (!ok) {

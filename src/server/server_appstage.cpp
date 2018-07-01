@@ -162,7 +162,6 @@ void appstageLoop(Server& server)
 		// TODO
 		auto& light = server.resources.pointLights[0];
 		t += clock.deltaTime();
-		light.position = glm::vec3{ 10 * std::sin(t), 5 + 5 * std::sin(t * 0.7), 10 * std::cos(t) };
 		light.color = glm::vec3{
 			0.5 + 0.5 * std::sin(t), 0.5 + 0.5 * std::sin(t * 0.33), 0.5 + 0.5 * std::cos(t * 0.66)
 		};
@@ -192,7 +191,7 @@ void appstageLoop(Server& server)
 			if (node->type != NodeType::MODEL)
 				continue;
 			node->transform.position = glm::vec3{ (5 + 3 * i) * std::sin(t + i * 0.4), 0, 0 };
-			node->transform.rotation = glm::vec3{ t * i, t * (i + 1), 0 };
+			node->transform.rotation = glm::vec3{ t * i, t * i, 0 };
 			node->transform.scale = glm::vec3{ 1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
 				1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
 				1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))) };

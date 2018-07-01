@@ -32,7 +32,8 @@ struct ObjectUniformBufferObject final {
 	glm::mat4 model;
 };
 
-struct PointLight {
+/** Representation of a PointLight inside a uniform buffer */
+struct UboPointLight {
 	glm::vec4 posInt;   // position + intensity
 	glm::vec4 color;
 };
@@ -40,7 +41,7 @@ struct PointLight {
 /** This UBO contains the per-view data */
 struct ViewUniformBufferObject final {
 	// TODO this probably doesn't belong here
-	PointLight pointLight;
+	UboPointLight pointLight;
 
 	// Camera stuff
 	glm::mat4 view;

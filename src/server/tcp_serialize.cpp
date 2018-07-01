@@ -48,14 +48,10 @@ bool sendPointLight(socket_t clientSocket, const shared::PointLight& light)
 	ResourcePacket<shared::PointLightInfo> packet;
 	packet.type = TcpMsgType::RSRC_TYPE_POINT_LIGHT;
 	packet.res.name = light.name;
-	packet.res.x = light.position.x;
-	packet.res.y = light.position.y;
-	packet.res.z = light.position.z;
 	packet.res.r = light.color.r;
 	packet.res.g = light.color.g;
 	packet.res.b = light.color.b;
 	packet.res.intensity = light.intensity;
-	packet.res.dynMask = light.dynMask;
 
 	debug("packet: { type = ",
 		packet.type,
@@ -63,14 +59,10 @@ bool sendPointLight(socket_t clientSocket, const shared::PointLight& light)
 		packet.res.name,
 		" (",
 		sidToString(packet.res.name),
-		"), pos = ",
-		light.position,
-		", color = ",
+		"), color = ",
 		light.color,
 		", intensity = ",
 		packet.res.intensity,
-		", dynMask = ",
-		int(packet.res.dynMask),
 		" }");
 
 	// We want to send this in a single packet. This is reasonable, as a packet should be at least

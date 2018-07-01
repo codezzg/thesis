@@ -47,8 +47,6 @@ struct NetworkResources {
 	std::vector<Material> materials;
 
 	std::vector<ModelInfo> models;
-	// FIXME: this probably oughtn't stay here, doing this for immediate convenience
-	std::unordered_map<StringId, glm::mat4> modelTransforms;
 
 	std::vector<shared::PointLight> pointLights;
 
@@ -60,3 +58,5 @@ struct NetworkResources {
 		Material material;
 	} defaults;
 };
+
+using ObjectTransforms = std::unordered_map<StringId, glm::mat4>;

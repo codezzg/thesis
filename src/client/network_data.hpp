@@ -1,17 +1,55 @@
 #pragma once
 
+#include "client_resources.hpp"
+#include "hashing.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <glm/glm.hpp>
 #include <vector>
 
 class ClientPassiveEndpoint;
 struct Geometry;
 struct NetworkResources;
 
+struct UpdateReqGeom {
+	/** Not strictly needed, but useful to keep here */
+	StringId modelId = SID_NONE;
+
+	const void* src = nullptr;
+	void* dst = nullptr;
+	std::size_t nBytes = 0;
+};
+
+struct UpdateReqPointLight {
+	StringId lightId = SID_NONE;
+	glm::vec3 color;
+	float intensity;
+};
+
+struct UpdateReqTransform {
+	StringId objectId = SID_NONE;
+	glm::mat4 transform;
+};
+
+struct UpdateReq {
+	enum class Type { UNKNOWN, GEOM, POINT_LIGHT, TRANSFORM } type = Type::UNKNOWN;
+
+	union {
+		UpdateReqGeom geom;
+		UpdateReqPointLight pointLight;
+		UpdateReqTransform transform;
+	} data;
+};
+
 /** Receives network data from `passiveEP`, storing them into the staging buffer `buffer`.
- *  Then interprets the chunks received and updates `geometry` and `netRsrc` accordingly.
+ *  Then interprets the chunks received and fills `updateReqs` with all the updates that
+ *  the server sent to us.
  */
 void receiveData(ClientPassiveEndpoint& passiveEP,
-	std::vector<uint8_t>& buffer,
-	Geometry& geometry,
-	NetworkResources& netRsrc);
+	/* inout */ std::vector<uint8_t>& buffer,
+	const Geometry& geometry,
+	/* out */ std::vector<UpdateReq>& updateReqs);
+
+void updateModel(const UpdateReqGeom& req);
+void updatePointLight(const UpdateReqPointLight& req, NetworkResources& netRsrc);
+void updateTransform(const UpdateReqTransform& req, ObjectTransforms& transforms);

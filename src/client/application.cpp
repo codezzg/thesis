@@ -92,23 +92,32 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	 * #3: object resources (MVPUbo)
 	 * @see https://developer.nvidia.com/vulkan-shader-resource-binding
 	 */
-	std::array<VkDescriptorPoolSize, 3> poolSizes = {};
+	std::array<VkDescriptorPoolSize, 4> poolSizes = {};
+
+	// 1 uniform buffer for the view
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	// 1 uniform buffer for the view + 1 per model
-	poolSizes[0].descriptorCount = 1 + std::max(std::size_t(1), netRsrc.models.size());
-	;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[0].descriptorCount = 1;
+
 	// TODO: use a less wasteful approach for image allocation than 2 per material
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[1].descriptorCount = 3 * (netRsrc.materials.size() + 1);   // diff/spec/normal + default ones
+
+	// 1 input attachment per G-buffer attachment
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-	poolSizes[2].descriptorCount = 3;   // one per G-buffer attachment
+	poolSizes[2].descriptorCount = 3;
+
+	// 1 dynamic uniform buffer per model
+	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	poolSizes[3].descriptorCount = std::max(std::size_t(1), netRsrc.models.size());
 
 	debug("Created descriptorPool with sizes ",
 		poolSizes[0].descriptorCount,
 		", ",
 		poolSizes[1].descriptorCount,
 		", ",
-		poolSizes[2].descriptorCount);
+		poolSizes[2].descriptorCount,
+		", ",
+		poolSizes[3].descriptorCount);
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;

@@ -12,26 +12,6 @@ namespace shared {
 
 enum class TextureFormat : uint8_t { RGBA, GREY, UNKNOWN };
 
-/** Used to map parameters to bit in lights' `dynMask` */
-enum LightDynFlags : uint8_t {
-	POSITION = 0,
-	COLOR = 1,
-	INTENSITY = 2,
-};
-
-constexpr bool isLightPositionFixed(uint8_t dynMask)
-{
-	return !((dynMask >> static_cast<uint8_t>(LightDynFlags::POSITION)) & 1);
-}
-constexpr bool isLightColorFixed(uint8_t dynMask)
-{
-	return !((dynMask >> static_cast<uint8_t>(LightDynFlags::COLOR)) & 1);
-}
-constexpr bool isLightIntensityFixed(uint8_t dynMask)
-{
-	return !((dynMask >> static_cast<uint8_t>(LightDynFlags::INTENSITY)) & 1);
-}
-
 /** Texture information. Note that this structure is only used to *store*
  *  that information, and is NOT sent directly
  *  via network (thus it's not packed); that's because texture data is sent
@@ -50,12 +30,9 @@ struct Texture {
  *  light initial data are sent with PointLightInfo, and updates are sent as UDP packets.
  */
 struct PointLight {
-	// TODO: position should be a characteristic of a generic Node
-	glm::vec3 position{ 0.f, 0.f, 0.f };
 	glm::vec3 color{ 1.f, 1.f, 1.f };
 	float intensity = 1;
 	StringId name;
-	uint8_t dynMask = 0;
 };
 
 // The following structures are all sent directly through the network
@@ -102,11 +79,6 @@ struct Model {
 struct PointLightInfo {
 	StringId name;
 
-	/** Initial position values (also final ones if position is fixed) */
-	float x;
-	float y;
-	float z;
-
 	/** Initial color values (also final ones if color is fixed) */
 	float r;
 	float g;
@@ -114,13 +86,6 @@ struct PointLightInfo {
 
 	/** Initial intensity value (also final one if intensity is fixed) */
 	float intensity;
-
-	/** Bitmask representing fixed/dynamic state of this light's parameters.
-	 *  0: fixed, 1: dynamic.
-	 *  A fixed parameter can never be changed, which can enable some optimizations
-	 *  both on server and client side.
-	 */
-	uint8_t dynMask;
 };
 
 struct Camera {

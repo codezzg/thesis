@@ -234,21 +234,15 @@ bool receivePointLight(const uint8_t* buffer,
 
 	shared::PointLight light;
 	light.name = lightInfo.name;
-	light.position = glm::vec3{ lightInfo.x, lightInfo.y, lightInfo.z };
 	light.color = glm::vec3{ lightInfo.r, lightInfo.g, lightInfo.b };
 	light.intensity = lightInfo.intensity;
-	light.dynMask = lightInfo.dynMask;
 
 	debug("received pointLight: { name = ",
 		light.name,
-		", pos = ",
-		glm::to_string(light.position),
 		", color = ",
 		glm::to_string(light.color),
 		", intensity = ",
 		light.intensity,
-		", dynMask = ",
-		int(light.dynMask),
 		" }");
 
 	if (std::find_if(

@@ -199,7 +199,6 @@ VkSampler createTextureCubeSampler(const Application& app)
 	samplerInfo.mipLodBias = 0.0f;
 	samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
 	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	samplerInfo.maxAnisotropy = 1.0f;
 	samplerInfo.maxAnisotropy = 16;
 	samplerInfo.anisotropyEnable = VK_TRUE;
 

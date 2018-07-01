@@ -92,17 +92,15 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	return written;
 }
 
+/** Updates a PointLight's color and/or intensity. To keep it simple, all properties are always sent anyway. */
 static std::size_t addPointLightUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
 	const shared::PointLight& pointLight)
 {
 	// assert(offset < bufsize);
-	assert(pointLight.dynMask != 0);
 
-	const std::size_t payloadSize = sizeof(glm::vec3) * !shared::isLightPositionFixed(pointLight.dynMask) +
-					sizeof(glm::vec3) * !shared::isLightColorFixed(pointLight.dynMask) +
-					sizeof(float) * !shared::isLightIntensityFixed(pointLight.dynMask);
+	const std::size_t payloadSize = sizeof(glm::vec3) + sizeof(float);
 
 	// Prevent infinite loops
 	assert(sizeof(UdpMsgType) + sizeof(PointLightUpdateHeader) + payloadSize < bufsize);
@@ -122,30 +120,17 @@ static std::size_t addPointLightUpdate(uint8_t* buffer,
 	// Write header
 	PointLightUpdateHeader header;
 	header.lightId = pointLight.name;
-	header.updateMask = pointLight.dynMask;
+	header.color = pointLight.color;
+	header.intensity = pointLight.intensity;
 
 	memcpy(buffer + offset + written, &header, sizeof(PointLightUpdateHeader));
 	written += sizeof(PointLightUpdateHeader);
-
-	// Write payload
-	if (!shared::isLightPositionFixed(pointLight.dynMask)) {
-		*reinterpret_cast<glm::vec3*>(buffer + offset + written) = pointLight.position;
-		written += sizeof(glm::vec3);
-	}
-	if (!shared::isLightColorFixed(pointLight.dynMask)) {
-		*reinterpret_cast<glm::vec3*>(buffer + offset + written) = pointLight.color;
-		written += sizeof(glm::vec3);
-	}
-	if (!shared::isLightIntensityFixed(pointLight.dynMask)) {
-		*reinterpret_cast<float*>(buffer + offset + written) = pointLight.intensity;
-		written += sizeof(float);
-	}
 
 	// Update size in header
 	reinterpret_cast<UdpHeader*>(buffer)->size += written;
 	verbose("Packet size is now ", reinterpret_cast<UdpHeader*>(buffer)->size);
 
-	dumpFullPacket(buffer, bufsize, LOGLV_DEBUG);
+	dumpFullPacket(buffer, bufsize, LOGLV_VERBOSE);
 
 	return written;
 }
@@ -261,10 +246,10 @@ void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize, LogLevel loglv)
 			buffer + sizeof(UdpHeader) + sizeof(UdpMsgType));
 		log(loglv, true, "chunkHead.lightId:");
 		dumpBytes(&chunkHead->lightId, sizeof(uint32_t), 50, loglv);
-		log(loglv, true, "chunkHead.updateMask:");
-		dumpBytes(&chunkHead->updateMask, sizeof(uint8_t), 50, loglv);
-		log(loglv, true, "payload:");
-		dumpBytes(buffer + sizeof(UdpHeader) + sizeof(PointLightUpdateHeader), bufsize, 50, loglv);
+		log(loglv, true, "chunkHead.color:");
+		dumpBytes(&chunkHead->color, sizeof(glm::vec3), 50, loglv);
+		log(loglv, true, "chunkHead.intensity:");
+		dumpBytes(&chunkHead->intensity, sizeof(float), 50, loglv);
 	} break;
 	default:
 		break;

@@ -15,29 +15,37 @@ using namespace logging;
 /** Tries to read a GeomUpdate chunk from given `ptr`.
  *  Will not read more than `maxBytesToRead`.
  *  If a chunk is correctly read from the buffer, its content is interpreted and used to
- *  update the proper vertices or indices of a model.
+ *  create a new UpdateReq inside `updateReqs`.
  *  @return The number of bytes read
  */
-static std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead, Geometry& geometry)
+static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
+	std::size_t maxBytesToRead,
+	const Geometry& geometry,
+	std::vector<UpdateReq>& updateReqs)
 {
 	if (maxBytesToRead <= sizeof(GeomUpdateHeader)) {
-		err("Buffer given to processGeomUpdateChunk has not enough room for a Header + Payload!");
+		err("Buffer given to readGeomUpdateChunk has not enough room for a Header + Payload!");
 		return maxBytesToRead;
 	}
 
 	//// Read the chunk header
 	const auto header = reinterpret_cast<const GeomUpdateHeader*>(ptr);
 
+	UpdateReq req = {};
+	req.type = UpdateReq::Type::GEOM;
+	req.data.geom.modelId = header->modelId;
+
 	std::size_t dataSize = 0;
-	void* dataPtr = nullptr;
 	switch (header->dataType) {
 	case GeomDataType::VERTEX:
 		dataSize = sizeof(Vertex);
-		dataPtr = geometry.vertexBuffer.ptr;
+		req.data.geom.src = ptr + sizeof(GeomUpdateHeader);
+		req.data.geom.dst = geometry.vertexBuffer.ptr;
 		break;
 	case GeomDataType::INDEX:
 		dataSize = sizeof(Index);
-		dataPtr = geometry.indexBuffer.ptr;
+		req.data.geom.src = ptr + sizeof(GeomUpdateHeader);
+		req.data.geom.dst = geometry.indexBuffer.ptr;
 		break;
 	default: {
 		std::stringstream ss;
@@ -46,12 +54,14 @@ static std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxByt
 	} break;
 	}
 
-	assert(dataSize != 0 && dataPtr != nullptr);
+	assert(dataSize != 0 && req.data.geom.dst != nullptr);
+
+	req.data.geom.nBytes = header->len * dataSize;
 
 	const auto chunkSize = sizeof(GeomUpdateHeader) + dataSize * header->len;
 
 	if (chunkSize > maxBytesToRead) {
-		err("processGeomUpdateChunk would read past the allowed memory area!");
+		err("readGeomUpdateChunk would read past the allowed memory area!");
 		return maxBytesToRead;
 	}
 
@@ -62,25 +72,14 @@ static std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxByt
 		return chunkSize;
 	}
 
-	//// Update the model
-
-	verbose("Updating model ",
-		header->modelId,
-		" / (type = ",
-		int(header->dataType),
-		") from ",
-		header->start,
-		" to ",
-		header->start + header->len);
 	auto& loc = it->second;
 	// Use the correct offset into the vertex/index buffer
 	const auto baseOffset = header->dataType == GeomDataType::VERTEX ? loc.vertexOff : loc.indexOff;
-	dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + baseOffset;
-	dataPtr = reinterpret_cast<uint8_t*>(dataPtr) + header->start * dataSize;
+	req.data.geom.dst = reinterpret_cast<uint8_t*>(req.data.geom.dst) + baseOffset;
+	req.data.geom.dst = reinterpret_cast<uint8_t*>(req.data.geom.dst) + header->start * dataSize;
 
-	{
-		// Ensure we don't write past the buffers area
-		const auto ptrStart = reinterpret_cast<uintptr_t>(dataPtr);
+	{   // Ensure we don't write past the buffers area
+		const auto ptrStart = reinterpret_cast<uintptr_t>(req.data.geom.dst);
 		const auto actualPtrStart = reinterpret_cast<uintptr_t>(header->dataType == GeomDataType::VERTEX
 										? geometry.vertexBuffer.ptr
 										: geometry.indexBuffer.ptr);
@@ -91,108 +90,61 @@ static std::size_t processGeomUpdateChunk(const uint8_t* ptr, std::size_t maxByt
 		assert(actualPtrStart <= ptrStart && ptrStart <= ptrLen - dataSize * header->len);
 	}
 
-	verbose("Copying from ",
-		std::hex,
-		uintptr_t(ptr + sizeof(GeomUpdateHeader)),
-		" --> ",
-		uintptr_t(dataPtr),
-		std::dec,
-		"  (",
-		dataSize * header->len,
-		")");
-	dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
-	dumpBytes(ptr + sizeof(GeomUpdateHeader), dataSize * header->len, 50, LOGLV_UBER_VERBOSE);
+	assert(req.type == UpdateReq::Type::GEOM);
+	assert(req.data.geom.modelId != SID_NONE);
+	assert(req.data.geom.src);
+	assert(req.data.geom.dst);
+	assert(req.data.geom.nBytes > 0);
 
-	// Do the actual update
-	memcpy(dataPtr, ptr + sizeof(GeomUpdateHeader), dataSize * header->len);
+	updateReqs.emplace_back(req);
 
 	return chunkSize;
 }
 
 /** Tries to read a PointLightUpdate chunk from `ptr`.
  *  Won't try to read more than `maxBytesToRead`.
- *  In case of success, the corresponding point light is updated accordingly.
+ *  In case of success, an UpdateReq is added to `updateReqs`.
  *  @return The number of bytes read from `ptr`.
  */
 static std::size_t
-	processPointLightUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead, NetworkResources& netRsrc)
+	readPointLightUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead, std::vector<UpdateReq>& updateReqs)
 {
-	using shared::isLightColorFixed;
-	using shared::isLightIntensityFixed;
-	using shared::isLightPositionFixed;
-
-	if (maxBytesToRead <= sizeof(PointLightUpdateHeader)) {
-		err("Buffer given to processPointLightUpdateChunk has not enough room for a Header + Payload!");
+	if (maxBytesToRead < sizeof(PointLightUpdateHeader)) {
+		err("Buffer given to rocessPointLightUpdateChunk has not enough room for a Header + Payload!");
 		return maxBytesToRead;
 	}
 
 	//// Read header
 	const auto header = reinterpret_cast<const PointLightUpdateHeader*>(ptr);
-
-	// Figure out chunk size.
-	// Payload is:
-	// [vec3] newPosition (if position is dynamic in updateMask)
-	// [vec3] newColor (if color is dynamic in updateMask)
-	// [float] newIntensity (if intensity is dynamic in updateMask)
-	std::size_t chunkSize = sizeof(PointLightUpdateHeader);
-	const auto mask = header->updateMask;
-	if (mask == 0) {
-		warn("Received empty PointLight update for light ", header->lightId, "!");
-		return chunkSize;
-	}
-	if (!isLightPositionFixed(mask))
-		chunkSize += 3 * sizeof(float);
-	if (!isLightColorFixed(mask))
-		chunkSize += 3 * sizeof(float);
-	if (!isLightIntensityFixed(mask))
-		chunkSize += sizeof(float);
-
-	// Find the referenced light
-	auto it = std::find_if(netRsrc.pointLights.begin(),
-		netRsrc.pointLights.end(),
-		[name = header->lightId](const auto light) { return light.name == name; });
-	if (it == netRsrc.pointLights.end()) {
-		warn("Received an Update Chunk for inexistent pointLight ", header->lightId, "!");
-		// XXX
-		return chunkSize;
-	}
+	const auto chunkSize = sizeof(PointLightUpdateHeader);
 
 	if (chunkSize > maxBytesToRead) {
-		err("processPointLightUpdateChunk would read past the allowed memory area!");
+		err("readPointLightUpdateChunk would read past the allowed memory area!");
 		return maxBytesToRead;
 	}
 
-	//// Update the light
-	auto payloadPtr = ptr + sizeof(PointLightUpdateHeader);
-	if (!isLightPositionFixed(mask)) {
-		const auto newPos = *reinterpret_cast<const glm::vec3*>(payloadPtr);
-		it->position = newPos;
-		payloadPtr += sizeof(glm::vec3);
-	}
-	if (!isLightColorFixed(mask)) {
-		const auto newCol = *reinterpret_cast<const glm::vec3*>(payloadPtr);
-		it->color = newCol;
-		payloadPtr += sizeof(glm::vec3);
-	}
-	if (!isLightIntensityFixed(mask)) {
-		const auto newInt = *reinterpret_cast<const float*>(payloadPtr);
-		it->intensity = newInt;
-		payloadPtr += sizeof(float);
-	}
+	UpdateReq req = {};
+	req.type = UpdateReq::Type::POINT_LIGHT;
+	req.data.pointLight.lightId = header->lightId;
+	req.data.pointLight.color = header->color;
+	req.data.pointLight.intensity = header->intensity;
+
+	assert(req.type == UpdateReq::Type::POINT_LIGHT);
+	updateReqs.emplace_back(req);
 
 	return chunkSize;
 }
 
 /** Tries to read a TransformUpdate chunk from `ptr`.
  *  Won't try to read more than `maxBytesToRead`.
- *  In case of success, the corresponding object is updated accordingly.
+ *  In case of success, an updateReq is added to `updateReqs`.
  *  @return The number of bytes read from `ptr`.
  */
 static std::size_t
-	processTransformUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead, NetworkResources& netRsrc)
+	readTransformUpdateChunk(const uint8_t* ptr, std::size_t maxBytesToRead, std::vector<UpdateReq>& updateReqs)
 {
 	if (maxBytesToRead < sizeof(TransformUpdateHeader)) {
-		err("Buffer given to processTransformUpdateChunk has not enough room for a Header + Payload! ",
+		err("Buffer given to readTransformUpdateChunk has not enough room for a Header + Payload! ",
 			"(needed: ",
 			sizeof(TransformUpdateHeader),
 			", got: ",
@@ -205,21 +157,19 @@ static std::size_t
 	const auto header = reinterpret_cast<const TransformUpdateHeader*>(ptr);
 	const auto chunkSize = sizeof(TransformUpdateHeader);
 
-	// Find the referenced object
-	auto it = netRsrc.modelTransforms.find(header->objectId);
-	if (it == netRsrc.modelTransforms.end()) {
-		warn("Received a Transform Update Chunk for inexistent node ", header->objectId, "!");
-		// XXX
-		return chunkSize;
-	}
-
 	if (chunkSize > maxBytesToRead) {
-		err("processTransformUpdateChunk would read past the allowed memory area!");
+		err("readTransformUpdateChunk would read past the allowed memory area!");
 		return maxBytesToRead;
 	}
 
-	//// Update the transform
-	it->second = header->transform;
+	UpdateReq req = {};
+	req.type = UpdateReq::Type::TRANSFORM;
+	req.data.transform.objectId = header->objectId;
+	req.data.transform.transform = header->transform;
+
+	assert(req.type == UpdateReq::Type::TRANSFORM);
+	assert(req.data.transform.objectId != SID_NONE);
+	updateReqs.emplace_back(req);
 
 	return chunkSize;
 }
@@ -228,8 +178,10 @@ static std::size_t
  *  Will not try to read more than `maxBytesToRead` bytes from the buffer.
  *  @return The number of bytes read, (aka the offset of the next chunk if there are more chunks after this)
  */
-static std::size_t
-	processChunk(const uint8_t* ptr, std::size_t maxBytesToRead, Geometry& geometry, NetworkResources& netRsrc)
+static std::size_t readChunk(const uint8_t* ptr,
+	std::size_t maxBytesToRead,
+	const Geometry& geometry,
+	std::vector<UpdateReq>& updateReqs)
 {
 	//// Read the chunk type
 	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
@@ -238,17 +190,18 @@ static std::size_t
 
 	case UdpMsgType::GEOM_UPDATE:
 		return sizeof(UdpMsgType) +
-		       processGeomUpdateChunk(ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType), geometry);
+		       readGeomUpdateChunk(
+			       ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType), geometry, updateReqs);
 
 	case UdpMsgType::POINT_LIGHT_UPDATE:
-		return sizeof(UdpMsgType) + processPointLightUpdateChunk(ptr + sizeof(UdpMsgType),
+		return sizeof(UdpMsgType) + readPointLightUpdateChunk(ptr + sizeof(UdpMsgType),
 						    maxBytesToRead - sizeof(UdpMsgType),
-						    netRsrc);
+						    updateReqs);
 
 	case UdpMsgType::TRANSFORM_UPDATE:
-		return sizeof(UdpMsgType) + processTransformUpdateChunk(ptr + sizeof(UdpMsgType),
+		return sizeof(UdpMsgType) + readTransformUpdateChunk(ptr + sizeof(UdpMsgType),
 						    maxBytesToRead - sizeof(UdpMsgType),
-						    netRsrc);
+						    updateReqs);
 	default:
 		break;
 	}
@@ -259,8 +212,8 @@ static std::size_t
 
 void receiveData(ClientPassiveEndpoint& passiveEP,
 	std::vector<uint8_t>& buffer,
-	Geometry& geometry,
-	NetworkResources& netRsrc)
+	const Geometry& geometry,
+	std::vector<UpdateReq>& updateReqs)
 {
 	if (!passiveEP.dataAvailable())
 		return;
@@ -279,7 +232,7 @@ void receiveData(ClientPassiveEndpoint& passiveEP,
 	unsigned nChunksProcessed = 0;
 	while (bytesProcessed < totBytes) {
 		verbose("Processing chunk at offset ", bytesProcessed);
-		const auto bytesInChunk = processChunk(buffer.data() + bytesProcessed, bytesLeft, geometry, netRsrc);
+		const auto bytesInChunk = readChunk(buffer.data() + bytesProcessed, bytesLeft, geometry, updateReqs);
 		++nChunksProcessed;
 		verbose("bytes in chunk: ", bytesInChunk);
 		bytesLeft -= bytesInChunk;
@@ -287,4 +240,48 @@ void receiveData(ClientPassiveEndpoint& passiveEP,
 		assert(bytesLeft >= 0);
 	}
 	debug("Processed ", nChunksProcessed, " chunks.");
+}
+
+void updateModel(const UpdateReqGeom& req)
+{
+	verbose("Copying from ",
+		std::hex,
+		uintptr_t(req.src),
+		" --> ",
+		uintptr_t(req.dst),
+		std::dec,
+		"  (",
+		req.nBytes,
+		")");
+
+	// Do the actual update
+	memcpy(req.dst, req.src, req.nBytes);
+}
+
+void updatePointLight(const UpdateReqPointLight& req, NetworkResources& netRsrc)
+{
+	// Find the referenced light
+	auto it = std::find_if(netRsrc.pointLights.begin(),
+		netRsrc.pointLights.end(),
+		[name = req.lightId](const auto light) { return light.name == name; });
+	if (it == netRsrc.pointLights.end()) {
+		warn("Received an Update Chunk for inexistent pointLight ", req.lightId, "!");
+		return;
+	}
+
+	it->color = req.color;
+	it->intensity = req.intensity;
+}
+
+void updateTransform(const UpdateReqTransform& req, ObjectTransforms& transforms)
+{
+	// Find the referenced object
+	auto it = transforms.find(req.objectId);
+	if (it == transforms.end()) {
+		warn("Received a Transform Update Chunk for inexistent node ", req.objectId, "!");
+		return;
+	}
+
+	//// Update the transform
+	it->second = req.transform;
 }
