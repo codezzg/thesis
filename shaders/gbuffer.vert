@@ -22,25 +22,7 @@ layout (set = 3, binding = 0) uniform ObjectUniformBufferObject {
 	mat4 model;
 } objUbo;
 
-// Unused
-struct PointLight {
-	vec3 position;
-	float intensity;
-	vec4 color;
-};
-
-layout (set = 0, binding = 0) uniform ViewUniformBufferObject {
-	// unused
-	PointLight pointLight;
-
-	mat4 view;
-	mat4 proj;
-
-	// unused
-	vec4 viewPos;
-	// unused
-	int opts;
-} viewUbo;
+#pragma include viewUbo.glsl
 
 void main() {
 	vec4 worldPos = objUbo.model * vec4(inPos, 1.0);
@@ -52,5 +34,5 @@ void main() {
 	outTangent = normalMat * inTangent;
 	outBitangent = normalMat * inBitangent;
 
-	gl_Position = viewUbo.proj * viewUbo.view * worldPos;
+	gl_Position = viewUbo.viewProj * worldPos;
 }

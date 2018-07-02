@@ -44,8 +44,7 @@ struct ViewUniformBufferObject final {
 	UboPointLight pointLight;
 
 	// Camera stuff
-	glm::mat4 view;
-	glm::mat4 proj;
+	glm::mat4 viewProj;
 	glm::vec4 viewPos;
 
 	// Shader options

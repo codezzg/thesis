@@ -622,14 +622,14 @@ private:
 
 		auto ubo = reinterpret_cast<ViewUniformBufferObject*>(viewBuf->ptr);
 
-		ubo->view = camera.viewMatrix();
-		// ubo->proj = camera.projMatrix();
-		ubo->proj = glm::perspective(glm::radians(60.f),
+		const auto view = camera.viewMatrix();
+		auto proj = glm::perspective(glm::radians(60.f),
 			app.swapChain.extent.width / float(app.swapChain.extent.height),
 			0.1f,
 			300.f);
 		// Flip y
-		ubo->proj[1][1] *= -1;
+		proj[1][1] *= -1;
+		ubo->viewProj = proj * view;
 
 		ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
 		if (netRsrc.pointLights.size() > 0) {

@@ -9,35 +9,14 @@ layout (input_attachment_index = 0, set = 1, binding = 0) uniform subpassInput g
 layout (input_attachment_index = 1, set = 1, binding = 1) uniform subpassInput gNormal;
 layout (input_attachment_index = 2, set = 1, binding = 2) uniform subpassInput gAlbedoSpec;
 
-struct PointLight {
-	vec3 position;
-	float intensity;
-	vec4 color;
-};
-
-layout (set = 0, binding = 0) uniform ViewUniformBuffer {
-	PointLight pointLight;
-
-	// unused
-	mat4 view;
-	// unused
-	mat4 proj;
-
-	// TODO research https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL)#Memory_layout
-	// about avoiding using vec3
-	vec4 viewPos;
-	// bitset
-	// 0: showGbufTex
-	// 1: useNormalMap
-	int opts;
-} ubo;
+#pragma include viewUbo.glsl
 
 #define AMBIENT_INTENSITY 0.45
 
 void main() {
 	// For now, hardcode ambient color
 	const vec3 ambientColor = vec3(1.0);
-	PointLight pointLight = ubo.pointLight;// PointLight(vec3(10.0, 10.0, 10.0), vec3(1.0, 1.0, 1.0), 1.0);
+	PointLight pointLight = viewUbo.pointLight;// PointLight(vec3(10.0, 10.0, 10.0), vec3(1.0, 1.0, 1.0), 1.0);
 
 	// TODO: use material shininess
 	const float shininess = 32.0;
@@ -64,7 +43,7 @@ void main() {
 	diffuse *= attenuation;
 
 	// Specular
-	vec3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
+	vec3 viewDir = normalize(viewUbo.viewPos.xyz - fragPos);
 	vec3 reflectDir = reflect(-lightDir, normal);
 
 	vec3 halfDir = normalize(lightDir + viewDir);
@@ -74,7 +53,7 @@ void main() {
 
 	vec3 lighting = ambient + diffuse + specular;
 
-	bool showGBufTexs = (ubo.opts & 1) != 0;
+	bool showGBufTexs = (viewUbo.opts & 1) != 0;
 	if (showGBufTexs) {
 		if (texCoords.x < 0.5) {
 			if (texCoords.y < 0.5)
