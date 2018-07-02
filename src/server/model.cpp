@@ -178,6 +178,10 @@ Material saveMaterial(const char* modelPath, const aiMaterial* mat)
 		aiString path;
 		AICHECK(mat->GetTexture(aiTextureType_HEIGHT, 0, &path));
 		material.normalTex = basePath + path.C_Str();
+	} else if (mat->GetTextureCount(aiTextureType_NORMALS) > 0) {
+		aiString path;
+		AICHECK(mat->GetTexture(aiTextureType_NORMALS, 0, &path));
+		material.normalTex = basePath + path.C_Str();
 	}
 
 	return material;

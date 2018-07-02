@@ -18,13 +18,14 @@
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr std::size_t MEMSIZE = megabytes(32);
+static constexpr std::size_t MEMSIZE = megabytes(128);
 static constexpr auto CLIENT_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
 Server* gServer;
 
 static void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond);
 static bool loadAssets(Server& server);
+std::vector<shared::PointLight> createLights(int n);
 
 int main(int argc, char** argv)
 {
@@ -69,13 +70,10 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 
-	// FIXME
 	{
-		shared::PointLight light;
-		light.name = sid("Light 0");
-		light.color = glm::vec3(0.6, 0.0, 0.9);
-		light.intensity = 1.5;
-		server.resources.pointLights.emplace_back(light);
+		// Add lights
+		const auto lights = createLights(20);
+		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 	}
 
 	info("Filling spatial data structures...");
@@ -192,14 +190,33 @@ bool loadAssets(Server& server)
 		return true;
 	};
 
-	if (!loadSingleModel("/models/wall/wall2.obj"))
+	if (!loadSingleModel("/models/sponza/sponza.dae"))
 		return false;
 
-	if (!loadSingleModel("/models/cat/cat.obj"))
-		return false;
+	// if (!loadSingleModel("/models/wall/wall2.obj"))
+	// return false;
 
-	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
-		return false;
+	// if (!loadSingleModel("/models/cat/cat.obj"))
+	// return false;
+
+	// if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+	// return false;
 
 	return true;
+}
+
+std::vector<shared::PointLight> createLights(int n)
+{
+	std::vector<shared::PointLight> lights;
+	lights.reserve(n);
+
+	for (int i = 0; i < n; ++i) {
+		shared::PointLight light;
+		light.name = sid(std::string{ "Light " } + std::to_string(i));
+		light.color = glm::vec3{ 1.0, 1.0, 1.0 };
+		light.intensity = 1.0;
+		lights.emplace_back(light);
+	}
+
+	return lights;
 }

@@ -225,7 +225,7 @@ private:
 
 		// Retreive one-time data from server
 		{
-			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = megabytes(64);
+			constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = megabytes(128);
 			ClientTmpResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
 
 			if (!relEP.sendRsrcExchangeAck()) {
@@ -323,7 +323,7 @@ private:
 
 	bool loadAssets(const ClientTmpResources& resources)
 	{
-		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(128);
+		constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(256);
 
 		auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
 		DEFER([&]() {
@@ -340,12 +340,11 @@ private:
 			objTransforms[model.name] = glm::mat4{ 1.f };
 
 		// Save lights into permanent storage
-		// TODO: do something more sophisticate to take advantage of the lights' dynMasks
 		// NOTE: resources.pointLights becomes invalid after this move
 		netRsrc.pointLights = std::move(resources.pointLights);
 		for (const auto& light : netRsrc.pointLights) {
 			objTransforms[light.name] = glm::mat4{ 1.f };
-			info("saved transform for light ", light.name);
+			debug("Saved transform for light ", light.name);
 		}
 
 		{
@@ -687,7 +686,7 @@ private:
 		uniformBuffers.mapAllBuffers();
 
 		// Allocate enough memory to contain all vertices and indices
-		streamingBuffer.resize(megabytes(16));
+		streamingBuffer.resize(megabytes(64));
 		// std::accumulate(
 		// netRsrc.models.begin(), netRsrc.models.end(), 0, [](auto acc, const auto& pair) {
 		// return acc + pair.second.nVertices + pair.second.nIndices;

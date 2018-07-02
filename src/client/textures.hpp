@@ -33,7 +33,7 @@ class TextureLoader final {
 	std::size_t stagingBufferOffset = 0;
 
 	/** Used by `addTextureAsync` */
-	std::mutex mtx;
+	mutable std::mutex mtx;
 
 	std::vector<ImageInfo> imageInfos;
 	std::vector<Image*> images;
@@ -68,7 +68,11 @@ public:
 
 	void create(const Application& app);
 
-	std::string getLatestError() const { return latestError; }
+	std::string getLatestError() const
+	{
+		std::lock_guard<std::mutex> lock{ mtx };
+		return latestError;
+	}
 };
 
 /** Create a sampler appropriate for sampling a texture and return it. */

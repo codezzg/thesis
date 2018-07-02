@@ -68,7 +68,10 @@ bool TextureLoader::addTexture(Image& image, const shared::Texture& texture)
 
 	if (!pixels) {
 		std::lock_guard<std::mutex> lock{ mtx };
-		latestError = "Failed to load image at offset " + stagingBufferOffset;
+		latestError = "Failed to load image at offset " + std::to_string(stagingBufferOffset) +
+			      ", size = " + std::to_string(texture.size) +
+			      ", format = " + std::to_string(int(texture.format));
+		err("latestError = ", latestError);
 		return false;
 	}
 
@@ -98,6 +101,7 @@ bool TextureLoader::addTexture(Image& image, const std::string& texturePath, Tex
 	if (!pixels) {
 		std::lock_guard<std::mutex> lock{ mtx };
 		latestError = "Failed to load texture " + texturePath;
+		err("latestError = ", latestError);
 		return false;
 	}
 
@@ -147,7 +151,7 @@ void TextureLoader::create(const Application& app)
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			subresourceRange);
 
-		copyBufferToImage(app, stagingBuffer.handle, textureImage->handle, info.width, info.height, bufOffset);
+		copyBufferToImage(app, stagingBuffer, textureImage->handle, info.width, info.height, bufOffset);
 		bufOffset += imageSize;
 
 		transitionImageLayout(app,

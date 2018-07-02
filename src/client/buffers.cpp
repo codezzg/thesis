@@ -154,7 +154,7 @@ void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, 
 }
 
 void copyBufferToImage(const Application& app,
-	VkBuffer buffer,
+	Buffer buffer,
 	VkImage image,
 	uint32_t width,
 	uint32_t height,
@@ -174,7 +174,16 @@ void copyBufferToImage(const Application& app,
 	region.imageOffset = { 0, 0, 0 };
 	region.imageExtent = { width, height, 1 };
 
-	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	if (buffer.size - bufOffset < region.imageExtent.width * region.imageExtent.height * region.imageExtent.depth) {
+		const auto& e = region.imageExtent;
+		err("copyBufferToImage: buffer has not enough room to contain the image!\n",
+			"\tNeeded: ",
+			e.width * e.height * e.depth,
+			"\n\tAvailable: ",
+			buffer.size - bufOffset);
+		return;
+	}
+	vkCmdCopyBufferToImage(commandBuffer, buffer.handle, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, commandBuffer);
 }

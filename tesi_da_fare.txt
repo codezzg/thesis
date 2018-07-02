@@ -1,7 +1,7 @@
 - fixare send TCP non in locale --> done
 - limitare bitrate server/client
 - far mandare luci dal server --> done
-- passare transform dal server (UDP)
+- passare transform dal server (UDP) --> done
 - far funzionare piu modelli assieme --> done
 - aggiungere ricezione modello "a runtime"
 - aggiungere luci "dinamiche" (numero non fissato)

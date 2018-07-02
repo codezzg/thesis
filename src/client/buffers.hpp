@@ -91,7 +91,7 @@ Buffer createStagingBuffer(const Application& app, VkDeviceSize size);
 
 void copyBuffer(const Application& app, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 void copyBufferToImage(const Application& app,
-	VkBuffer buffer,
+	Buffer buffer,
 	VkImage image,
 	uint32_t width,
 	uint32_t height,

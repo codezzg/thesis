@@ -160,12 +160,15 @@ void appstageLoop(Server& server)
 
 		// Change point lights
 		// TODO
-		auto& light = server.resources.pointLights[0];
-		t += clock.deltaTime();
-		light.color = glm::vec3{
-			0.5 + 0.5 * std::sin(t), 0.5 + 0.5 * std::sin(t * 0.33), 0.5 + 0.5 * std::cos(t * 0.66)
-		};
-		light.intensity = std::abs(4 * std::sin(t * 0.75));
+		int i = 0;
+		for (auto& light : server.resources.pointLights) {
+			t += clock.deltaTime();
+			light.color = glm::vec3{ 0.5 + 0.5 * std::sin(t + i * 0.3),
+				0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
+				0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
+			light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
+			++i;
+		}
 
 		const auto endTime = std::chrono::high_resolution_clock::now();
 		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
@@ -176,23 +179,31 @@ void appstageLoop(Server& server)
 		beginTime = endTime;
 
 		// Add the update to the list of stuff to send
-		{
-			std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
-			server.toClient.updates.emplace_back(new QueuedUpdatePointLight{ light.name });
-		}
+		//{
+		// std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
+		// server.toClient.updates.emplace_back(new QueuedUpdatePointLight{ light.name });
+		//}
 
 		// Move objects
-		int i = 0;
 		std::vector<QueuedUpdateTransform> updts;
 		updts.reserve(server.scene.nodes.size());
+		i = 0;
 		for (auto node : server.scene.nodes) {
-			node->transform.position = glm::vec3{ (5 + 3 * i) * std::sin(t + i * 0.4), 0, 0 };
+			if (node->type == NodeType::EMPTY)
+				continue;
+
+			// node->transform.position = glm::vec3{ 0, 0, i * 5 };
+			if (node->type == NodeType::POINT_LIGHT)
+				node->transform.position = glm::vec3{ (5 + 3 * i) * std::sin(0.1 * t + i * 0.4),
+					i * 2,
+					(2 + 4 * i) * std::cos(0.1 * t + i * 0.3) };
+			/*
 			if (node->type == NodeType::MODEL) {
 				node->transform.rotation = glm::vec3{ t * i, t * i, 0 };
-				node->transform.scale = glm::vec3{ 1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
-					1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))),
-					1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))) };
-			}
+				node->transform.scale = glm::vec3{ 1 + std::max(-0.5, i *
+			std::abs(std::cos(t * 0.5))), 1 + std::max(-0.5, i * std::abs(std::cos(t *
+			0.5))), 1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))) };
+			}*/
 			updts.emplace_back(node->name);
 			++i;
 		}
