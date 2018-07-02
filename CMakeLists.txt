@@ -16,6 +16,7 @@ endif()
 if (WIN32)
 	add_definitions(-DWIN32_LEAN_AND_MEAN=1)
 	add_definitions(-DVC_EXTRALEAN=1)
+	add_definitions(-DNOMINMAX=1)
 endif()
 add_definitions(-DCOLORED_LOGS=1)
 

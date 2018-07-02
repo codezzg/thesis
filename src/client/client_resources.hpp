@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <unordered_map>
 
 /** This class provides a RAII facility to store resources.
  *  Memory used by this class is owned and allocated by this own class.

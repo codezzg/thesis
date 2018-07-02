@@ -12,6 +12,7 @@
 #include <random>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 using namespace logging;
 
@@ -199,7 +200,7 @@ void appstageLoop(Server& server)
 				// node->transform.position = glm::vec3{ 0, 0, i * 5 };
 				if (((node->flags >> NODE_FLAG_STATIC) & 1) == 0) {
 					node->transform.position = glm::vec3{ (5 + 0 * i) * std::sin(0.5 * t + i * 0.4),
-						10,
+						10 - 9 * (node->type == NodeType::POINT_LIGHT),
 						(2 + 0 * i) * std::cos(0.5 * t + i * 0.3) };
 					node->transform.rotation = glm::vec3{ 0, 0.3 * t + i, 0 };
 					node->transform.scale =

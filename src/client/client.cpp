@@ -63,10 +63,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 
-// Fuck off, Windows
-#undef max
-#undef min
-
 using namespace logging;
 using namespace std::literals::string_literals;
 using shared::TextureFormat;
@@ -331,7 +327,7 @@ private:
 			destroyBuffer(app.device, stagingBuffer);
 		});
 
-		loadSkybox();
+		//loadSkybox();
 
 		// Save models into permanent storage
 		// NOTE: resources.models becomes invalid after this move

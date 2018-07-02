@@ -15,10 +15,6 @@
 #include <iostream>
 #include <limits>
 
-// Windows, really...
-#undef max
-#undef min
-
 using namespace std::literals::string_literals;
 using namespace logging;
 

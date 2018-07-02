@@ -77,7 +77,12 @@ extern StringIdMap stringDb;
 #endif
 
 #ifdef NDEBUG
+
+#	ifndef _WIN32
 constexpr StringId sid(const char* buf)
+#	else
+inline StringId sid(const char* buf)
+#	endif
 {
 	return hashing::fnv1_hash(buf);
 }

@@ -34,7 +34,7 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 	//// Read the chunk header
 	const auto header = reinterpret_cast<const GeomUpdateHeader*>(ptr);
 
-	UpdateReq req = {};
+	UpdateReq req;
 	req.type = UpdateReq::Type::GEOM;
 	req.data.geom.modelId = header->modelId;
 
@@ -126,7 +126,7 @@ static std::size_t
 		return maxBytesToRead;
 	}
 
-	UpdateReq req = {};
+	UpdateReq req;
 	req.type = UpdateReq::Type::POINT_LIGHT;
 	req.data.pointLight.lightId = header->lightId;
 	req.data.pointLight.color = header->color;
@@ -165,7 +165,7 @@ static std::size_t
 		return maxBytesToRead;
 	}
 
-	UpdateReq req = {};
+	UpdateReq req;
 	req.type = UpdateReq::Type::TRANSFORM;
 	req.data.transform.objectId = header->objectId;
 	req.data.transform.transform = header->transform;

@@ -13,21 +13,21 @@ struct NetworkResources;
 
 struct UpdateReqGeom {
 	/** Not strictly needed, but useful to keep here */
-	StringId modelId = SID_NONE;
+	StringId modelId;
 
-	const void* src = nullptr;
-	void* dst = nullptr;
-	std::size_t nBytes = 0;
+	const void* src;
+	void* dst;
+	std::size_t nBytes;
 };
 
 struct UpdateReqPointLight {
-	StringId lightId = SID_NONE;
+	StringId lightId;
 	glm::vec3 color;
 	float intensity;
 };
 
 struct UpdateReqTransform {
-	StringId objectId = SID_NONE;
+	StringId objectId;
 	glm::mat4 transform;
 };
 
