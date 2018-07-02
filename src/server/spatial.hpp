@@ -15,6 +15,9 @@
 #include <vector>
 
 enum class NodeType { EMPTY, MODEL, POINT_LIGHT };
+enum NodeFlags {
+	NODE_FLAG_STATIC = 1 << 0,
+};
 
 /** A Node is a generic entity in the world with a 3D transform */
 struct Node {
@@ -22,6 +25,7 @@ struct Node {
 	StringId name;
 	NodeType type;
 	Transform transform;
+	uint8_t flags = 0;
 
 	Node* parent = nullptr;
 };

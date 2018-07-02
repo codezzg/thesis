@@ -15,6 +15,9 @@
 
 using namespace logging;
 
+extern bool gMoveObjects;
+extern bool gChangeLights;
+
 struct Sphere {
 	glm::vec3 center;
 	float radius;
@@ -159,17 +162,68 @@ void appstageLoop(Server& server)
 		const LimitFrameTime lft{ 33ms };
 
 		// Change point lights
-		// TODO
 		int i = 0;
-		for (auto& light : server.resources.pointLights) {
-			t += clock.deltaTime();
-			light.color = glm::vec3{ 0.5 + 0.5 * std::sin(t + i * 0.3),
-				0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
-				0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
-			light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
-			++i;
+		bool notify = false;
+
+		if (gChangeLights) {
+			std::vector<QueuedUpdatePointLight> updts;
+			updts.reserve(server.scene.nodes.size());
+			i = 0;
+			for (auto& light : server.resources.pointLights) {
+				light.color = glm::vec3{ 0.5 + 0.5 * std::sin(t + i * 0.3),
+					0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
+					0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
+				light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
+				updts.emplace_back(light.name);
+				++i;
+			}
+
+			// Add the update to the list of stuff to send
+			{
+				std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
+				for (const auto& u : updts)
+					server.toClient.updates.emplace_back(new QueuedUpdatePointLight(u));
+			}
+			notify = true;
 		}
 
+		// Move objects
+		if (gMoveObjects) {
+			std::vector<QueuedUpdateTransform> updts;
+			updts.reserve(server.scene.nodes.size());
+			i = 0;
+			for (auto node : server.scene.nodes) {
+				if (node->type == NodeType::EMPTY)
+					continue;
+
+				// node->transform.position = glm::vec3{ 0, 0, i * 5 };
+				if (((node->flags >> NODE_FLAG_STATIC) & 1) == 0) {
+					node->transform.position = glm::vec3{ (5 + 0 * i) * std::sin(0.5 * t + i * 0.4),
+						10,
+						(2 + 0 * i) * std::cos(0.5 * t + i * 0.3) };
+					node->transform.rotation = glm::vec3{ 0, 0.3 * t + i, 0 };
+					node->transform.scale =
+						glm::vec3{ 1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
+							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
+							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };
+				}
+				updts.emplace_back(node->name);
+				++i;
+			}
+
+			{
+				std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
+				for (const auto& u : updts)
+					server.toClient.updates.emplace_back(new QueuedUpdateTransform(u));
+			}
+			notify = true;
+		}
+
+		if (notify)
+			server.toClient.updatesCv.notify_one();
+
+		// Update clock
+		t += clock.deltaTime();
 		const auto endTime = std::chrono::high_resolution_clock::now();
 		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
 			   1'000'000.f;
@@ -177,43 +231,5 @@ void appstageLoop(Server& server)
 			dt = clock.targetDeltaTime;
 		clock.update(dt);
 		beginTime = endTime;
-
-		// Add the update to the list of stuff to send
-		//{
-		// std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
-		// server.toClient.updates.emplace_back(new QueuedUpdatePointLight{ light.name });
-		//}
-
-		// Move objects
-		std::vector<QueuedUpdateTransform> updts;
-		updts.reserve(server.scene.nodes.size());
-		i = 0;
-		for (auto node : server.scene.nodes) {
-			if (node->type == NodeType::EMPTY)
-				continue;
-
-			// node->transform.position = glm::vec3{ 0, 0, i * 5 };
-			if (node->type == NodeType::POINT_LIGHT)
-				node->transform.position = glm::vec3{ (5 + 3 * i) * std::sin(0.1 * t + i * 0.4),
-					i * 2,
-					(2 + 4 * i) * std::cos(0.1 * t + i * 0.3) };
-			/*
-			if (node->type == NodeType::MODEL) {
-				node->transform.rotation = glm::vec3{ t * i, t * i, 0 };
-				node->transform.scale = glm::vec3{ 1 + std::max(-0.5, i *
-			std::abs(std::cos(t * 0.5))), 1 + std::max(-0.5, i * std::abs(std::cos(t *
-			0.5))), 1 + std::max(-0.5, i * std::abs(std::cos(t * 0.5))) };
-			}*/
-			updts.emplace_back(node->name);
-			++i;
-		}
-
-		{
-			std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
-			for (const auto& u : updts)
-				server.toClient.updates.emplace_back(new QueuedUpdateTransform(u));
-		}
-
-		server.toClient.updatesCv.notify_one();
 	}
 }

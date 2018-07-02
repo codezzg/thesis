@@ -22,6 +22,8 @@ static constexpr std::size_t MEMSIZE = megabytes(128);
 static constexpr auto CLIENT_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
 Server* gServer;
+bool gMoveObjects = true;
+bool gChangeLights = true;
 
 static void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond);
 static bool loadAssets(Server& server);
@@ -72,7 +74,7 @@ int main(int argc, char** argv)
 
 	{
 		// Add lights
-		const auto lights = createLights(20);
+		const auto lights = createLights(10);
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 	}
 
@@ -82,6 +84,9 @@ int main(int argc, char** argv)
 		const auto& model = pair.second;
 		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
 	}
+	server.scene.getNode(sid(xplatGetCwd() + xplatPath("/models/sponza/sponza.dae")))->flags |=
+		(1 << NODE_FLAG_STATIC);
+
 	for (const auto& light : server.resources.pointLights) {
 		server.scene.addNode(light.name, NodeType::POINT_LIGHT, Transform{});
 	}
@@ -96,8 +101,9 @@ int main(int argc, char** argv)
 void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond)
 {
 	const auto usage = [argv]() {
-		std::cerr << "Usage: " << argv[0]
-			  << " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)]\n";
+		std::cerr
+			<< "Usage: " << argv[0]
+			<< " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)] [-m (don't move objects)] [-l (don't change lights)]\n";
 		std::exit(EXIT_FAILURE);
 	};
 
@@ -132,6 +138,15 @@ void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPe
 				limitBytesPerSecond = static_cast<std::size_t>(bytesPerSeconds);
 				++i;
 			} break;
+
+			case 'm':
+				gMoveObjects = false;
+				break;
+
+			case 'l':
+				gChangeLights = false;
+				break;
+
 			default:
 				usage();
 			}
@@ -193,14 +208,14 @@ bool loadAssets(Server& server)
 	if (!loadSingleModel("/models/sponza/sponza.dae"))
 		return false;
 
-	// if (!loadSingleModel("/models/wall/wall2.obj"))
-	// return false;
+	if (!loadSingleModel("/models/wall/wall2.obj"))
+		return false;
 
-	// if (!loadSingleModel("/models/cat/cat.obj"))
-	// return false;
+	if (!loadSingleModel("/models/cat/cat.obj"))
+		return false;
 
-	// if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
-	// return false;
+	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+		return false;
 
 	return true;
 }
