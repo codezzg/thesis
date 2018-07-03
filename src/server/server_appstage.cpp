@@ -5,6 +5,7 @@
 #include "logging.hpp"
 #include "server.hpp"
 #include "to_string.hpp"
+#include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -12,7 +13,6 @@
 #include <random>
 #include <unordered_map>
 #include <vector>
-#include <algorithm>
 
 using namespace logging;
 
@@ -158,11 +158,6 @@ void appstageLoop(Server& server)
 
 	Clock clock;
 	auto beginTime = std::chrono::high_resolution_clock::now();
-
-	{
-		std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
-		server.toClient.updates.reserve(1024);
-	}
 
 	while (true) {
 		const LimitFrameTime lft{ 33ms };

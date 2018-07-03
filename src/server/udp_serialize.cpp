@@ -55,8 +55,10 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 		dataSize = sizeof(Index);
 		break;
 	default:
-		assert(false);
+		err("Invalid dataType passed to addGeomUpdate: ", int(geomUpdate.dataType));
+		throw;
 	};
+
 	const auto payloadSize = dataSize * geomUpdate.len;
 	verbose("start: ", geomUpdate.start, ", len: ", geomUpdate.len);
 	verbose("offset: ", offset, ", payload size: ", payloadSize, ", bufsize: ", bufsize);
@@ -183,8 +185,7 @@ std::size_t addUpdate(uint8_t* buffer,
 	switch (update.type) {
 		using T = QueuedUpdate::Type;
 	case T::GEOM:
-		return addGeomUpdate(
-			buffer, bufsize, offset, update.data.geom.data, server.resources);
+		return addGeomUpdate(buffer, bufsize, offset, update.data.geom.data, server.resources);
 
 	case T::POINT_LIGHT: {
 		const auto lightId = update.data.pointLight.lightId;

@@ -1,13 +1,14 @@
 #include "model.hpp"
+#include "cf_hashmap.hpp"
+#include "defer.hpp"
 #include "logging.hpp"
+#include "profile.hpp"
 #include "xplatform.hpp"
-#include <chrono>
-#include <iostream>
-#include <unordered_map>
-
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+#include <chrono>
+#include <iostream>
 
 using namespace logging;
 using shared::Mesh;
@@ -31,29 +32,33 @@ static Material saveMaterial(const char* modelPath, const aiMaterial* mat);
 
 Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 {
+	const auto modelPathBase = xplatBasename(modelPath);
 	Model model = {};
 
-	const auto load_t_begin = std::chrono::high_resolution_clock::now();
-
 	Assimp::Importer importer;
-	auto scene = importer.ReadFile(modelPath,
-		aiProcess_PreTransformVertices | aiProcess_Triangulate | aiProcess_CalcTangentSpace |
-			aiProcess_ImproveCacheLocality);
+	const aiScene* scene;
+
+	measure_ms((std::string{ "Load model " } + modelPathBase).c_str(), LOGLV_INFO, [&]() {
+		scene = importer.ReadFile(modelPath,
+			aiProcess_PreTransformVertices | aiProcess_Triangulate | aiProcess_CalcTangentSpace |
+				aiProcess_ImproveCacheLocality);
+	});
 
 	if (!scene) {
 		err(importer.GetErrorString());
 		return model;
 	}
 
-	const auto load_t_end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
-	info("model '", xplatBasename(modelPath), "' load time: ", load_ms.count(), " ms (sid: ", sid(modelPath), ")");
+	const auto uniqueVerticesSize = CF_HASHMAP_GET_BUFFER_SIZE(Vertex, uint32_t, 1'000'000);
+	void* uniqueVerticesMem = malloc(uniqueVerticesSize);
+	DEFER([uniqueVerticesMem]() { free(uniqueVerticesMem); });
 
-	std::unordered_map<Vertex, uint32_t> uniqueVertices;
+	auto uniqueVertices = cf::hashmap<Vertex, uint32_t>::create(uniqueVerticesSize, uniqueVerticesMem);
 	std::vector<Index> indices;
 
 	model.meshes.reserve(scene->mNumMeshes);
 	model.nIndices = 0;
+	START_PROFILE(process);
 	for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
 
 		auto shape = scene->mMeshes[i];
@@ -109,9 +114,12 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 				vertex.bitangent = {};
 			}
 
-			if (uniqueVertices.count(vertex) == 0) {
+			uint32_t val;
+			const auto h = std::hash<Vertex>{}(vertex);
+			if (!uniqueVertices.lookup(h, vertex, val)) {
 				// This vertex is new: insert new index
-				uniqueVertices[vertex] = model.nVertices;
+				val = model.nVertices;
+				uniqueVertices.set(h, vertex, val);
 				if (sizeof(Vertex) * model.nVertices >= bufsize) {
 					err("loadModel(", modelPath, "): out of memory!");
 					return model;
@@ -120,7 +128,7 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 				model.nVertices++;
 			}
 
-			indices.emplace_back(uniqueVertices[vertex]);
+			indices.emplace_back(val);
 		}
 
 		mesh.len = indices.size() - mesh.offset;
@@ -145,8 +153,12 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());
 
+	END_PROFILE(process, (std::string{ "Process model " } + modelPathBase).c_str(), LOGLV_INFO);
+
 	debug(model.toString());
 	debug("max idx = ", *std::max_element(indices.begin(), indices.end()));
+
+	info("Loaded model ", modelPathBase, " (", model.name, ")");
 
 	return model;
 }
