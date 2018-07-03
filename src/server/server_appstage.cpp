@@ -159,6 +159,11 @@ void appstageLoop(Server& server)
 	Clock clock;
 	auto beginTime = std::chrono::high_resolution_clock::now();
 
+	{
+		std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
+		server.toClient.updates.reserve(1024);
+	}
+
 	while (true) {
 		const LimitFrameTime lft{ 33ms };
 
@@ -167,31 +172,20 @@ void appstageLoop(Server& server)
 		bool notify = false;
 
 		if (gChangeLights) {
-			std::vector<QueuedUpdatePointLight> updts;
-			updts.reserve(server.scene.nodes.size());
 			i = 0;
 			for (auto& light : server.resources.pointLights) {
 				light.color = glm::vec3{ 0.5 + 0.5 * std::sin(t + i * 0.3),
 					0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
 					0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
 				light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
-				updts.emplace_back(light.name);
+				server.toClient.updates.emplace_back(newQueuedUpdatePointLight(light.name));
 				++i;
-			}
-
-			// Add the update to the list of stuff to send
-			{
-				std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
-				for (const auto& u : updts)
-					server.toClient.updates.emplace_back(new QueuedUpdatePointLight(u));
 			}
 			notify = true;
 		}
 
 		// Move objects
 		if (gMoveObjects) {
-			std::vector<QueuedUpdateTransform> updts;
-			updts.reserve(server.scene.nodes.size());
 			i = 0;
 			for (auto node : server.scene.nodes) {
 				if (node->type == NodeType::EMPTY)
@@ -208,14 +202,8 @@ void appstageLoop(Server& server)
 							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
 							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };
 				}
-				updts.emplace_back(node->name);
+				server.toClient.updates.emplace_back(newQueuedUpdateTransform(node->name));
 				++i;
-			}
-
-			{
-				std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
-				for (const auto& u : updts)
-					server.toClient.updates.emplace_back(new QueuedUpdateTransform(u));
 			}
 			notify = true;
 		}

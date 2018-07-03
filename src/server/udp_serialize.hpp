@@ -22,7 +22,7 @@ std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packet
 std::size_t addUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
-	const QueuedUpdate* update,
+	const QueuedUpdate& update,
 	const Server& server);
 
 void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize, LogLevel loglv);

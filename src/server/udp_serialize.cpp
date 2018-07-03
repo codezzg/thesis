@@ -177,17 +177,17 @@ static std::size_t addTransformUpdate(uint8_t* buffer, std::size_t bufsize, std:
 std::size_t addUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
-	const QueuedUpdate* update,
+	const QueuedUpdate& update,
 	const Server& server)
 {
-	switch (update->updateType) {
-		using M = UdpMsgType;
-	case M::GEOM_UPDATE:
+	switch (update.type) {
+		using T = QueuedUpdate::Type;
+	case T::GEOM:
 		return addGeomUpdate(
-			buffer, bufsize, offset, static_cast<const QueuedUpdateGeom*>(update)->data, server.resources);
+			buffer, bufsize, offset, update.data.geom.data, server.resources);
 
-	case M::POINT_LIGHT_UPDATE: {
-		const auto lightId = static_cast<const QueuedUpdatePointLight*>(update)->lightId;
+	case T::POINT_LIGHT: {
+		const auto lightId = update.data.pointLight.lightId;
 		const auto it = std::find_if(server.resources.pointLights.begin(),
 			server.resources.pointLights.end(),
 			[lightId](const auto& light) { return light.name == lightId; });
@@ -198,8 +198,8 @@ std::size_t addUpdate(uint8_t* buffer,
 		return addPointLightUpdate(buffer, bufsize, offset, *it);
 	}
 
-	case M::TRANSFORM_UPDATE: {
-		const auto objId = static_cast<const QueuedUpdateTransform*>(update)->objectId;
+	case T::TRANSFORM: {
+		const auto objId = update.data.transform.objectId;
 		const auto node = server.scene.getNode(objId);
 		if (!node) {
 			throw std::runtime_error(
@@ -212,7 +212,8 @@ std::size_t addUpdate(uint8_t* buffer,
 		break;
 	}
 
-	throw std::runtime_error("Unknown QueuedUpdate type: " + std::to_string(int(update->updateType)));
+	err("Unknown QueuedUpdate type: " + std::to_string(int(update.type)));
+	throw;
 }
 
 void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize, LogLevel loglv)

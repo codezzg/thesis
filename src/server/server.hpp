@@ -7,7 +7,6 @@
 #include "udp_messages.hpp"
 #include <array>
 #include <condition_variable>
-#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -27,7 +26,7 @@ struct ClientToServerData {
 
 struct ServerToClientData {
 	/** List of queued UDP updates to send to the client */
-	std::vector<std::unique_ptr<QueuedUpdate>> updates;
+	std::vector<QueuedUpdate> updates;
 
 	/** Mutex guarding updates */
 	std::mutex updatesMtx;

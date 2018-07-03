@@ -37,9 +37,9 @@ void ServerActiveEndpoint::loopFunc()
 	// Send datagrams to the client
 	while (!terminated) {
 
+		std::unique_lock<std::mutex> ulk{ server.toClient.updatesMtx };
 		if (server.toClient.updates.size() == 0) {
 			// Wait for updates
-			std::unique_lock<std::mutex> ulk{ server.toClient.updatesMtx };
 			server.toClient.updatesCv.wait(
 				ulk, [this]() { return terminated || server.toClient.updates.size() > 0; });
 		}
@@ -50,8 +50,8 @@ void ServerActiveEndpoint::loopFunc()
 		unsigned i = 0;
 		auto w = server.toClient.updates.begin();
 		for (auto it = w; it != server.toClient.updates.end(); ++it) {
-
-			const auto written = addUpdate(buffer.data(), buffer.size(), offset, it->get(), server);
+			const auto& update = *it;
+			const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
 			if (written > 0) {
 				offset += written;
 				++i;
@@ -73,6 +73,7 @@ void ServerActiveEndpoint::loopFunc()
 				++w;
 			}
 		}
+		assert(ulk.owns_lock());
 		server.toClient.updates.erase(w, server.toClient.updates.end());
 
 		if (offset > sizeof(UdpHeader)) {
@@ -148,14 +149,14 @@ void ServerReliableEndpoint::loopFunc()
 			for (const auto& modelpair : server.resources.models) {
 				const auto updatePackets = buildUpdatePackets(modelpair.second);
 				for (const auto& up : updatePackets) {
-					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
+					updates.emplace_back(newQueuedUpdateGeom(up));
 					// TODO
 					// This is done to send each update multiple times hoping that the client will
 					// eventually get them all. Find a better solution!
-					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
-					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
-					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
-					updates.emplace_back(std::make_unique<QueuedUpdateGeom>(up));
+					updates.emplace_back(newQueuedUpdateGeom(up));
+					updates.emplace_back(newQueuedUpdateGeom(up));
+					updates.emplace_back(newQueuedUpdateGeom(up));
+					updates.emplace_back(newQueuedUpdateGeom(up));
 				}
 			}
 		}
