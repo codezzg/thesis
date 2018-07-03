@@ -3,8 +3,7 @@ project(client)
 set(PROJECT_NAME client)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
-set(MAIN_FILE client.cpp)
-#set(MAIN_FILE main.cpp)
+set(MAIN_FILE client_main.cpp)
 
 include_directories(.)
 include_directories(..)
@@ -45,7 +44,7 @@ target_link_libraries(${PROJECT_NAME} ${GLM_LIBRARIES})
 add_definitions(-DGLM_FORCE_CXX14)
 
 if(WIN32)
-	target_link_libraries(${PROJECT_NAME} legacy_stdio_definitions.lib) 
+	target_link_libraries(${PROJECT_NAME} legacy_stdio_definitions.lib)
 endif()
 
 #####################

@@ -1,4 +1,4 @@
-#include "FPSCounter.hpp"
+#include "fps_counter.hpp"
 
 void FPSCounter::start()
 {

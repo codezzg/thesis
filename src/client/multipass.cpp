@@ -379,7 +379,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 	}
 
 	// Skybox
-	{
+	/*{
 		VkDescriptorImageInfo skyboxInfo = {};
 		skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		skyboxInfo.imageView = app.skybox.image.view;
@@ -395,7 +395,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrite.pImageInfo = &skyboxInfo;
 
 		descriptorWrites.emplace_back(descriptorWrite);
-	}
+	}*/
 
 	//// Set #1: gbuffer shader resources
 	{
