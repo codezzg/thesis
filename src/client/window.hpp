@@ -10,6 +10,5 @@ void cleanupWindow(GLFWwindow* window);
 std::vector<const char*> getRequiredExtensions(bool validationEnabled);
 
 // GLFW callbacks
-void cbWindowResized(GLFWwindow* window, int, int);
 void cbCursorMoved(GLFWwindow* window, double xpos, double ypos);
 void cbKeyPressed(GLFWwindow* window, int key, int /*scancode*/, int action, int);
