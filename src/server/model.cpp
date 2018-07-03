@@ -49,7 +49,12 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 		return model;
 	}
 
-	const auto uniqueVerticesSize = CF_HASHMAP_GET_BUFFER_SIZE(Vertex, uint32_t, 1'000'000);
+	// Use a map big enough to contain all vertices in the scene
+	uint64_t nTotVertices = 0;
+	for (unsigned i = 0; i < scene->mNumMeshes; ++i)
+		nTotVertices += scene->mMeshes[i]->mNumVertices;
+	const auto uniqueVerticesSize = CF_HASHMAP_GET_BUFFER_SIZE(Vertex, uint32_t, nTotVertices);
+	debug("Allocating ", uniqueVerticesSize, " bytes for uniqueVertices hashmap");
 	void* uniqueVerticesMem = malloc(uniqueVerticesSize);
 	DEFER([uniqueVerticesMem]() { free(uniqueVerticesMem); });
 
