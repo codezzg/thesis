@@ -33,6 +33,10 @@ struct ServerToClientData {
 
 	/** Notified whenever there are updates to send to the client */
 	std::condition_variable updatesCv;
+
+	/** List of models whose geometry still needs to be sent to client */
+	std::vector<Model> modelsToSend;
+	std::mutex modelsToSendMtx;
 };
 
 /** The Server wraps the endpoints and provides a mean to sharing data between the server threads.

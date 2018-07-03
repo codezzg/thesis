@@ -150,6 +150,19 @@ void transformVertices(Model& model,
 	}
 }
 
+static std::vector<QueuedUpdate> enqueueModelsGeomUpdates(const std::vector<Model>& modelsToSend)
+{
+	std::vector<QueuedUpdate> updates;
+	for (const auto& model : modelsToSend) {
+		const auto updatePackets = buildUpdatePackets(model);
+		for (const auto& up : updatePackets) {
+			updates.emplace_back(newQueuedUpdateGeom(up));
+		}
+	}
+	return updates;
+}
+
+
 void appstageLoop(Server& server)
 {
 	using namespace std::literals::chrono_literals;
@@ -159,8 +172,19 @@ void appstageLoop(Server& server)
 	Clock clock;
 	auto beginTime = std::chrono::high_resolution_clock::now();
 
+	// TODO
+	server.toClient.modelsToSend.reserve(server.resources.models.size());
+	for (const auto& pair : server.resources.models)
+		server.toClient.modelsToSend.emplace_back(pair.second);
+
 	while (true) {
 		const LimitFrameTime lft{ 33ms };
+
+		std::vector<QueuedUpdate> updatesThisFrame;
+		updatesThisFrame.reserve(1024);
+
+		const auto geomUpdates = enqueueModelsGeomUpdates(server.toClient.modelsToSend);
+		updatesThisFrame.insert(updatesThisFrame.end(), geomUpdates.begin(), geomUpdates.end());
 
 		// Change point lights
 		int i = 0;
@@ -173,7 +197,7 @@ void appstageLoop(Server& server)
 					0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
 					0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
 				light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
-				server.toClient.updates.emplace_back(newQueuedUpdatePointLight(light.name));
+				updatesThisFrame.emplace_back(newQueuedUpdatePointLight(light.name));
 				++i;
 			}
 			notify = true;
@@ -197,10 +221,15 @@ void appstageLoop(Server& server)
 							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
 							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };
 				}
-				server.toClient.updates.emplace_back(newQueuedUpdateTransform(node->name));
+				updatesThisFrame.emplace_back(newQueuedUpdateTransform(node->name));
 				++i;
 			}
 			notify = true;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
+			server.toClient.updates.assign(updatesThisFrame.begin(), updatesThisFrame.end());
 		}
 
 		if (notify)

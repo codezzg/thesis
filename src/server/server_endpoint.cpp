@@ -141,26 +141,7 @@ void ServerReliableEndpoint::loopFunc()
 	info("Listening...");
 	::listen(socket, MAX_CLIENTS);
 
-	auto& updates = server.toClient.updates;
-
 	while (!terminated) {
-		{
-			std::lock_guard<std::mutex> mtx{ server.toClient.updatesMtx };
-			for (const auto& modelpair : server.resources.models) {
-				const auto updatePackets = buildUpdatePackets(modelpair.second);
-				for (const auto& up : updatePackets) {
-					updates.emplace_back(newQueuedUpdateGeom(up));
-					// TODO
-					// This is done to send each update multiple times hoping that the client will
-					// eventually get them all. Find a better solution!
-					updates.emplace_back(newQueuedUpdateGeom(up));
-					updates.emplace_back(newQueuedUpdateGeom(up));
-					updates.emplace_back(newQueuedUpdateGeom(up));
-					updates.emplace_back(newQueuedUpdateGeom(up));
-				}
-			}
-		}
-
 		sockaddr_in clientAddr;
 		socklen_t clientLen = sizeof(sockaddr_in);
 
