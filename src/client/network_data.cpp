@@ -25,7 +25,7 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 	std::size_t maxBytesToRead,
 	const Geometry& geometry,
 	std::vector<UpdateReq>& updateReqs,
-	const std::unordered_set<uint32_t>& serialsToIgnore)
+	const cf::hashset<uint32_t>& serialsToIgnore)
 {
 	if (maxBytesToRead <= sizeof(GeomUpdateHeader)) {
 		err("Buffer given to readGeomUpdateChunk has not enough room for a Header + Payload!");
@@ -67,7 +67,7 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 		err("Invalid serial 0 for geom update chunk!");
 		return chunkSize;
 	}
-	if (serialsToIgnore.count(header->serialId) != 0) {
+	if (serialsToIgnore.has(header->serialId, header->serialId) != 0) {
 		// warn("Already read chunk ", header->serialId);
 		return chunkSize;
 	}
@@ -193,7 +193,7 @@ static std::size_t readChunk(const uint8_t* ptr,
 	std::size_t maxBytesToRead,
 	const Geometry& geometry,
 	std::vector<UpdateReq>& updateReqs,
-	const std::unordered_set<uint32_t>& serialsToIgnore)
+	const cf::hashset<uint32_t>& serialsToIgnore)
 {
 	//// Read the chunk type
 	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
@@ -228,7 +228,7 @@ void receiveData(ClientPassiveEndpoint& passiveEP,
 	std::vector<uint8_t>& buffer,
 	const Geometry& geometry,
 	std::vector<UpdateReq>& updateReqs,
-	const std::unordered_set<uint32_t>& serialsToIgnore)
+	const cf::hashset<uint32_t>& serialsToIgnore)
 {
 	if (!passiveEP.dataAvailable())
 		return;

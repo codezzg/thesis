@@ -4,6 +4,7 @@
 #include "buffer_array.hpp"
 #include "camera.hpp"
 #include "camera_ctrl.hpp"
+#include "cf_hashset.hpp"
 #include "client_endpoint.hpp"
 #include "client_resources.hpp"
 #include "fps_counter.hpp"
@@ -57,8 +58,15 @@ private:
 	std::vector<uint8_t> streamingBuffer;
 	/** Update requests read from the raw server data */
 	std::vector<UpdateReq> updateReqs;
-	/** Set of GeomUpdate serialIds that we already received */
-	std::unordered_set<uint32_t> receivedGeomIds;
+
+	/** Set of GeomUpdate serialIds that we already received. If a chunk with the same
+	 *  serialId is received, we ignore it.
+	 */
+	cf::hashset<uint32_t> receivedGeomIds;
+	/** Backing memory for `receivedGeomIds` */
+	void* receivedGeomIdsMem = nullptr;
+	std::size_t receivedGeomIdsMemSize = 0;
+
 	/** List of UDP acks to send to the server */
 	std::vector<uint32_t> acksToSend;
 
@@ -82,6 +90,7 @@ private:
 	/** Takes the raw resources received by the server and processes them into usable resources */
 	bool loadAssets(const ClientTmpResources& resources);
 
+	void prepareReceivedGeomHashset();
 	void prepareBufferMemory(Buffer& stagingBuffer);
 	void prepareCamera();
 	void loadSkybox();

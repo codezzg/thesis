@@ -1,11 +1,11 @@
 #pragma once
 
+#include "cf_hashset.hpp"
 #include "client_resources.hpp"
 #include "hashing.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <glm/glm.hpp>
-#include <unordered_set>
 #include <vector>
 
 class ClientPassiveEndpoint;
@@ -52,7 +52,7 @@ void receiveData(ClientPassiveEndpoint& passiveEP,
 	/* inout */ std::vector<uint8_t>& buffer,
 	const Geometry& geometry,
 	/* out */ std::vector<UpdateReq>& updateReqs,
-	const std::unordered_set<uint32_t>& serialsToIgnore);
+	const cf::hashset<uint32_t>& serialsToIgnore);
 
 void updateModel(const UpdateReqGeom& req);
 void updatePointLight(const UpdateReqPointLight& req, NetworkResources& netRsrc);

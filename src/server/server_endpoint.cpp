@@ -106,6 +106,7 @@ void ServerActiveEndpoint::loopFunc()
 		assert(ulk.owns_lock());
 		updates.transitory.erase(w, updates.transitory.end());
 
+		// Remove all persistent updates which were acked by the client
 		{
 			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
 			deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
@@ -113,7 +114,8 @@ void ServerActiveEndpoint::loopFunc()
 
 		if (updates.persistent.size() > 0)
 			info("sending ", updates.persistent.size(), " persistent updates");
-		// Send persistent updates (but don't remove them from the list)
+
+		// Send persistent updates
 		for (auto it = updates.persistent.begin(); it != updates.persistent.end();) {
 			const auto& update = *it;
 			// GEOM updates are currently the only ACKed ones

@@ -8,6 +8,7 @@ set(MAIN_FILE client_main.cpp)
 include_directories(.)
 include_directories(..)
 include_directories(../common)
+include_directories(../third_party)
 
 file(GLOB SRC ${MAIN_FILE}
 	./*.cpp

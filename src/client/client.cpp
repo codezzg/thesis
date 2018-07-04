@@ -12,6 +12,7 @@
 #include "renderpass.hpp"
 #include "textures.hpp"
 #include "transform.hpp"
+#include "udp_messages.hpp"
 #include "units.hpp"
 #include "window.hpp"
 #include <algorithm>
@@ -310,6 +311,8 @@ void VulkanClient::mainLoop()
 	updateObjectsUniformBuffer();
 	updateViewUniformBuffer();
 
+	prepareReceivedGeomHashset();
+
 	auto beginTime = std::chrono::high_resolution_clock::now();
 
 	debug("Starting main loop");
@@ -352,7 +355,15 @@ void VulkanClient::runFrame()
 		case UpdateReq::Type::GEOM:
 			updateModel(req.data.geom);
 			acksToSend.emplace_back(req.data.geom.serialId);
-			receivedGeomIds.emplace(req.data.geom.serialId);
+			if (receivedGeomIds.load_factor() > 0.9) {
+				receivedGeomIdsMemSize *= 2;
+				receivedGeomIdsMem = realloc(receivedGeomIdsMem, receivedGeomIdsMemSize);
+				receivedGeomIds = receivedGeomIds.copy(receivedGeomIdsMemSize, receivedGeomIdsMem);
+				info("Reallocating receivedGeomIds. New size: ", receivedGeomIdsMemSize / 1024, " KiB");
+			}
+			// XXX: we use the id itself as its hash, as it's expected to be a counter.
+			// Not sure if it's a good idea though.
+			receivedGeomIds.insert(req.data.geom.serialId, req.data.geom.serialId);
 			break;
 		case UpdateReq::Type::POINT_LIGHT:
 			updatePointLight(req.data.pointLight, netRsrc);
@@ -715,6 +726,30 @@ void VulkanClient::cleanup()
 
 	vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
 
+	free(receivedGeomIdsMem);
+
 	app.res.cleanup();
 	app.cleanup();
+}
+
+void VulkanClient::prepareReceivedGeomHashset()
+{
+	// Prepare the memory for the set of received geomUpdates serials.
+	// Initially use a number of elements of 2 * [(total vertices we expect) / (max vertices per chunk) +
+	//				(total indices we expect) / (max indices per chunk)]
+	constexpr auto payloadSize = UdpPacket().payload.size();
+	const auto maxVerticesPerPayload = (payloadSize - sizeof(GeomUpdateHeader)) / sizeof(Vertex);
+	const auto maxIndicesPerPayload = (payloadSize - sizeof(GeomUpdateHeader)) / sizeof(Index);
+	auto totVertices = 0;
+	auto totIndices = 0;
+	for (const auto& model : netRsrc.models) {
+		totVertices += model.nVertices;
+		totIndices += model.nIndices;
+	}
+
+	receivedGeomIdsMemSize = CF_HASHSET_GET_BUFFER_SIZE(
+		uint32_t, 2 * (totVertices / maxVerticesPerPayload + totIndices / maxIndicesPerPayload));
+	receivedGeomIdsMem = malloc(receivedGeomIdsMemSize);
+
+	receivedGeomIds = cf::hashset<uint32_t>::create(receivedGeomIdsMemSize, receivedGeomIdsMem);
 }
