@@ -11,7 +11,8 @@ Server::Server(std::size_t memsize)
 	, passiveEP{ *this }
 	, relEP{ *this }
 {
-	toClient.updates.reserve(1024);
+	toClient.updates.transitory.reserve(1024);
+	toClient.updates.persistent.reserve(1024);
 
 	resources.init(memory.data(), memsize * 2 / 3);
 	scene.init(memory.data() + resources.getMemsize(), memsize / 10);

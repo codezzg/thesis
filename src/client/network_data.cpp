@@ -24,7 +24,8 @@ using namespace logging;
 static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 	std::size_t maxBytesToRead,
 	const Geometry& geometry,
-	std::vector<UpdateReq>& updateReqs)
+	std::vector<UpdateReq>& updateReqs,
+	const std::unordered_set<uint32_t>& serialsToIgnore)
 {
 	if (maxBytesToRead <= sizeof(GeomUpdateHeader)) {
 		err("Buffer given to readGeomUpdateChunk has not enough room for a Header + Payload!");
@@ -36,6 +37,7 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 
 	UpdateReq req;
 	req.type = UpdateReq::Type::GEOM;
+	req.data.geom.serialId = header->serialId;
 	req.data.geom.modelId = header->modelId;
 
 	std::size_t dataSize = 0;
@@ -50,11 +52,9 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 		req.data.geom.src = ptr + sizeof(GeomUpdateHeader);
 		req.data.geom.dst = geometry.indexBuffer.ptr;
 		break;
-	default: {
-		std::stringstream ss;
-		ss << "Invalid data type " << int(header->dataType) << " in Update Chunk!";
-		throw std::runtime_error(ss.str());
-	} break;
+	default:
+		err("Invalid data type ", int(header->dataType), " in GeomUpdate Chunk!");
+		return maxBytesToRead;
 	}
 
 	assert(dataSize != 0 && req.data.geom.dst != nullptr);
@@ -62,6 +62,15 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 	req.data.geom.nBytes = header->len * dataSize;
 
 	const auto chunkSize = sizeof(GeomUpdateHeader) + dataSize * header->len;
+
+	if (header->serialId == 0) {
+		err("Invalid serial 0 for geom update chunk!");
+		return chunkSize;
+	}
+	if (serialsToIgnore.count(header->serialId) != 0) {
+		// warn("Already read chunk ", header->serialId);
+		return chunkSize;
+	}
 
 	if (chunkSize > maxBytesToRead) {
 		err("readGeomUpdateChunk would read past the allowed memory area!");
@@ -71,7 +80,6 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 	auto it = geometry.locations.find(header->modelId);
 	if (it == geometry.locations.end()) {
 		warn("Received an Update Chunk for inexistent model ", header->modelId, "!");
-		// XXX
 		return chunkSize;
 	}
 
@@ -184,7 +192,8 @@ static std::size_t
 static std::size_t readChunk(const uint8_t* ptr,
 	std::size_t maxBytesToRead,
 	const Geometry& geometry,
-	std::vector<UpdateReq>& updateReqs)
+	std::vector<UpdateReq>& updateReqs,
+	const std::unordered_set<uint32_t>& serialsToIgnore)
 {
 	//// Read the chunk type
 	static_assert(sizeof(UdpMsgType) == 1, "Need to change this code!");
@@ -192,9 +201,11 @@ static std::size_t readChunk(const uint8_t* ptr,
 	switch (byte2udpmsg(ptr[0])) {
 
 	case UdpMsgType::GEOM_UPDATE:
-		return sizeof(UdpMsgType) +
-		       readGeomUpdateChunk(
-			       ptr + sizeof(UdpMsgType), maxBytesToRead - sizeof(UdpMsgType), geometry, updateReqs);
+		return sizeof(UdpMsgType) + readGeomUpdateChunk(ptr + sizeof(UdpMsgType),
+						    maxBytesToRead - sizeof(UdpMsgType),
+						    geometry,
+						    updateReqs,
+						    serialsToIgnore);
 
 	case UdpMsgType::POINT_LIGHT_UPDATE:
 		return sizeof(UdpMsgType) + readPointLightUpdateChunk(ptr + sizeof(UdpMsgType),
@@ -216,7 +227,8 @@ static std::size_t readChunk(const uint8_t* ptr,
 void receiveData(ClientPassiveEndpoint& passiveEP,
 	std::vector<uint8_t>& buffer,
 	const Geometry& geometry,
-	std::vector<UpdateReq>& updateReqs)
+	std::vector<UpdateReq>& updateReqs,
+	const std::unordered_set<uint32_t>& serialsToIgnore)
 {
 	if (!passiveEP.dataAvailable())
 		return;
@@ -229,13 +241,14 @@ void receiveData(ClientPassiveEndpoint& passiveEP,
 	// buffer now contains [chunk0|chunk1|...]
 
 	int64_t bytesLeft = totBytes;
-	assert(bytesLeft <= static_cast<int64_t>(buffer.size()));
+	assert(static_cast<std::size_t>(bytesLeft) <= buffer.size());
 
 	unsigned bytesProcessed = 0;
 	unsigned nChunksProcessed = 0;
 	while (bytesProcessed < totBytes) {
 		verbose("Processing chunk at offset ", bytesProcessed);
-		const auto bytesInChunk = readChunk(buffer.data() + bytesProcessed, bytesLeft, geometry, updateReqs);
+		const auto bytesInChunk =
+			readChunk(buffer.data() + bytesProcessed, bytesLeft, geometry, updateReqs, serialsToIgnore);
 		++nChunksProcessed;
 		verbose("bytes in chunk: ", bytesInChunk);
 		bytesLeft -= bytesInChunk;

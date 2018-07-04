@@ -14,7 +14,7 @@ struct PointLight;
 /** Writes an UDP header into `buffer`.
  *  @return The amount of bytes written.
  */
-std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen);
+std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint32_t packetGen);
 
 /** Transforms a generic queued update into an udp update chunk and writes it into `buffer`, starting at `offset`.
  *  @return the number of bytes written, or 0 if the buffer hadn't enough room.

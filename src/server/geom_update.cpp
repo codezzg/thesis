@@ -7,6 +7,9 @@ using namespace logging;
 // TODO: for now, we just update all vertices and indices
 std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 {
+	// start from 1, so we know 0 is invalid
+	static uint32_t packetSerialId = 1;
+
 	std::vector<GeomUpdateHeader> updates;
 
 	// Figure out how many Chunks we need
@@ -22,6 +25,7 @@ std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 	header.dataType = GeomDataType::VERTEX;
 	// Shove in all the vertices
 	while (i < model.nVertices) {
+		header.serialId = packetSerialId++;
 		header.start = i;
 		header.len = std::min(
 			static_cast<decltype(maxVerticesPerPayload)>(model.nVertices - i), maxVerticesPerPayload);
@@ -34,6 +38,7 @@ std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 	// We're likely to have spare space in the last packet: fill it with indices if we can
 	const auto spareBytes = maxVerticesPerPayload - i + maxVerticesPerPayload * (i / maxVerticesPerPayload);
 	if (spareBytes >= sizeof(GeomUpdateHeader) + sizeof(Index)) {
+		header.serialId = packetSerialId++;
 		header.start = 0;
 		header.len = (spareBytes - sizeof(GeomUpdateHeader)) / sizeof(Index);
 		updates.emplace_back(header);
@@ -45,6 +50,7 @@ std::vector<GeomUpdateHeader> buildUpdatePackets(const Model& model)
 
 	// Now, send indices until we exhaust them
 	while (i < model.nIndices) {
+		header.serialId = packetSerialId++;
 		header.start = i;
 		header.len =
 			std::min(static_cast<decltype(maxIndicesPerPayload)>(model.nIndices - i), maxIndicesPerPayload);

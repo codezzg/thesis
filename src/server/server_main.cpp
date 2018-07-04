@@ -52,6 +52,7 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 	xplatSetExitHandler([]() {
+		// "Ensure" we close the sockets even if we terminate abruptly
 		gServer->closeNetwork();
 		gBandwidthLimiter.cleanup();
 		if (Endpoint::cleanupEP())
@@ -84,8 +85,9 @@ int main(int argc, char** argv)
 		const auto& model = pair.second;
 		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
 	}
-	server.scene.getNode(sid(xplatGetCwd() + xplatPath("/models/sponza/sponza.dae")))->flags |=
-		(1 << NODE_FLAG_STATIC);
+	auto sponza = server.scene.getNode(sid(xplatGetCwd() + xplatPath("/models/sponza/sponza.dae")));
+	if (sponza)
+		sponza->flags |= (1 << NODE_FLAG_STATIC);
 
 	for (const auto& light : server.resources.pointLights) {
 		server.scene.addNode(light.name, NodeType::POINT_LIGHT, Transform{});

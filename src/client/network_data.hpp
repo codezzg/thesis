@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <glm/glm.hpp>
+#include <unordered_set>
 #include <vector>
 
 class ClientPassiveEndpoint;
@@ -12,6 +13,8 @@ struct Geometry;
 struct NetworkResources;
 
 struct UpdateReqGeom {
+	uint32_t serialId;
+
 	/** Not strictly needed, but useful to keep here */
 	StringId modelId;
 
@@ -48,7 +51,8 @@ struct UpdateReq {
 void receiveData(ClientPassiveEndpoint& passiveEP,
 	/* inout */ std::vector<uint8_t>& buffer,
 	const Geometry& geometry,
-	/* out */ std::vector<UpdateReq>& updateReqs);
+	/* out */ std::vector<UpdateReq>& updateReqs,
+	const std::unordered_set<uint32_t>& serialsToIgnore);
 
 void updateModel(const UpdateReqGeom& req);
 void updatePointLight(const UpdateReqPointLight& req, NetworkResources& netRsrc);

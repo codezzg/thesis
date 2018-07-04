@@ -39,14 +39,19 @@ public:
  *  to the server (e.g. the camera position)
  */
 class ClientActiveEndpoint : public Endpoint {
-	const Camera* camera = nullptr;
 
 	void loopFunc() override;
+	void onClose() override;
 
 public:
-	std::chrono::milliseconds targetFrameTime = std::chrono::milliseconds{ 33 };
+	struct {
+		std::vector<uint32_t> list;
+		std::mutex mtx;
+		std::condition_variable cv;
+	} acks;
 
-	void setCamera(const Camera* camera) { this->camera = camera; }
+	std::chrono::milliseconds targetFrameTime = std::chrono::milliseconds{ 33 };
+	const Camera* camera = nullptr;
 };
 
 /** This class implements the client side of the reliable communication channel, used
@@ -70,4 +75,10 @@ public:
 	bool sendRsrcExchangeAck();
 	bool receiveOneTimeData(ClientTmpResources& resources);
 	bool sendReadyAndWait();
+};
+
+struct ClientEndpoints {
+	ClientPassiveEndpoint passive;
+	ClientActiveEndpoint active;
+	ClientReliableEndpoint reliable;
 };

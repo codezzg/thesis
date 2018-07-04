@@ -28,64 +28,112 @@
 using namespace logging;
 using namespace std::chrono_literals;
 
+// Delete ACKed messages from update queue
+void deleteAckedUpdates(std::vector<uint32_t>& acks, std::vector<QueuedUpdate>& updates)
+{
+	auto p_last = updates.end() - 1;
+	for (auto ack : acks) {
+		for (auto p_read = updates.begin(); p_read != p_last + 1; ++p_read) {
+			const auto& u = *p_read;
+			bool found = false;
+			switch (u.type) {
+			case QueuedUpdate::Type::GEOM:
+				found = u.data.geom.data.serialId == ack;
+				break;
+			default:
+				err("Invalid update type ", int(u.type), " found in persistent updates!");
+				throw;
+			}
+			if (!found)
+				continue;
+
+			// Erase this update
+			*p_read = *p_last;
+			--p_last;
+
+			break;
+		}
+	}
+	updates.erase(p_last + 1, updates.end());
+	acks.clear();
+}
+
 void ServerActiveEndpoint::loopFunc()
 {
-	uint64_t packetGen = 0;
+	uint32_t packetGen = 0;
 
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer = {};
+
+	auto& updates = server.toClient.updates;
 
 	// Send datagrams to the client
 	while (!terminated) {
 
-		std::unique_lock<std::mutex> ulk{ server.toClient.updatesMtx };
-		if (server.toClient.updates.size() == 0) {
+		std::unique_lock<std::mutex> ulk{ updates.mtx };
+		if (updates.size() == 0) {
 			// Wait for updates
-			server.toClient.updatesCv.wait(
-				ulk, [this]() { return terminated || server.toClient.updates.size() > 0; });
+			updates.cv.wait(ulk, [this, &updates = server.toClient.updates]() {
+				return terminated || updates.size() > 0;
+			});
 		}
 
 		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-		verbose("updates.size now = ", server.toClient.updates.size());
+		verbose("updates.size now = ", updates.size());
 
-		unsigned i = 0;
-		auto w = server.toClient.updates.begin();
-		for (auto it = w; it != server.toClient.updates.end(); ++it) {
+		// Send transitory updates
+		auto w = updates.transitory.begin();
+		for (auto it = w; it != updates.transitory.end(); ++it) {
 			const auto& update = *it;
 			const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
+
 			if (written > 0) {
+				// Packet was written into the buffer, erase it and go ahead
 				offset += written;
-				++i;
 			} else {
-				// Not enough room: send the packet and go on
-				if (gDebugLv >= LOGLV_VERBOSE) {
-					dumpFullPacket(buffer.data(), buffer.size(), LOGLV_VERBOSE);
-					dumpBytesIntoFileBin(
-						(std::string{ "dumps/server_packet" } + std::to_string(i - 1) + ".data")
-							.c_str(),
-						buffer.data(),
-						buffer.size());
-				}
+				// Not enough room: send the packet
 				sendPacket(socket, buffer.data(), buffer.size());
+
+				// Start with a new packet
 				writeUdpHeader(buffer.data(), buffer.size(), packetGen);
 				offset = sizeof(UdpHeader);
+
+				// Don't erase this element yet: retry in next iteration
 				if (it != w)
 					*w = std::move(*it);
 				++w;
 			}
 		}
 		assert(ulk.owns_lock());
-		server.toClient.updates.erase(w, server.toClient.updates.end());
+		updates.transitory.erase(w, updates.transitory.end());
+
+		{
+			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
+			deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
+		}
+
+		if (updates.persistent.size() > 0)
+			info("sending ", updates.persistent.size(), " persistent updates");
+		// Send persistent updates (but don't remove them from the list)
+		for (auto it = updates.persistent.begin(); it != updates.persistent.end();) {
+			const auto& update = *it;
+			// GEOM updates are currently the only ACKed ones
+			assert(update.type == QueuedUpdate::Type::GEOM);
+			const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
+
+			if (written > 0) {
+				offset += written;
+				++it;
+			} else {
+				// Not enough room: send the packet
+				sendPacket(socket, buffer.data(), buffer.size());
+
+				writeUdpHeader(buffer.data(), buffer.size(), packetGen);
+				offset = sizeof(UdpHeader);
+			}
+		}
 
 		if (offset > sizeof(UdpHeader)) {
 			// Need to send the last packet
-			if (gDebugLv >= LOGLV_VERBOSE) {
-				dumpFullPacket(buffer.data(), buffer.size(), LOGLV_VERBOSE);
-				dumpBytesIntoFileBin(
-					(std::string{ "dumps/server_packet" } + std::to_string(i - 1) + ".data")
-						.c_str(),
-					buffer.data(),
-					buffer.size());
-			}
 			sendPacket(socket, buffer.data(), buffer.size());
 		}
 
@@ -95,39 +143,41 @@ void ServerActiveEndpoint::loopFunc()
 
 ////////////////////////////////////////
 
-// Receives client parameters wherewith the server shall calculate the primitives to send during next frame
 void ServerPassiveEndpoint::loopFunc()
 {
-	// Track the latest frame we received
-	int64_t latestFrame = -1;
-	int nPacketRecvErrs = 0;
+	// Receive client ACKs to (some of) our UDP messages
 
 	while (!terminated) {
-		std::array<uint8_t, sizeof(FrameData)> packetBuf = {};
-		if (!receivePacket(socket, packetBuf.data(), packetBuf.size())) {
-			if (++nPacketRecvErrs > 10)
-				break;
-			else
-				continue;
+		std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packetBuf = {};
+
+		int bytesRead;
+		if (!receivePacket(socket, packetBuf.data(), packetBuf.size(), &bytesRead))
+			continue;
+
+		if (bytesRead != sizeof(AckPacket)) {
+			warn("Read bogus packet from client (",
+				bytesRead,
+				" bytes instead of expected ",
+				sizeof(AckPacket),
+				")");
+			continue;
 		}
-		nPacketRecvErrs = 0;
 
-		if (!validateUDPPacket(packetBuf.data(), latestFrame))
+		const auto packet = reinterpret_cast<const AckPacket*>(packetBuf.data());
+		if (packet->msgType != UdpMsgType::ACK) {
+			warn("Read bogus packet from client (type is ",
+				packet->msgType,
+				" instead of ",
+				UdpMsgType::ACK,
+				")");
 			continue;
+		}
 
-		const auto packet = reinterpret_cast<FrameData*>(packetBuf.data());
-		verbose("Received packet ", packet->header.frameId);
-		if (packet->header.frameId <= latestFrame)
-			continue;
-
-		latestFrame = packet->header.frameId;
 		{
-			// Update shared data
-			std::lock_guard<std::mutex> lock{ server.fromClient.clientDataMtx };
-			memcpy(server.fromClient.clientData.data(), packet->payload.data(), packet->payload.size());
-			server.fromClient.clientFrame = latestFrame;
+			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
+			for (unsigned i = 0; i < packet->nAcks; ++i)
+				server.fromClient.acksReceived.emplace_back(packet->acks[i]);
 		}
-		server.fromClient.clientDataCv.notify_one();
 	}
 }
 
@@ -193,6 +243,15 @@ static void keepaliveTask(socket_t clientSocket,
 void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientAddr)
 {
 	const auto readableAddr = inet_ntoa(clientAddr.sin_addr);
+
+	{
+		// Build the initial list of models to send to the client
+		std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+		server.toClient.modelsToSend.reserve(server.resources.models.size());
+		for (const auto& pair : server.resources.models)
+			server.toClient.modelsToSend.emplace_back(pair.second);
+	}
+
 	{
 		// Connection prelude (one-time stuff)
 
@@ -226,8 +285,8 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		// Starts UDP loops and send ready to client
 		server.activeEP.startActive(readableAddr, cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
 		server.activeEP.runLoop();
-		// server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
-		// server.passiveEP.runLoop();
+		server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
+		server.passiveEP.runLoop();
 
 		if (!sendTCPMsg(clientSocket, TcpMsgType::READY))
 			goto dropclient;
@@ -274,8 +333,9 @@ dropclient:
 		sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
 	}
 	server.fromClient.clientDataCv.notify_all();
-	server.toClient.updatesCv.notify_all();
-	// server.passiveEP.close();
+	server.toClient.updates.cv.notify_all();
+	info("Closing passiveEP");
+	server.passiveEP.close();
 	info("Closing activeEP");
 	server.activeEP.close();
 	info("Closing socket");

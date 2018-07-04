@@ -14,6 +14,8 @@ enum class UdpMsgType : uint8_t {
 	POINT_LIGHT_UPDATE = 0x02,
 	/** A TransformUpdatePacket, which modifies a model's transform */
 	TRANSFORM_UPDATE = 0x03,
+	/** An ACK to some UDP message. Typically sent by the client. */
+	ACK = 0x20,
 	UNKNOWN
 };
 
@@ -29,6 +31,9 @@ inline std::ostream& operator<<(std::ostream& s, UdpMsgType msg)
 		break;
 	case M::TRANSFORM_UPDATE:
 		s << "TRANSFORM_UPDATE";
+		break;
+	case M::ACK:
+		s << "ACK";
 		break;
 	default:
 		s << "UNKNOWN";
@@ -57,8 +62,9 @@ enum class GeomDataType : uint8_t {
 #pragma pack(push, 1)
 
 struct UdpHeader {
-	/** Sequential packet "generation" id */
-	uint64_t packetGen;
+	/** Sequential packet "generation" id. Used to discard old packets. */
+	uint32_t packetGen;
+
 	/** How many bytes of the payload are actual data (as there may be garbage at the end).
 	 *  Must be equal to the sum of all the chunks' size (type + header + payload).
 	 */
@@ -83,8 +89,14 @@ struct UdpPacket {
 
 /** Update vertex/index buffers of existing model */
 struct GeomUpdateHeader {
+	/** Unique ID of the packet, needed to ACK it */
+	uint32_t serialId;
+
 	StringId modelId;
+
+	/** Whether vertices or indices follow */
 	GeomDataType dataType;
+
 	/** Starting vertex/index to modify */
 	uint32_t start;
 	/** Amount of vertices/indices to modify */
@@ -109,6 +121,15 @@ struct TransformUpdateHeader {
 	glm::mat4 transform;
 };
 
+/** A client-to-server ACK packet. It's a standalone struct, not part of UdpPacket. */
+struct AckPacket {
+	/** Must be UdpMsgType::ACK */
+	UdpMsgType msgType;
+	uint32_t nAcks;
+	std::array<uint32_t, (cfg::PACKET_SIZE_BYTES - sizeof(UdpMsgType) - sizeof(uint32_t)) / sizeof(uint32_t)> acks;
+};
+
 #pragma pack(pop)
 
-static_assert(sizeof(UdpPacket) == cfg::PACKET_SIZE_BYTES, "sizeof(GeomUpdatePacket) != PACKET_SIZE_BYTES!");
+static_assert(sizeof(UdpPacket) == cfg::PACKET_SIZE_BYTES, "sizeof(UdpPacket) != PACKET_SIZE_BYTES!");
+static_assert(sizeof(AckPacket) <= cfg::PACKET_SIZE_BYTES, "sizeof(AckPacket) > PACKET_SIZE_BYTES!");

@@ -11,7 +11,7 @@
 
 using namespace logging;
 
-std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packetGen)
+std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint32_t packetGen)
 {
 	assert(bufsize >= sizeof(UdpHeader));
 
@@ -19,8 +19,6 @@ std::size_t writeUdpHeader(uint8_t* buffer, std::size_t bufsize, uint64_t packet
 	header.packetGen = packetGen;
 	header.size = 0;
 
-	// DEBUG
-	// memset(buffer, 0xAA, bufsize);
 	memcpy(buffer, reinterpret_cast<void*>(&header), sizeof(UdpHeader));
 
 	return sizeof(UdpHeader);

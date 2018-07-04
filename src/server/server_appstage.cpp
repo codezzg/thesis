@@ -24,6 +24,110 @@ struct Sphere {
 	float radius;
 };
 
+static std::vector<QueuedUpdate> enqueueModelsGeomUpdates(const std::vector<Model>& modelsToSend)
+{
+	std::vector<QueuedUpdate> updates;
+	for (const auto& model : modelsToSend) {
+		const auto updatePackets = buildUpdatePackets(model);
+		for (const auto& up : updatePackets) {
+			updates.emplace_back(newQueuedUpdateGeom(up));
+		}
+	}
+	return updates;
+}
+
+void appstageLoop(Server& server)
+{
+	using namespace std::literals::chrono_literals;
+
+	float t = 0;
+
+	Clock clock;
+	auto beginTime = std::chrono::high_resolution_clock::now();
+
+	while (true) {
+		const LimitFrameTime lft{ 33ms };
+
+		// Persistent updates to add this frame
+		std::vector<QueuedUpdate> pUpdates;
+		// Transitory updates to add this frame
+		std::vector<QueuedUpdate> tUpdates;
+
+		{
+			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+			const auto geomUpdates = enqueueModelsGeomUpdates(server.toClient.modelsToSend);
+			pUpdates.insert(pUpdates.end(), geomUpdates.begin(), geomUpdates.end());
+			server.toClient.modelsToSend.clear();
+			for (auto& u : pUpdates)
+				info("serial: ", u.data.geom.data.serialId);
+		}
+
+		// Change point lights
+		int i = 0;
+		bool notify = false;
+
+		if (gChangeLights) {
+			i = 0;
+			for (auto& light : server.resources.pointLights) {
+				light.color = glm::vec3{ 0.5 + 0.5 * std::sin(t + i * 0.3),
+					0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
+					0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
+				light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
+				tUpdates.emplace_back(newQueuedUpdatePointLight(light.name));
+				++i;
+			}
+			notify = true;
+		}
+
+		// Move objects
+		if (gMoveObjects) {
+			i = 0;
+			for (auto node : server.scene.nodes) {
+				if (node->type == NodeType::EMPTY)
+					continue;
+
+				// node->transform.position = glm::vec3{ 0, 0, i * 5 };
+				if (((node->flags >> NODE_FLAG_STATIC) & 1) == 0) {
+					node->transform.position = glm::vec3{ (5 + 0 * i) * std::sin(0.5 * t + i * 0.4),
+						10 - 9 * (node->type == NodeType::POINT_LIGHT),
+						(2 + 0 * i) * std::cos(0.5 * t + i * 0.3) };
+					node->transform.rotation = glm::vec3{ 0, 0.3 * t + i, 0 };
+					node->transform.scale =
+						glm::vec3{ 1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
+							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
+							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };
+				}
+				tUpdates.emplace_back(newQueuedUpdateTransform(node->name));
+				++i;
+			}
+			notify = true;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock{ server.toClient.updates.mtx };
+			server.toClient.updates.transitory.assign(tUpdates.begin(), tUpdates.end());
+			if (pUpdates.size() > 0)
+				info("adding ", pUpdates.size(), " pUpdates");
+			server.toClient.updates.persistent.insert(
+				server.toClient.updates.persistent.end(), pUpdates.begin(), pUpdates.end());
+		}
+
+		if (notify)
+			server.toClient.updates.cv.notify_one();
+
+		// Update clock
+		t += clock.deltaTime();
+		const auto endTime = std::chrono::high_resolution_clock::now();
+		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
+			   1'000'000.f;
+		if (dt > 1.f)
+			dt = clock.targetDeltaTime;
+		clock.update(dt);
+		beginTime = endTime;
+	}
+}
+
+#if 0
 static void wiggle(Model& model)
 {
 	static float t = 0;
@@ -149,100 +253,4 @@ void transformVertices(Model& model,
 		nIndices = indexIdx;
 	}
 }
-
-static std::vector<QueuedUpdate> enqueueModelsGeomUpdates(const std::vector<Model>& modelsToSend)
-{
-	std::vector<QueuedUpdate> updates;
-	for (const auto& model : modelsToSend) {
-		const auto updatePackets = buildUpdatePackets(model);
-		for (const auto& up : updatePackets) {
-			updates.emplace_back(newQueuedUpdateGeom(up));
-		}
-	}
-	return updates;
-}
-
-
-void appstageLoop(Server& server)
-{
-	using namespace std::literals::chrono_literals;
-
-	float t = 0;
-
-	Clock clock;
-	auto beginTime = std::chrono::high_resolution_clock::now();
-
-	// TODO
-	server.toClient.modelsToSend.reserve(server.resources.models.size());
-	for (const auto& pair : server.resources.models)
-		server.toClient.modelsToSend.emplace_back(pair.second);
-
-	while (true) {
-		const LimitFrameTime lft{ 33ms };
-
-		std::vector<QueuedUpdate> updatesThisFrame;
-		updatesThisFrame.reserve(1024);
-
-		const auto geomUpdates = enqueueModelsGeomUpdates(server.toClient.modelsToSend);
-		updatesThisFrame.insert(updatesThisFrame.end(), geomUpdates.begin(), geomUpdates.end());
-
-		// Change point lights
-		int i = 0;
-		bool notify = false;
-
-		if (gChangeLights) {
-			i = 0;
-			for (auto& light : server.resources.pointLights) {
-				light.color = glm::vec3{ 0.5 + 0.5 * std::sin(t + i * 0.3),
-					0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
-					0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
-				light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
-				updatesThisFrame.emplace_back(newQueuedUpdatePointLight(light.name));
-				++i;
-			}
-			notify = true;
-		}
-
-		// Move objects
-		if (gMoveObjects) {
-			i = 0;
-			for (auto node : server.scene.nodes) {
-				if (node->type == NodeType::EMPTY)
-					continue;
-
-				// node->transform.position = glm::vec3{ 0, 0, i * 5 };
-				if (((node->flags >> NODE_FLAG_STATIC) & 1) == 0) {
-					node->transform.position = glm::vec3{ (5 + 0 * i) * std::sin(0.5 * t + i * 0.4),
-						10 - 9 * (node->type == NodeType::POINT_LIGHT),
-						(2 + 0 * i) * std::cos(0.5 * t + i * 0.3) };
-					node->transform.rotation = glm::vec3{ 0, 0.3 * t + i, 0 };
-					node->transform.scale =
-						glm::vec3{ 1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
-							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
-							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };
-				}
-				updatesThisFrame.emplace_back(newQueuedUpdateTransform(node->name));
-				++i;
-			}
-			notify = true;
-		}
-
-		{
-			std::lock_guard<std::mutex> lock{ server.toClient.updatesMtx };
-			server.toClient.updates.assign(updatesThisFrame.begin(), updatesThisFrame.end());
-		}
-
-		if (notify)
-			server.toClient.updatesCv.notify_one();
-
-		// Update clock
-		t += clock.deltaTime();
-		const auto endTime = std::chrono::high_resolution_clock::now();
-		float dt = std::chrono::duration_cast<std::chrono::microseconds>(endTime - beginTime).count() /
-			   1'000'000.f;
-		if (dt > 1.f)
-			dt = clock.targetDeltaTime;
-		clock.update(dt);
-		beginTime = endTime;
-	}
-}
+#endif

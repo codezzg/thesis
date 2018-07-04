@@ -23,15 +23,13 @@ public:
 
 private:
 	friend void cbCursorMoved(GLFWwindow* window, double xpos, double ypos);
-	friend void cbKeyPressed(GLFWwindow* window, int key, int /*scancode*/, int action, int);
+	friend void cbKeyPressed(GLFWwindow* window, int key, int, int action, int);
 
 	Application app;
 
 	bool fullscreen = false;
 
-	ClientPassiveEndpoint passiveEP;
-	ClientActiveEndpoint activeEP;
-	ClientReliableEndpoint relEP;
+	ClientEndpoints endpoints;
 	int64_t curFrame = -1;
 
 	/** The semaphores are owned by `app.res`. We save their handles rather than querying them
@@ -57,8 +55,12 @@ private:
 
 	/** Memory area staging vertices and indices coming from the server */
 	std::vector<uint8_t> streamingBuffer;
-	/** Memory area staging update requests read from the raw server data */
+	/** Update requests read from the raw server data */
 	std::vector<UpdateReq> updateReqs;
+	/** Set of GeomUpdate serialIds that we already received */
+	std::unordered_set<uint32_t> receivedGeomIds;
+	/** List of UDP acks to send to the server */
+	std::vector<uint32_t> acksToSend;
 
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
@@ -68,46 +70,44 @@ private:
 
 	void initVulkan();
 
+	/** Starts the network endpoints */
 	void startNetwork(const char* serverIp);
 
+	/** Performs the initial handshake with the server and receives the one-time data */
 	bool connectToServer(const char* serverIp);
 
 	/** Check we received all the resources needed by all models */
 	void checkAssets(const ClientTmpResources& resources);
 
+	/** Takes the raw resources received by the server and processes them into usable resources */
 	bool loadAssets(const ClientTmpResources& resources);
 
-	void mainLoop(const char* serverIp);
+	void prepareBufferMemory(Buffer& stagingBuffer);
+	void prepareCamera();
+	void loadSkybox();
+
+	void mainLoop();
 
 	void runFrame();
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime);
 
 	void recreateSwapChain();
-
 	void createSemaphores();
+	void createDescriptorSets();
 
 	void drawFrame();
-
 	void renderFrame(uint32_t imageIndex);
-
 	void submitFrame(uint32_t imageIndex);
 
 	void updateObjectsUniformBuffer();
-
 	void updateViewUniformBuffer();
-
-	void prepareBufferMemory(Buffer& stagingBuffer);
-
-	void prepareCamera();
-
-	void loadSkybox();
 
 	void recordAllCommandBuffers();
 
-	void createDescriptorSets();
-
+	/** Releases the resources related to the current swap chain */
 	void cleanupSwapChain();
 
+	/** Releases all the resources */
 	void cleanup();
 };

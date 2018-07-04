@@ -116,8 +116,8 @@ void Endpoint::close()
 {
 	if (terminated)
 		return;
-	onClose();
 	terminated = true;
+	onClose();
 	if (xplatIsValidSocket(socket)) {
 		const auto res = xplatSockClose(socket);
 		if (res != 0)
@@ -149,7 +149,7 @@ bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len, int* bytes
 	return true;
 }
 
-bool validateUDPPacket(const uint8_t* packetBuf, uint64_t packetGen)
+bool validateUDPPacket(const uint8_t* packetBuf, uint32_t packetGen)
 {
 	const auto packet = reinterpret_cast<const UdpHeader*>(packetBuf);
 	if (packet->packetGen < packetGen) {
@@ -159,6 +159,7 @@ bool validateUDPPacket(const uint8_t* packetBuf, uint64_t packetGen)
 	return true;
 }
 
+// These guys down here limit the amount of i/o spamming done by logging in the socket functions
 static std::mutex spamMtx;
 static std::chrono::time_point<std::chrono::system_clock> latestSpam;
 

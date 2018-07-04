@@ -49,13 +49,13 @@ void VulkanClient::run(const char* ip)
 
 	measure_ms("Init Vulkan", LOGLV_INFO, [this]() { initVulkan(); });   // deferred rendering
 
-	mainLoop(ip);
+	mainLoop();
 	cleanup();
 }
 
 void VulkanClient::disconnect()
 {
-	if (!relEP.disconnect())
+	if (!endpoints.reliable.disconnect())
 		warn("Failed to disconnect!");
 }
 
@@ -107,28 +107,29 @@ void VulkanClient::initVulkan()
 void VulkanClient::startNetwork(const char* serverIp)
 {
 	debug("Starting passive EP...");
-	passiveEP.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
-	passiveEP.runLoop();
+	endpoints.passive.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
+	endpoints.passive.runLoop();
 
-	// activeEP.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
-	// activeEP.targetFrameTime = SERVER_UPDATE_TIME;
-	// activeEP.runLoop();
+	debug("Starting active EP towards ", serverIp, ":", cfg::CLIENT_TO_SERVER_PORT, " ...");
+	endpoints.active.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
+	endpoints.active.targetFrameTime = SERVER_UPDATE_TIME;
+	endpoints.active.runLoop();
 
 	updateReqs.reserve(256);
 }
 
 bool VulkanClient::connectToServer(const char* serverIp)
 {
-	relEP.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
+	endpoints.reliable.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
 
 	debug(":: Performing handshake");
-	if (!relEP.performHandshake()) {
+	if (!endpoints.reliable.performHandshake()) {
 		err("Failed to perform handshake.");
 		return false;
 	}
 
 	debug(":: Expecting START_RSRC_EXCHANGE");
-	if (!relEP.expectStartResourceExchange()) {
+	if (!endpoints.reliable.expectStartResourceExchange()) {
 		err("Didn't receive START_RSRC_EXCHANGE.");
 		return false;
 	}
@@ -138,7 +139,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 		constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = megabytes(128);
 		ClientTmpResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
 
-		if (!relEP.sendRsrcExchangeAck()) {
+		if (!endpoints.reliable.sendRsrcExchangeAck()) {
 			err("Failed to send RSRC_EXCHANGE_ACK");
 			return false;
 		}
@@ -146,7 +147,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 		bool success = false;
 		debug(":: Receiving one-time resources...");
 		measure_ms("Recv Assets", LOGLV_INFO, [this, &resources, &success]() {
-			success = relEP.receiveOneTimeData(resources);
+			success = endpoints.reliable.receiveOneTimeData(resources);
 		});
 		if (!success) {
 			err("Failed to receive one-time data.");
@@ -170,14 +171,14 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	startNetwork(serverIp);
 
 	debug(":: Sending READY...");
-	if (!relEP.sendReadyAndWait()) {
+	if (!endpoints.reliable.sendReadyAndWait()) {
 		err("Failed to send or receive READY.");
 		return false;
 	}
 	debug(":: Received READY.");
 
 	debug(":: Starting TCP listening loop");
-	relEP.runLoop();
+	endpoints.reliable.runLoop();
 
 	// Ready to start the main loop
 
@@ -301,10 +302,8 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources)
 	return true;
 }
 
-void VulkanClient::mainLoop(const char* serverIp)
+void VulkanClient::mainLoop()
 {
-	// startNetwork(serverIp);
-
 	FPSCounter fps;
 	fps.start();
 
@@ -319,7 +318,7 @@ void VulkanClient::mainLoop(const char* serverIp)
 		lft.enabled = gLimitFrameTime;
 
 		// Check if we disconnected
-		if (!relEP.isConnected())
+		if (!endpoints.reliable.isConnected())
 			break;
 
 		glfwPollEvents();
@@ -330,12 +329,12 @@ void VulkanClient::mainLoop(const char* serverIp)
 	}
 
 	// Close sockets
-	info("closing passiveEP");
-	passiveEP.close();
-	info("closing activeEP");
-	activeEP.close();
-	info("closing relEP");
-	relEP.close();
+	info("closing endpoints.passive");
+	endpoints.passive.close();
+	info("closing endpoints.active");
+	endpoints.active.close();
+	info("closing endpoints.reliable");
+	endpoints.reliable.close();
 
 	info("waiting device idle");
 	VLKCHECK(vkDeviceWaitIdle(app.device));
@@ -345,13 +344,15 @@ void VulkanClient::runFrame()
 {
 	// Receive network data
 	updateReqs.clear();
-	receiveData(passiveEP, streamingBuffer, geometry, updateReqs);
+	receiveData(endpoints.passive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
 
 	// Apply update requests
 	for (const auto& req : updateReqs) {
 		switch (req.type) {
 		case UpdateReq::Type::GEOM:
 			updateModel(req.data.geom);
+			acksToSend.emplace_back(req.data.geom.serialId);
+			receivedGeomIds.emplace(req.data.geom.serialId);
 			break;
 		case UpdateReq::Type::POINT_LIGHT:
 			updatePointLight(req.data.pointLight, netRsrc);
@@ -363,6 +364,16 @@ void VulkanClient::runFrame()
 			assert(false);
 			break;
 		}
+	}
+
+	// Enqueue acks to send (does not block if the mutex is not available yet)
+	if (acksToSend.size() > 0 && endpoints.active.acks.mtx.try_lock()) {
+		debug("inserting ", acksToSend.size(), " acks");
+		endpoints.active.acks.list.insert(
+			endpoints.active.acks.list.end(), acksToSend.begin(), acksToSend.end());
+		endpoints.active.acks.mtx.unlock();
+		endpoints.active.acks.cv.notify_one();
+		acksToSend.clear();
 	}
 
 	updateObjectsUniformBuffer();
@@ -611,7 +622,7 @@ void VulkanClient::prepareCamera()
 		cameraCtrl = std::make_unique<FPSCameraController>(camera);
 	else
 		cameraCtrl = std::make_unique<CubeCameraController>(camera);
-	activeEP.setCamera(&camera);
+	endpoints.active.camera = &camera;
 }
 
 void VulkanClient::loadSkybox()

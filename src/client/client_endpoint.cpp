@@ -31,11 +31,12 @@ void ClientPassiveEndpoint::loopFunc()
 	buffer = new uint8_t[BUFSIZE];
 	usedBufSize = 0;
 
-	uint64_t packetGen = 0;
+	uint32_t packetGen = 0;
 
 	// Receive datagrams and copy them into `buffer`.
 	while (!terminated) {
 		std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packetBuf = {};
+
 		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
@@ -94,39 +95,40 @@ std::size_t ClientPassiveEndpoint::retreive(uint8_t* outBuf, std::size_t outBufS
 /////////////////////// Active EP
 void ClientActiveEndpoint::loopFunc()
 {
-	int64_t frameId = 0;
-	uint32_t packetId = 0;
-
-	auto delay = 0ms;
-
+	// Send ACKs
 	while (!terminated) {
-		const LimitFrameTime lft{ targetFrameTime - delay };
-
-		// Prepare data
-		FrameData data;
-		// data.header.magic = cfg::PACKET_MAGIC;
-		data.header.frameId = frameId;
-		data.header.packetId = packetId;
-		/* Payload:
-		 * [0] CameraData (28 B)
-		 */
-		if (camera) {
-			shared::Camera shCamera;
-			shCamera.x = camera->position.x;
-			shCamera.y = camera->position.y;
-			shCamera.z = camera->position.z;
-			shCamera.yaw = camera->yaw;
-			shCamera.pitch = camera->pitch;
-			static_assert(FrameData().payload.size() >= sizeof(shared::Camera),
-				"Camera does not fit in payload!");
-			memcpy(data.payload.data(), &shCamera, sizeof(shared::Camera));
+		std::unique_lock<std::mutex> ulk{ acks.mtx };
+		if (acks.list.size() == 0) {
+			// Wait for ACKs to send
+			acks.cv.wait(ulk, [this]() { return terminated || acks.list.size() > 0; });
 		}
 
-		sendPacket(socket, reinterpret_cast<const uint8_t*>(&data), sizeof(FrameData));
+		AckPacket packet;
+		packet.msgType = UdpMsgType::ACK;
+		packet.nAcks = 0;
 
-		++frameId;
-		delay = lft.getFrameDelay();
+		for (auto ack : acks.list) {
+			packet.acks[packet.nAcks] = ack;
+			packet.nAcks++;
+			if (packet.nAcks == packet.acks.size()) {
+				// Packet is full: send
+				sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(AckPacket));
+				// info("Sent ", packet.nAcks, " acks: ", listToString(acks.list));
+				packet.nAcks = 0;
+			}
+		}
+		if (packet.nAcks > 0) {
+			sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(AckPacket));
+			info("Sent ", packet.nAcks, " acks");
+		}
+
+		acks.list.clear();
 	}
+}
+
+void ClientActiveEndpoint::onClose()
+{
+	acks.cv.notify_all();
 }
 
 /////////////////////// ReliableEP
