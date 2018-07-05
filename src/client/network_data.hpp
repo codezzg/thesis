@@ -35,13 +35,16 @@ struct UpdateReqTransform {
 };
 
 struct UpdateReq {
-	enum class Type { UNKNOWN, GEOM, POINT_LIGHT, TRANSFORM } type = Type::UNKNOWN;
+	enum class Type { UNKNOWN, GEOM, POINT_LIGHT, TRANSFORM } type;
 
 	union {
 		UpdateReqGeom geom;
 		UpdateReqPointLight pointLight;
 		UpdateReqTransform transform;
 	} data;
+
+	/** Needed to default construct this struct */
+	UpdateReq() : type{ Type::UNKNOWN }, data { UpdateReqGeom{} } {}
 };
 
 /** Receives network data from `passiveEP`, storing them into the staging buffer `buffer`.
