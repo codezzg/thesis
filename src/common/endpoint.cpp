@@ -209,7 +209,7 @@ bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, TcpMsg
 	// Check type of message (TODO) -- currently the message type is determined by its first byte.
 	msgType = byte2tcpmsg(buffer[0]);
 
-	info("<<< Received message type: ", msgType);
+	debug("<<< Received message type: ", msgType);
 
 	return true;
 }
@@ -225,7 +225,7 @@ bool sendTCPMsg(socket_t socket, TcpMsgType type)
 	const uint8_t b = tcpmsg2byte(type);
 	const bool r = sendPacket(socket, &b, 1);
 	if (r)
-		info(">>> Sent message type: ", type);
+		debug(">>> Sent message type: ", type);
 	else
 		err("Failed to send message: ", type);
 

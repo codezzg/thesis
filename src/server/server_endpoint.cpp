@@ -113,7 +113,7 @@ void ServerActiveEndpoint::loopFunc()
 		}
 
 		if (updates.persistent.size() > 0)
-			info("sending ", updates.persistent.size(), " persistent updates");
+			debug("sending ", updates.persistent.size(), " persistent updates");
 
 		// Send persistent updates
 		for (auto it = updates.persistent.begin(); it != updates.persistent.end();) {
