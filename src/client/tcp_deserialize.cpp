@@ -16,12 +16,7 @@ bool receiveTexture(socket_t socket,
 	/* out */ ClientTmpResources& resources)
 {
 	// Parse header
-	// [0] msgType    (1 B)
-	// [1] tex.name   (4 B)
-	// [5] tex.format (1 B)
-	// [6] tex.size   (8 B)
 
-	// TODO: use a reinterpret_cast to the header struct
 	const auto header = *reinterpret_cast<const ResourcePacket<shared::TextureInfo>*>(buffer);
 	constexpr auto sizeOfHeader = sizeof(ResourcePacket<shared::TextureInfo>);
 	const auto expectedSize = header.res.size;
@@ -95,11 +90,7 @@ bool receiveMaterial(const uint8_t* buffer,
 	assert(bufsize >= sizeof(ResourcePacket<shared::Material>));
 	static_assert(sizeof(StringId) == 4, "StringId size should be 4!");
 
-	// [0] MsgType (1 B)
-	// [1] material.name     (4 B)
-	// [5] material.diffuse  (4 B)
-	// [9] material.specular (4 B)
-	// [13] material.normal  (4 B)
+	// Parse header
 	const auto material = *reinterpret_cast<const shared::Material*>(buffer + 1);
 
 	debug("received material: { name = ",
@@ -133,17 +124,11 @@ bool receiveModel(socket_t socket,
 	assert(bufsize >= sizeof(ResourcePacket<shared::Model>));
 
 	// Parse header
-	// [0]  MsgType    (1 B)
-	// [1]  name       (4 B)
-	// [5]  nVertices  (4 B)
-	// [9]  nIndices   (4 B)
-	// [13] nMaterials (1 B)
-	// [14] nMeshes    (1 B)
 	const auto header = *reinterpret_cast<const ResourcePacket<shared::Model>*>(buffer);
 	constexpr auto sizeOfHeader = sizeof(ResourcePacket<shared::Model>);
 	const auto expectedSize = header.res.nMaterials * sizeof(StringId) + header.res.nMeshes * sizeof(shared::Mesh);
 
-	if (expectedSize > cfg::MAX_MODEL_SIZE) {
+	if (expectedSize > cfg::MAX_MODEL_INFO_SIZE) {
 		err("Model server sent is too big! (", expectedSize / 1024 / 1024., " MiB)");
 		return false;
 	}
@@ -230,6 +215,7 @@ bool receivePointLight(const uint8_t* buffer,
 {
 	assert(bufsize >= sizeof(ResourcePacket<shared::PointLightInfo>));
 
+	// Parse header
 	const auto lightInfo = *reinterpret_cast<const shared::PointLightInfo*>(buffer + 1);
 
 	shared::PointLight light;
@@ -253,6 +239,79 @@ bool receivePointLight(const uint8_t* buffer,
 	} else {
 		resources.pointLights.emplace_back(light);
 		info("Stored PointLight ", light.name);
+	}
+
+	return true;
+}
+
+bool receiveShader(socket_t socket,
+	const uint8_t* buffer,
+	std::size_t bufsize,
+	/* out */ ClientTmpResources& resources)
+{
+	// Parse header
+	const auto header = *reinterpret_cast<const ResourcePacket<shared::SpirvShaderInfo>*>(buffer);
+	constexpr auto sizeOfHeader = sizeof(ResourcePacket<shared::SpirvShaderInfo>);
+	const auto expectedSize = header.res.codeSizeInBytes;
+
+	if (expectedSize > cfg::MAX_SHADER_SIZE) {
+		err("Shader server sent is too big! (", expectedSize / 1024, " KiB)");
+		return false;
+	}
+
+	const auto shadName = header.res.name;
+
+	assert(static_cast<uint8_t>(header.res.stage) < static_cast<uint8_t>(shared::ShaderStage::UNKNOWN));
+
+	// Retreive payload
+
+	/** Obtain the memory to store the shader data in */
+	void* shadCode = resources.allocator.alloc(expectedSize);
+	if (!shadCode)
+		return false;
+
+	// Copy the first shader data embedded in the header packet into the shader memory area
+	auto len = std::min(bufsize - sizeOfHeader, expectedSize);
+	memcpy(shadCode, buffer + sizeOfHeader, len);
+
+	// Receive remaining shader data as raw data packets (if needed)
+	auto processedSize = len;
+	while (processedSize < expectedSize) {
+		const auto remainingSize = expectedSize - processedSize;
+		assert(remainingSize > 0);
+
+		len = std::min(remainingSize, bufsize);
+
+		int bytesRead;
+		// Receive the data directly into the shader memory area (avoids a memcpy from the buffer)
+		if (!receivePacket(socket, reinterpret_cast<uint8_t*>(shadCode) + processedSize, len, &bytesRead)) {
+			resources.allocator.deallocLatest();
+			return false;
+		}
+
+		processedSize += bytesRead;
+	}
+
+	if (processedSize != expectedSize) {
+		warn("Processed more bytes than expected!");
+	}
+
+	shared::SpirvShader shader;
+	shader.codeSizeInBytes = expectedSize;
+	shader.code = reinterpret_cast<uint32_t*>(shadCode);
+	shader.passNumber = header.res.passNumber;
+	shader.stage = header.res.stage;
+
+	if (resources.shaders.count(shadName) > 0) {
+		warn("Received the same shader two times: ", shadName);
+	} else {
+		resources.shaders[shadName] = shader;
+		info("Stored shader ", shadName);
+	}
+
+	info("Received shader ", shadName, ": ", shader.codeSizeInBytes, " B");
+	if (gDebugLv >= LOGLV_VERBOSE) {
+		dumpBytes(shader.code, shader.codeSizeInBytes);
 	}
 
 	return true;

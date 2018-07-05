@@ -30,3 +30,12 @@ bool receiveModel(socket_t socket,
 bool receivePointLight(const uint8_t* buffer,
 	std::size_t bufsize,
 	/* out */ ClientTmpResources& resources);
+
+/** Reads header data from `buffer` and starts reading a shader. If more packets
+ *  need to be read for the shader, receive them from `socket` until completion.
+ *  Shader received is stored into `resources`.
+ */
+bool receiveShader(socket_t socket,
+	const uint8_t* buffer,
+	std::size_t bufsize,
+	/* out */ ClientTmpResources& resources);

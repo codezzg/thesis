@@ -49,3 +49,29 @@ shared::Texture ServerResources::loadTexture(const char* file)
 
 	return texture;
 }
+
+shared::SpirvShader ServerResources::loadShader(const char* file)
+{
+	const auto fileSid = sid(file);
+	if (shaders.count(fileSid) > 0) {
+		logging::warn("Tried to load shader ", file, " which is already loaded!");
+		return shaders[fileSid];
+	}
+
+	std::size_t bufsize;
+	auto buffer = allocator.allocAll(&bufsize);
+	auto size = readFileIntoMemory(file, buffer, bufsize);
+
+	assert(size > 0 && "Failed to load shader!");
+
+	auto& shader = shaders[fileSid];
+	shader.codeSizeInBytes = size;
+	shader.code = reinterpret_cast<uint32_t*>(buffer);
+
+	allocator.deallocLatest();
+	allocator.alloc(shader.codeSizeInBytes);
+
+	logging::info("Loaded shader ", file, " (", shader.codeSizeInBytes, " B)");
+
+	return shader;
+}

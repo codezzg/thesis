@@ -21,6 +21,7 @@ enum class TcpMsgType : uint8_t {
 	RSRC_TYPE_MATERIAL = 0x0A,
 	RSRC_TYPE_MODEL = 0x0B,
 	RSRC_TYPE_POINT_LIGHT = 0x0C,
+	RSRC_TYPE_SHADER = 0x0D,
 	END_RSRC_EXCHANGE = 0x1F,
 	/** Tell client to start receiving UDP data */
 	START_STREAMING = 0x20,
@@ -64,6 +65,9 @@ inline std::ostream& operator<<(std::ostream& s, TcpMsgType msg)
 		break;
 	case M::RSRC_TYPE_POINT_LIGHT:
 		s << "RSRC_TYPE_POINT_LIGHT";
+		break;
+	case M::RSRC_TYPE_SHADER:
+		s << "RSRC_TYPE_SHADER";
 		break;
 	case M::END_RSRC_EXCHANGE:
 		s << "END_RSRC_EXCHANGE";

@@ -75,6 +75,8 @@ void ServerActiveEndpoint::loopFunc()
 			updates.cv.wait(ulk, [this, &updates = server.toClient.updates]() {
 				return terminated || updates.size() > 0;
 			});
+			if (terminated)
+				break;
 		}
 
 		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
@@ -133,6 +135,7 @@ void ServerActiveEndpoint::loopFunc()
 				offset = sizeof(UdpHeader);
 			}
 		}
+		ulk.unlock();
 
 		if (offset > sizeof(UdpHeader)) {
 			// Need to send the last packet
@@ -175,10 +178,11 @@ void ServerPassiveEndpoint::loopFunc()
 			continue;
 		}
 
-		{
-			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
+		if (server.fromClient.acksReceivedMtx.try_lock()) {
+			// std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
 			for (unsigned i = 0; i < packet->nAcks; ++i)
 				server.fromClient.acksReceived.emplace_back(packet->acks[i]);
+			server.fromClient.acksReceivedMtx.unlock();
 		}
 	}
 }
@@ -377,6 +381,39 @@ bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)
 		}
 		return true;
 	};
+
+	// Send shaders (and unload them immediately after)
+	const std::array<std::string, 3> shadersToSend = { "shaders/gbuffer", "shaders/skybox", "shaders/composition" };
+	for (unsigned i = 0; i < shadersToSend.size(); ++i) {
+		bool ok = sendShader(clientSocket,
+			server.resources,
+			(shadersToSend[i] + ".vert.spv").c_str(),
+			i,
+			shared::ShaderStage::VERTEX);
+		if (!ok) {
+			err("Failed sending shader");
+			return false;
+		}
+		ok = expectTCPMsg(clientSocket, packet.data(), 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+		if (!ok) {
+			warn("Not received RSRC_EXCHANGE_ACK!");
+			return false;
+		}
+		ok = sendShader(clientSocket,
+			server.resources,
+			(shadersToSend[i] + ".frag.spv").c_str(),
+			i,
+			shared::ShaderStage::FRAGMENT);
+		if (!ok) {
+			err("Failed sending shader");
+			return false;
+		}
+		ok = expectTCPMsg(clientSocket, packet.data(), 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+		if (!ok) {
+			warn("Not received RSRC_EXCHANGE_ACK!");
+			return false;
+		}
+	}
 
 	// Send models (and with them, textures and materials)
 	info("# models loaded = ", server.resources.models.size());

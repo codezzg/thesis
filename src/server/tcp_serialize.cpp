@@ -194,3 +194,66 @@ bool sendTexture(socket_t clientSocket,
 
 	return true;
 }
+
+bool sendShader(socket_t clientSocket,
+	ServerResources& resources,
+	const char* shadName,
+	uint8_t passNumber,
+	shared::ShaderStage stage)
+{
+	using shared::SpirvShaderInfo;
+
+	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packet;
+
+	// Load the shader, and unload it as we finished using it
+	resources.loadShader(shadName);
+	DEFER([&resources]() {
+		resources.shaders.clear();
+		resources.allocator.deallocLatest();
+	});
+
+	// Prepare header
+	const auto shadNameSid = sid(shadName);
+	const auto& shader = resources.shaders[shadNameSid];
+	ResourcePacket<SpirvShaderInfo> header;
+	header.type = TcpMsgType::RSRC_TYPE_SHADER;
+	header.res.name = shadNameSid;
+	header.res.passNumber = passNumber;
+	header.res.stage = stage;
+	header.res.codeSizeInBytes = shader.codeSizeInBytes;
+
+	info("Sending shader ", shadName, " (", shadNameSid, ")");
+
+	// Put header into packet
+	debug("shadheader: { type = ",
+		header.type,
+		", size = ",
+		header.res.codeSizeInBytes,
+		", name = ",
+		header.res.name,
+		", passNumber = ",
+		int(header.res.passNumber),
+		", stage = ",
+		int(header.res.stage),
+		" }");
+	constexpr auto sizeOfHeader = sizeof(ResourcePacket<SpirvShaderInfo>);
+	memcpy(packet.data(), reinterpret_cast<const uint8_t*>(&header), sizeOfHeader);
+
+	// Fill remaining space with payload
+	auto len = std::min(shader.codeSizeInBytes, packet.size() - sizeOfHeader);
+	memcpy(packet.data() + sizeOfHeader, shader.code, len);
+
+	if (!sendPacket(clientSocket, packet.data(), len + sizeOfHeader))
+		return false;
+
+	std::size_t bytesSent = len;
+	// Send more packets with remaining payload if needed
+	while (bytesSent < shader.codeSizeInBytes) {
+		auto len = std::min(shader.codeSizeInBytes - bytesSent, cfg::PACKET_SIZE_BYTES);
+		if (!sendPacket(clientSocket, reinterpret_cast<const uint8_t*>(shader.code) + bytesSent, len))
+			return false;
+		bytesSent += len;
+	}
+
+	return true;
+}

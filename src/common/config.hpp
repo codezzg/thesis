@@ -1,5 +1,6 @@
 #pragma once
 
+#include "units.hpp"
 #include <cstddef>
 #include <cstdint>
 
@@ -14,8 +15,9 @@ constexpr auto TEX_SPECULAR_PATH = "textures/chalet_spec.jpg";
 // constexpr auto TEXTURE_PATH = "textures/texture.jpg";
 
 /** Maximum size of a texture sent via network */
-constexpr auto MAX_TEXTURE_SIZE = 50 * 1024 * 1024;   // 50 MiB
-constexpr auto MAX_MODEL_SIZE = 5 * 1024 * 1024;      // 5 MiB
+constexpr auto MAX_TEXTURE_SIZE = megabytes(50);
+constexpr auto MAX_MODEL_INFO_SIZE = megabytes(5);
+constexpr auto MAX_SHADER_SIZE = kilobytes(100);
 
 // constexpr uint32_t PACKET_MAGIC = 0x14101991;
 constexpr std::size_t PACKET_SIZE_BYTES = 480;

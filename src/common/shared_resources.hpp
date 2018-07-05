@@ -11,6 +11,7 @@
 namespace shared {
 
 enum class TextureFormat : uint8_t { RGBA, GREY, UNKNOWN };
+enum class ShaderStage : uint8_t { VERTEX, FRAGMENT, GEOMETRY, UNKNOWN };
 
 /** Texture information. Note that this structure is only used to *store*
  *  that information, and is NOT sent directly
@@ -33,6 +34,14 @@ struct PointLight {
 	glm::vec3 color{ 1.f, 1.f, 1.f };
 	float intensity = 1;
 	StringId name;
+};
+
+struct SpirvShader {
+	std::size_t codeSizeInBytes;
+	uint32_t* code;
+	/** Which subpass (i.e. which pipeline) should use this shader. */
+	uint8_t passNumber;
+	ShaderStage stage;
 };
 
 // The following structures are all sent directly through the network
@@ -95,6 +104,15 @@ struct Camera {
 	float yaw;
 	float pitch;
 };
+
+struct SpirvShaderInfo {
+	StringId name;
+	uint8_t passNumber;
+	ShaderStage stage;
+	std::size_t codeSizeInBytes;
+	/** Follows payload: code */
+};
+
 #pragma pack(pop)
 
 }   // end namespace shared

@@ -29,6 +29,7 @@ public:
 	StackAllocator allocator;
 
 	std::unordered_map<StringId, shared::Texture> textures;
+	std::unordered_map<StringId, shared::SpirvShader> shaders;
 	std::vector<shared::Material> materials;
 	std::vector<ModelInfo> models;
 	std::vector<shared::PointLight> pointLights;
@@ -50,6 +51,10 @@ struct NetworkResources {
 	std::vector<ModelInfo> models;
 
 	std::vector<shared::PointLight> pointLights;
+
+	std::vector<shared::SpirvShader> shaders;
+	/** Memory for staging shader code */
+	std::vector<uint8_t> shadersCode;
 
 	/** Default resources, used when actual ones are missing */
 	struct {

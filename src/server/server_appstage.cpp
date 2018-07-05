@@ -58,8 +58,6 @@ void appstageLoop(Server& server)
 			const auto geomUpdates = enqueueModelsGeomUpdates(server.toClient.modelsToSend);
 			pUpdates.insert(pUpdates.end(), geomUpdates.begin(), geomUpdates.end());
 			server.toClient.modelsToSend.clear();
-			for (auto& u : pUpdates)
-				info("serial: ", u.data.geom.data.serialId);
 		}
 
 		// Change point lights

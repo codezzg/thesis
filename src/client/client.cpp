@@ -91,7 +91,7 @@ void VulkanClient::initVulkan()
 
 	app.res.pipelineLayouts->add("multi", createPipelineLayout(app, descSetLayouts));
 
-	const auto pipelines = createPipelines(app);
+	const auto pipelines = createPipelines(app, netRsrc.shaders);
 	app.gBuffer.pipeline = pipelines[0];
 	app.skybox.pipeline = pipelines[1];
 	app.swapChain.pipeline = pipelines[2];
@@ -255,6 +255,25 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources)
 	for (const auto& light : netRsrc.pointLights) {
 		objTransforms[light.name] = glm::mat4{ 1.f };
 		debug("Saved transform for light ", light.name);
+	}
+
+	// Save shaders into permanent storage
+	netRsrc.shaders.reserve(resources.shaders.size());
+	std::size_t shaderMemNeeded = 0;
+	for (const auto& pair : resources.shaders) {
+		const auto& shader = pair.second;
+		netRsrc.shaders.emplace_back(shader);
+		shaderMemNeeded += shader.codeSizeInBytes;
+	}
+
+	// Copy the shader code from temporary to permanent area
+	netRsrc.shadersCode.reserve(shaderMemNeeded);
+	std::size_t shaderMemOffset = 0;
+	for (auto& shader : netRsrc.shaders) {
+		memcpy(netRsrc.shadersCode.data() + shaderMemOffset, shader.code, shader.codeSizeInBytes);
+		// Update the pointer
+		shader.code = reinterpret_cast<uint32_t*>(netRsrc.shadersCode.data() + shaderMemOffset);
+		shaderMemOffset += shader.codeSizeInBytes;
 	}
 
 	{
@@ -431,7 +450,7 @@ void VulkanClient::recreateSwapChain()
 
 	updateGBufferDescriptors(app, app.res.descriptorSets->get("gbuffer_res"), app.texSampler);
 
-	const auto pipelines = createPipelines(app);
+	const auto pipelines = createPipelines(app, netRsrc.shaders);
 	app.gBuffer.pipeline = pipelines[0];
 	app.skybox.pipeline = pipelines[1];
 	app.swapChain.pipeline = pipelines[2];

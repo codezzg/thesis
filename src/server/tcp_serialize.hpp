@@ -23,3 +23,9 @@ bool sendTexture(socket_t clientSocket,
 	ServerResources& resources,
 	const std::string& texName,
 	shared::TextureFormat format);
+
+bool sendShader(socket_t clientSocket,
+	ServerResources& resources,
+	const char* fileName,
+	uint8_t passNumber,
+	shared::ShaderStage stage);

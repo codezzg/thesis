@@ -28,19 +28,26 @@ struct ServerResources final : public ExternalMemoryUser {
 	 */
 	std::unordered_map<StringId, Model> models;
 	std::unordered_map<StringId, shared::Texture> textures;
+	std::unordered_map<StringId, shared::SpirvShader> shaders;
 	/** These have no data inside `allocator`, they're stored "inline" in the map */
 	std::vector<shared::PointLight> pointLights;
 
-	/** Loads a model from `file` into `memory` and stores its info in `models`.
+	/** Loads a model from `file` into `allocator` and stores its info in `models`.
 	 *  @return The loaded Model information.
 	 */
 	Model loadModel(const char* file);
 
-	/** Loads a texture from `file` into `memory` and store its info in `textures`.
+	/** Loads a texture from `file` into `allocator` and stores its info in `textures`.
 	 *  Does NOT set the texture format (in fact, it sets it to UNKNOWN)
 	 *  @return The loaded Texture information
 	 */
 	shared::Texture loadTexture(const char* file);
+
+	/** Loads a shader from `file` into `allocator` and stores its info in `shaders`.
+	 *  Does NOT set the shader stage or passNumber.
+	 *  @return The loaded Shader information.
+	 */
+	shared::SpirvShader loadShader(const char* file);
 
 private:
 	void onInit() override { allocator.init(memory, memsize); }

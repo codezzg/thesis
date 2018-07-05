@@ -119,7 +119,7 @@ void ClientActiveEndpoint::loopFunc()
 		}
 		if (packet.nAcks > 0) {
 			sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(AckPacket));
-			info("Sent ", packet.nAcks, " acks");
+			verbose("Sent ", packet.nAcks, " acks");
 		}
 
 		acks.list.clear();
@@ -263,7 +263,6 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 				return false;
 			}
 
-			// All green, send ACK
 			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
@@ -278,7 +277,6 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 				return false;
 			}
 
-			// All green, send ACK
 			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
@@ -292,7 +290,19 @@ bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
 				return false;
 			}
 
-			// All green, send ACK
+			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
+				err("Failed to send ACK");
+				return false;
+			}
+
+			break;
+
+		case TcpMsgType::RSRC_TYPE_SHADER:
+			if (!receiveShader(socket, buffer.data(), buffer.size(), resources)) {
+				err("Failed to receive shader");
+				return false;
+			}
+
 			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
 				err("Failed to send ACK");
 				return false;
