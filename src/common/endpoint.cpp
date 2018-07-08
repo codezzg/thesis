@@ -1,4 +1,5 @@
 #include "endpoint.hpp"
+#include "bandwidth_limiter.hpp"
 #include "frame_data.hpp"
 #include "logging.hpp"
 #include "udp_messages.hpp"
@@ -53,7 +54,6 @@ Endpoint::~Endpoint()
 
 bool Endpoint::start(const char* ip, uint16_t port, bool passive, int socktype)
 {
-
 	addrinfo hints = {}, *result;
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = socktype;
@@ -117,14 +117,18 @@ void Endpoint::close()
 	if (terminated)
 		return;
 	terminated = true;
+	verbose("Endpoint::close(): calling onClose()");
 	onClose();
 	if (xplatIsValidSocket(socket)) {
+		verbose("Endpoint::close(): closing socket");
 		const auto res = xplatSockClose(socket);
 		if (res != 0)
 			warn("Error closing socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 	}
-	if (loopThread && loopThread->joinable())
+	if (loopThread && loopThread->joinable()) {
+		verbose("Endpoint::close(): joining loopThread");
 		loopThread->join();
+	}
 	loopThread.reset(nullptr);
 }
 
@@ -177,8 +181,15 @@ static void spam()
 
 bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 {
-	while (!gBandwidthLimiter.requestToken(len)) {
+	while (!gBandwidthLimiter.requestTokens(len)) {
+		std::unique_lock<std::mutex> ulk{ gBandwidthLimiter.cvMtx };
+		info("Waiting for BandwidthLimiter");
+		gBandwidthLimiter.cv.wait(ulk, [len]() {
+			return !gBandwidthLimiter.isActive() ||
+			       static_cast<std::size_t>(gBandwidthLimiter.getTokens()) >= len;
+		});
 	}
+	// info("Out of while");
 
 	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
 		if (!spamming()) {
@@ -230,68 +241,4 @@ bool sendTCPMsg(socket_t socket, TcpMsgType type)
 		err("Failed to send message: ", type);
 
 	return r;
-}
-
-//////////////////////////
-
-/** Refills `l`'s bucket with rate depending on its member variables. */
-static void refillTask(BandwidthLimiter& l)
-{
-	while (!l.terminated) {
-		std::chrono::duration<float> sleepTime;
-		{
-			std::lock_guard<std::mutex> lock{ l.mtx };
-
-			// Must read this while the mutex is locked
-			sleepTime = l.updateInterval;
-
-			const auto nTokensToRefill = static_cast<std::size_t>(l.tokenRate * l.updateInterval.count());
-			l.tokens = std::min(l.maxTokens, l.tokens + nTokensToRefill);
-		}
-		std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
-	}
-	info("refillThread terminated.");
-}
-
-void BandwidthLimiter::setSendLimit(std::size_t bytesPerSecond)
-{
-	if (refillThread.joinable()) {
-		terminated = true;
-		refillThread.join();
-	}
-
-	terminated = false;
-
-	if (bytesPerSecond == 0)
-		return;
-
-	tokenRate = bytesPerSecond;
-	maxTokens = bytesPerSecond;   // FIXME: makes sense?
-	tokens = 0;
-
-	info("Kicking off refillThread...");
-	refillThread = std::thread(refillTask, std::ref(*this));
-}
-
-bool BandwidthLimiter::requestToken(std::size_t bytes)
-{
-	if (terminated)
-		return true;
-
-	std::lock_guard<std::mutex> lock{ mtx };
-
-	if (tokens < bytes) {
-		verbose("requestToken returning false (have ", tokens, " / ", bytes, " tokens)");
-		return false;
-	}
-
-	tokens -= bytes;
-	return true;
-}
-
-void BandwidthLimiter::cleanup()
-{
-	terminated = true;
-	if (refillThread.joinable())
-		refillThread.join();
 }

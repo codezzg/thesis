@@ -204,7 +204,8 @@ void ServerReliableEndpoint::loopFunc()
 		info("Accepting...");
 		auto clientSocket = ::accept(socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
 		if (clientSocket == -1) {
-			err("Error: couldn't accept connection.");
+			if (!terminated)
+				err("Error: couldn't accept connection.");
 			continue;
 		}
 

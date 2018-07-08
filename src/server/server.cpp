@@ -1,4 +1,7 @@
 #include "server.hpp"
+#include "logging.hpp"
+
+using namespace logging;
 
 /* Memory is used like this:
  * [66%] resources
@@ -31,5 +34,6 @@ void Server::closeNetwork()
 {
 	activeEP.close();
 	passiveEP.close();
+	info("Closing relEP...");
 	relEP.close();
 }

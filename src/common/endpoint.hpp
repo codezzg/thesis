@@ -3,7 +3,6 @@
 #include "endpoint_xplatform.hpp"
 #include "tcp_messages.hpp"
 #include <array>
-#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -98,38 +97,4 @@ public:
 
 	/** Terminates the loop and closes the socket */
 	void close();
-};
-
-/** A bandwidth limiter using the token bucket algorithm */
-struct BandwidthLimiter {
-	/** Guards access to the class parameters */
-	std::mutex mtx;
-
-	std::atomic_bool terminated{ true };
-
-	/** Interval at which refillThread updates (seconds) */
-	std::chrono::duration<float> updateInterval{ 0.2 };
-
-	/** Token refill rate (Hz) */
-	std::size_t tokenRate = 0;
-	/** Max tokens in the bucket */
-	std::size_t maxTokens = 0;
-	/** Tokens in the bucket */
-	std::size_t tokens = 0;
-
-	std::thread refillThread;
-
-	/** Sets the max amount of bytes sent per second by all sockets to `limit` (cumulative).
-	 *  Only applies to sends called through endpoint functions, such as `sendPacket`.
-	 *  Calling this function with `limit == 0` removes the limit.
-	 *  Calling this function resets the quota and the clock.
-	 */
-	void setSendLimit(std::size_t bytesPerSecond);
-
-	/** Attempts to send `bytes` bytes.
-	 *  @return true if the send is allowed, false otherwise.
-	 */
-	bool requestToken(std::size_t bytes);
-
-	void cleanup();
 };

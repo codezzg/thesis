@@ -1,3 +1,4 @@
+#include "bandwidth_limiter.hpp"
 #include "config.hpp"
 #include "geom_update.hpp"
 #include "hashing.hpp"
@@ -25,15 +26,19 @@ Server* gServer;
 bool gMoveObjects = true;
 bool gChangeLights = true;
 
-static void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond);
+struct MainArgs {
+	std::string ip = "127.0.0.1";
+	float limitBytesPerSecond = -1;
+};
+
+static void parseArgs(int argc, char** argv, MainArgs& args);
 static bool loadAssets(Server& server);
 std::vector<shared::PointLight> createLights(int n);
 
 int main(int argc, char** argv)
 {
-	std::string ip = "127.0.0.1";
-	std::size_t limitBytesPerSecond = 0;
-	parseArgs(argc, argv, ip, limitBytesPerSecond);
+	MainArgs args = {};
+	parseArgs(argc, argv, args);
 
 	std::cerr << "Debug level = " << static_cast<int>(gDebugLv) << "\n";
 
@@ -42,9 +47,11 @@ int main(int argc, char** argv)
 		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;
 	}
-	if (limitBytesPerSecond > 0) {
-		info("Limiting bandwidth to ", limitBytesPerSecond, " bytes/s");
-		gBandwidthLimiter.setSendLimit(limitBytesPerSecond);
+	if (args.limitBytesPerSecond >= 0) {
+		info("Limiting bandwidth to ", args.limitBytesPerSecond, " bytes/s");
+		gBandwidthLimiter.setSendLimit(args.limitBytesPerSecond);
+		// gBandwidthLimiter.setMaxQueueingDelay(std::chrono::milliseconds{ 50 });
+		gBandwidthLimiter.start();
 	}
 
 	if (!xplatEnableExitHandler()) {
@@ -53,8 +60,8 @@ int main(int argc, char** argv)
 	}
 	xplatSetExitHandler([]() {
 		// "Ensure" we close the sockets even if we terminate abruptly
+		gBandwidthLimiter.stop();
 		gServer->closeNetwork();
-		gBandwidthLimiter.cleanup();
 		if (Endpoint::cleanupEP())
 			info("Successfully cleaned up sockets.");
 		else
@@ -65,7 +72,7 @@ int main(int argc, char** argv)
 	gServer = &server;
 
 	server.activeEP.targetFrameTime = CLIENT_UPDATE_TIME;
-	server.relEP.serverIp = ip;
+	server.relEP.serverIp = args.ip;
 
 	/// Startup server: load models, assets, etc
 	if (!loadAssets(server)) {
@@ -94,13 +101,13 @@ int main(int argc, char** argv)
 	}
 
 	/// Start TCP socket and wait for connections
-	server.relEP.startPassive(ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
+	server.relEP.startPassive(args.ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
 	server.relEP.runLoop();
 
 	appstageLoop(server);
 }
 
-void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPerSecond)
+void parseArgs(int argc, char** argv, MainArgs& args)
 {
 	const auto usage = [argv]() {
 		std::cerr
@@ -134,10 +141,7 @@ void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPe
 				if (i == argc - 1) {
 					usage();
 				}
-				auto bytesPerSeconds = std::atoll(argv[i + 1]);
-				if (bytesPerSeconds <= 0)
-					limitBytesPerSecond = 0;
-				limitBytesPerSecond = static_cast<std::size_t>(bytesPerSeconds);
+				args.limitBytesPerSecond = std::atof(argv[i + 1]);
 				++i;
 			} break;
 
@@ -155,7 +159,7 @@ void parseArgs(int argc, char** argv, std::string& ip, std::size_t& limitBytesPe
 		} else {
 			switch (posArgs++) {
 			case 0:
-				ip = std::string{ argv[i] };
+				args.ip = std::string{ argv[i] };
 				break;
 			default:
 				break;
