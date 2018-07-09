@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <string>
 
 /** A simple FPS counter, designed to output to a stream. Use like this:
  *
@@ -23,7 +24,7 @@ class FPSCounter final {
 	clock::time_point checkpoint;
 
 	// Frames counted since checkpoint
-	uint32_t frames = 0;
+	float frames = 0;
 
 public:
 	FPSCounter(const std::string& prelude = "FPS")

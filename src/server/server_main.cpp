@@ -217,14 +217,14 @@ bool loadAssets(Server& server)
 	if (!loadSingleModel("/models/sponza/sponza.dae"))
 		return false;
 
-	// if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
-	// return false;
+	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+		return false;
 
 	// if (!loadSingleModel("/models/wall/wall2.obj"))
 	// return false;
 
-	if (!loadSingleModel("/models/cat/cat.obj"))
-		return false;
+	//if (!loadSingleModel("/models/cat/cat.obj"))
+	//	return false;
 
 	return true;
 }

@@ -14,7 +14,7 @@
  */
 class BandwidthLimiter {
 	/** Guards access to the class parameters */
-	std::mutex mtx;
+	mutable std::mutex mtx;
 
 	/** Our operating thread */
 	std::thread refillThread;
@@ -34,7 +34,7 @@ class BandwidthLimiter {
 	std::size_t capacity = 1000;
 
 	/** Burst size (max tokens that can accumulate in the bucket) */
-	int maxTokens = cfg::PACKET_SIZE_BYTES + 1;
+	int maxTokens = 10000 * cfg::PACKET_SIZE_BYTES + 1;
 
 	/** Tokens currently in the bucket. Each token represents a byte. */
 	int tokens = 0;
@@ -65,7 +65,10 @@ public:
 	 */
 	bool requestTokens(int n);
 
-	int getTokens() const { return tokens; }
+	int getTokens() const { 
+		std::lock_guard<std::mutex> lock{ mtx };
+		return tokens;
+	}
 
 	bool isActive() const { return operating; }
 };

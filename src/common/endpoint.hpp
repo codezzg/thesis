@@ -9,7 +9,7 @@
 #include <thread>
 
 struct FrameData;
-struct BandwidthLimiter;
+class BandwidthLimiter;
 
 extern BandwidthLimiter gBandwidthLimiter;
 
