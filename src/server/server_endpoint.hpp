@@ -66,6 +66,8 @@ class ServerReliableEndpoint : public Endpoint {
 	/** Used to wait in the keepalive listen loop */
 	std::condition_variable keepaliveCv;
 
+	std::thread keepaliveThread;
+
 	void loopFunc() override;
 
 	/** This method listens to an accepted connection coming from loopFunc.

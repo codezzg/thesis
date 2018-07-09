@@ -106,7 +106,7 @@ int main(int argc, char** argv)
 	server.relEP.runLoop();
 
 	appstageLoop(server);
-	// atExit();
+	atExit();
 }
 
 void parseArgs(int argc, char** argv, MainArgs& args)

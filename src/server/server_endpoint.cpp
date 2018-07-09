@@ -92,9 +92,7 @@ void ServerActiveEndpoint::loopFunc()
 		// Remove all persistent updates which were acked by the client
 		if (updates.persistent.size() > 0) {
 			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
-			measure_ms("deleteAcked", LOGLV_INFO, [&]() {
-				deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
-			});
+			deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
 		}
 
 		if (updates.persistent.size() > 0)
@@ -209,6 +207,12 @@ void ServerReliableEndpoint::loopFunc()
 
 		// Single client
 		listenTo(clientSocket, clientAddr);
+
+		if (keepaliveThread.joinable()) {
+			info("Joining keepaliveThread...");
+			keepaliveThread.join();
+			info("Joined keepaliveThread.");
+		}
 	}
 }
 
@@ -223,7 +227,6 @@ static void keepaliveTask(socket_t clientSocket,
 	while (!terminated) {
 		TcpMsgType type;
 		if (!receiveTCPMsg(clientSocket, buffer.data(), buffer.size(), type)) {
-			cv.notify_one();
 			break;
 		}
 
@@ -299,7 +302,7 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		// Periodically check keepalive, or drop the client
 		info("Starting keepalive thread.");
 		std::chrono::time_point<std::chrono::system_clock> latestPing;
-		std::thread keepaliveThread{
+		keepaliveThread = std::thread{
 			keepaliveTask, clientSocket, std::cref(terminated), std::ref(keepaliveCv), std::ref(latestPing)
 		};
 
@@ -311,11 +314,11 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 				std::unique_lock<std::mutex> keepaliveUlk{ keepaliveMtx };
 				// TODO: ensure no spurious wakeup
 				if (keepaliveCv.wait_for(keepaliveUlk, interval) == std::cv_status::no_timeout) {
-					info("Keepalive thread is dead.");
+					info("Keepalive thread should be dead.");
 					break;
 				}
 
-				// Verify the client has pinged us more recently than SERVER_KEEPALIVE_INTERVAL_SECONDS
+				// Verify the client has pinged us more recently than
 				const auto now = std::chrono::system_clock::now();
 				if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
 					// drop the client
@@ -324,19 +327,11 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 				}
 			}
 		}
-
-		if (keepaliveThread.joinable()) {
-			info("Joining keepaliveThread...");
-			keepaliveThread.join();
-			info("Joined keepaliveThread.");
-		}
 	}
 
 dropclient:
 	// Send disconnect message
 	sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
-	info("Closing socket");
-	xplatSockClose(clientSocket);
 	info("Closing passiveEP");
 	server.passiveEP.close();
 	info("Closing activeEP");
