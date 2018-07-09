@@ -30,7 +30,7 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	const GeomUpdateHeader& geomUpdate,
 	const ServerResources& resources)
 {
-	verbose("addGeomUpdate(buf=", buffer, ", bufsiz=", bufsize, ", off=", offset, ")");
+	uberverbose("addGeomUpdate(buf=", buffer, ", bufsiz=", bufsize, ", off=", offset, ")");
 	// assert(offset < bufsize);
 	assert(geomUpdate.modelId != SID_NONE);
 	assert(geomUpdate.dataType < GeomDataType::INVALID);

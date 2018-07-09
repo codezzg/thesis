@@ -22,7 +22,6 @@ using namespace std::literals::chrono_literals;
 static constexpr std::size_t MEMSIZE = megabytes(128);
 static constexpr auto CLIENT_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 
-Server* gServer;
 bool gMoveObjects = true;
 bool gChangeLights = true;
 
@@ -54,22 +53,24 @@ int main(int argc, char** argv)
 		gBandwidthLimiter.start();
 	}
 
-	if (!xplatEnableExitHandler()) {
-		err("Failed to enable exit handler!");
-		return EXIT_FAILURE;
-	}
-	xplatSetExitHandler([]() {
+	Server server{ MEMSIZE };
+
+	const auto atExit = [&server]() {
 		// "Ensure" we close the sockets even if we terminate abruptly
 		gBandwidthLimiter.stop();
-		gServer->closeNetwork();
+		server.closeNetwork();
 		if (Endpoint::cleanupEP())
 			info("Successfully cleaned up sockets.");
 		else
 			warn("Error cleaning up sockets: ", xplatGetErrorString());
-	});
+		std::exit(0);
+	};
 
-	Server server{ MEMSIZE };
-	gServer = &server;
+	if (!xplatEnableExitHandler()) {
+		err("Failed to enable exit handler!");
+		return EXIT_FAILURE;
+	}
+	xplatSetExitHandler(atExit);
 
 	server.activeEP.targetFrameTime = CLIENT_UPDATE_TIME;
 	server.relEP.serverIp = args.ip;
@@ -105,14 +106,14 @@ int main(int argc, char** argv)
 	server.relEP.runLoop();
 
 	appstageLoop(server);
+	// atExit();
 }
 
 void parseArgs(int argc, char** argv, MainArgs& args)
 {
 	const auto usage = [argv]() {
-		std::cerr
-			<< "Usage: " << argv[0]
-			<< " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)] [-m (don't move objects)] [-l (don't change lights)]\n";
+		std::cerr << "Usage: " << argv[0] << " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)]"
+			  << " [-m (don't move objects)] [-l (don't change lights)]\n";
 		std::exit(EXIT_FAILURE);
 	};
 
@@ -214,14 +215,14 @@ bool loadAssets(Server& server)
 	if (!loadSingleModel("/models/sponza/sponza.dae"))
 		return false;
 
-	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
-		return false;
+	// if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+	// return false;
 
 	// if (!loadSingleModel("/models/wall/wall2.obj"))
 	// return false;
 
-	// if (!loadSingleModel("/models/cat/cat.obj"))
-	// return false;
+	if (!loadSingleModel("/models/cat/cat.obj"))
+		return false;
 
 	return true;
 }

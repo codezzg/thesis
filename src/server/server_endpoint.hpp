@@ -24,6 +24,7 @@ class ServerActiveEndpoint final
 	Server& server;
 
 	void loopFunc() override;
+	void onClose() override;
 
 public:
 	std::chrono::milliseconds targetFrameTime;

@@ -309,7 +309,7 @@ public:
 	}
 
 	/// The number of elements in this hash map.
-	constexpr size_t num_elements() const { return m_num_elements; }
+	constexpr size_t size() const { return m_num_elements; }
 
 	/// The capacity of how many elements *could* be held in this map.
 	constexpr size_t capacity() const { return m_capacity; }

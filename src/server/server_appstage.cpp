@@ -53,7 +53,7 @@ void appstageLoop(Server& server)
 		// Transitory updates to add this frame
 		std::vector<QueuedUpdate> tUpdates;
 
-		{
+		if (server.toClient.modelsToSend.size() > 0) {
 			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
 			const auto geomUpdates = enqueueModelsGeomUpdates(server.toClient.modelsToSend);
 			pUpdates.insert(pUpdates.end(), geomUpdates.begin(), geomUpdates.end());
@@ -105,9 +105,24 @@ void appstageLoop(Server& server)
 			std::lock_guard<std::mutex> lock{ server.toClient.updates.mtx };
 			server.toClient.updates.transitory.assign(tUpdates.begin(), tUpdates.end());
 			if (pUpdates.size() > 0)
-				info("adding ", pUpdates.size(), " pUpdates");
-			server.toClient.updates.persistent.insert(
-				server.toClient.updates.persistent.end(), pUpdates.begin(), pUpdates.end());
+				verbose("adding ", pUpdates.size(), " pUpdates");
+
+			for (const auto& u : pUpdates) {
+				switch (u.type) {
+				case QueuedUpdate::Type::GEOM:
+					if (server.toClient.updates.persistent.load_factor() > 0.95) {
+						err("Map's load factor is too high! Please give more memory ",
+							"to persistent updates's hashmap!");
+						return;
+					}
+					server.toClient.updates.persistent.set(
+						u.data.geom.data.serialId, u.data.geom.data.serialId, u);
+					break;
+				default:
+					err("Invalid persistent update type: ", int(u.type));
+					break;
+				}
+			}
 		}
 
 		if (notify)
@@ -123,6 +138,7 @@ void appstageLoop(Server& server)
 		clock.update(dt);
 		beginTime = endTime;
 	}
+	info("Server appstage loop exited.");
 }
 
 #if 0

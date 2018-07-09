@@ -42,14 +42,15 @@ static BOOL wrapper(DWORD signalType)
 	return false;
 }
 #else
-static void wrapper(int)
+static void wrapper(int sig)
 {
 	if (gCalledExitHandler)
 		return;
 
+	info("Called exit handler via signal ", sig, ".");
+	gCalledExitHandler = true;
 	gHandler();
 	info("Exiting");
-	gCalledExitHandler = true;
 	std::exit(0);
 }
 #endif

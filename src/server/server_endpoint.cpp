@@ -9,6 +9,7 @@
 #include "geom_update.hpp"
 #include "logging.hpp"
 #include "model.hpp"
+#include "profile.hpp"
 #include "server.hpp"
 #include "server_appstage.hpp"
 #include "tcp_messages.hpp"
@@ -29,32 +30,11 @@ using namespace logging;
 using namespace std::chrono_literals;
 
 // Delete ACKed messages from update queue
-void deleteAckedUpdates(std::vector<uint32_t>& acks, std::vector<QueuedUpdate>& updates)
+void deleteAckedUpdates(std::vector<uint32_t>& acks, cf::hashmap<uint32_t, QueuedUpdate>& updates)
 {
-	auto p_last = updates.end() - 1;
-	for (auto ack : acks) {
-		for (auto p_read = updates.begin(); p_read != p_last + 1; ++p_read) {
-			const auto& u = *p_read;
-			bool found = false;
-			switch (u.type) {
-			case QueuedUpdate::Type::GEOM:
-				found = u.data.geom.data.serialId == ack;
-				break;
-			default:
-				err("Invalid update type ", int(u.type), " found in persistent updates!");
-				throw;
-			}
-			if (!found)
-				continue;
+	for (auto ack : acks)
+		updates.remove(ack, ack);
 
-			// Erase this update
-			*p_read = *p_last;
-			--p_last;
-
-			break;
-		}
-	}
-	updates.erase(p_last + 1, updates.end());
 	acks.clear();
 }
 
@@ -69,28 +49,33 @@ void ServerActiveEndpoint::loopFunc()
 	// Send datagrams to the client
 	while (!terminated) {
 
-		std::unique_lock<std::mutex> ulk{ updates.mtx };
+		std::vector<QueuedUpdate> transitory;
 		if (updates.size() == 0) {
 			// Wait for updates
+			std::unique_lock<std::mutex> ulk{ updates.mtx };
 			updates.cv.wait(ulk, [this, &updates = server.toClient.updates]() {
 				return terminated || updates.size() > 0;
 			});
 			if (terminated)
 				break;
+			transitory = updates.transitory;
 		}
 
 		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-		verbose("updates.size now = ", updates.size());
+		uberverbose("updates.size now = ", updates.size());
 
 		// Send transitory updates
-		auto w = updates.transitory.begin();
-		for (auto it = w; it != updates.transitory.end(); ++it) {
+		for (auto it = transitory.begin(); it != transitory.end();) {
+			if (terminated)
+				return;
+
 			const auto& update = *it;
 			const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
 
 			if (written > 0) {
 				// Packet was written into the buffer, erase it and go ahead
 				offset += written;
+				++it;
 			} else {
 				// Not enough room: send the packet
 				sendPacket(socket, buffer.data(), buffer.size());
@@ -100,36 +85,42 @@ void ServerActiveEndpoint::loopFunc()
 				offset = sizeof(UdpHeader);
 
 				// Don't erase this element yet: retry in next iteration
-				if (it != w)
-					*w = std::move(*it);
-				++w;
 			}
 		}
-		assert(ulk.owns_lock());
-		updates.transitory.erase(w, updates.transitory.end());
 
+		std::unique_lock<std::mutex> ulk{ updates.mtx };
 		// Remove all persistent updates which were acked by the client
-		{
+		if (updates.persistent.size() > 0) {
 			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
-			deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
+			measure_ms("deleteAcked", LOGLV_INFO, [&]() {
+				deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
+			});
 		}
 
 		if (updates.persistent.size() > 0)
-			debug("sending ", updates.persistent.size(), " persistent updates");
+			verbose("sending ", updates.persistent.size(), " persistent updates");
 
 		// Send persistent updates
-		for (auto it = updates.persistent.begin(); it != updates.persistent.end();) {
-			const auto& update = *it;
+		auto it = updates.persistent.iter_start();
+		uint32_t ignoreKey;
+		QueuedUpdate update;
+		bool loop = updates.persistent.iter_next(it, ignoreKey, update);
+		while (loop) {
+			if (terminated)
+				return;
+
 			// GEOM updates are currently the only ACKed ones
 			assert(update.type == QueuedUpdate::Type::GEOM);
 			const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
 
 			if (written > 0) {
 				offset += written;
-				++it;
+				loop = updates.persistent.iter_next(it, ignoreKey, update);
 			} else {
 				// Not enough room: send the packet
-				sendPacket(socket, buffer.data(), buffer.size());
+				if (!sendPacket(socket, buffer.data(), buffer.size()))
+					break;
+				// info("pers: ", updates.persistent.size());
 
 				writeUdpHeader(buffer.data(), buffer.size(), packetGen);
 				offset = sizeof(UdpHeader);
@@ -144,6 +135,11 @@ void ServerActiveEndpoint::loopFunc()
 
 		++packetGen;
 	}
+}
+
+void ServerActiveEndpoint::onClose()
+{
+	server.toClient.updates.cv.notify_all();
 }
 
 ////////////////////////////////////////
@@ -210,9 +206,6 @@ void ServerReliableEndpoint::loopFunc()
 		}
 
 		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
-		// For concurrent client handling, uncomment this and comment `listenTo`
-		// std::thread listener(&ServerReliableEndpoint::listenTo, this, clientSocket, clientAddr);
-		// listener.detach();
 
 		// Single client
 		listenTo(clientSocket, clientAddr);
@@ -221,12 +214,13 @@ void ServerReliableEndpoint::loopFunc()
 
 /** This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
 static void keepaliveTask(socket_t clientSocket,
+	const bool& terminated,
 	std::condition_variable& cv,
 	std::chrono::time_point<std::chrono::system_clock>& latestPing)
 {
 	std::array<uint8_t, 1> buffer = {};
 
-	while (true) {
+	while (!terminated) {
 		TcpMsgType type;
 		if (!receiveTCPMsg(clientSocket, buffer.data(), buffer.size(), type)) {
 			cv.notify_one();
@@ -238,13 +232,15 @@ static void keepaliveTask(socket_t clientSocket,
 			latestPing = std::chrono::system_clock::now();
 			break;
 		case TcpMsgType::DISCONNECT:
-			// Special value used to signal disconnection
-			latestPing = std::chrono::time_point<std::chrono::system_clock>::max();
-			break;
+			goto exit;
 		default:
 			break;
 		}
 	}
+exit:
+	info("KEEPALIVE: dead");
+	cv.notify_one();
+	return;
 }
 
 void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientAddr)
@@ -301,8 +297,11 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 
 	{
 		// Periodically check keepalive, or drop the client
+		info("Starting keepalive thread.");
 		std::chrono::time_point<std::chrono::system_clock> latestPing;
-		std::thread keepaliveThread{ keepaliveTask, clientSocket, std::ref(keepaliveCv), std::ref(latestPing) };
+		std::thread keepaliveThread{
+			keepaliveTask, clientSocket, std::cref(terminated), std::ref(keepaliveCv), std::ref(latestPing)
+		};
 
 		const auto& roLatestPing = latestPing;
 		const auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
@@ -311,47 +310,46 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 			{
 				std::unique_lock<std::mutex> keepaliveUlk{ keepaliveMtx };
 				// TODO: ensure no spurious wakeup
-				if (keepaliveCv.wait_for(keepaliveUlk, interval) == std::cv_status::no_timeout)
+				if (keepaliveCv.wait_for(keepaliveUlk, interval) == std::cv_status::no_timeout) {
+					info("Keepalive thread is dead.");
 					break;
-			}
+				}
 
-			// Check for disconnection
-			if (roLatestPing == std::chrono::time_point<std::chrono::system_clock>::max()) {
-				info("Client disconnected.");
-				break;
-			}
-
-			// Verify the client has pinged us more recently than SERVER_KEEPALIVE_INTERVAL_SECONDS
-			const auto now = std::chrono::system_clock::now();
-			if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
-				// drop the client
-				info("Keepalive timeout.");
-				break;
+				// Verify the client has pinged us more recently than SERVER_KEEPALIVE_INTERVAL_SECONDS
+				const auto now = std::chrono::system_clock::now();
+				if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
+					// drop the client
+					info("Keepalive timeout.");
+					break;
+				}
 			}
 		}
-		if (keepaliveThread.joinable())
+
+		if (keepaliveThread.joinable()) {
+			info("Joining keepaliveThread...");
 			keepaliveThread.join();
+			info("Joined keepaliveThread.");
+		}
 	}
 
 dropclient:
-	info("TCP: Dropping client ", readableAddr);
-	{
-		// Send disconnect message
-		sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
-	}
-	server.fromClient.clientDataCv.notify_all();
-	server.toClient.updates.cv.notify_all();
+	// Send disconnect message
+	sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
+	info("Closing socket");
+	xplatSockClose(clientSocket);
 	info("Closing passiveEP");
 	server.passiveEP.close();
 	info("Closing activeEP");
 	server.activeEP.close();
-	info("Closing socket");
-	xplatSockClose(clientSocket);
+	info("TCP: Dropping client ", readableAddr);
 }
 
 void ServerReliableEndpoint::onClose()
 {
+	info("Notifying cvs");
 	keepaliveCv.notify_all();
+	server.toClient.updates.cv.notify_all();
+	server.fromClient.clientDataCv.notify_all();
 }
 
 bool ServerReliableEndpoint::sendOneTimeData(socket_t clientSocket)

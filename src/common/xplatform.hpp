@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 
 #ifdef _WIN32
@@ -8,7 +9,7 @@ constexpr char DIRSEP = '\\';
 constexpr char DIRSEP = '/';
 #endif
 
-using signal_handler_t = void (*)();
+using signal_handler_t = std::function<void()>;
 
 /** @return the absolute path to the executable's directory.  */
 std::string xplatGetCwd();

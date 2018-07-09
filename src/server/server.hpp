@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cf_hashmap.hpp"
 #include "queued_update.hpp"
 #include "server_endpoint.hpp"
 #include "server_resources.hpp"
@@ -31,7 +32,7 @@ struct UpdateList {
 	/** Updates in this list get wiped out every appstage loop */
 	std::vector<QueuedUpdate> transitory;
 	/** Updates in this list must be ACKed by the client before they get deleted. */
-	std::vector<QueuedUpdate> persistent;
+	cf::hashmap<uint32_t, QueuedUpdate> persistent;
 
 	/** Mutex guarding updates */
 	std::mutex mtx;
