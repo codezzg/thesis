@@ -17,6 +17,8 @@
 class FPSCounter final {
 	using clock = std::chrono::high_resolution_clock;
 
+	const std::string prelude;
+
 	// Latest time the FPS were reported
 	clock::time_point checkpoint;
 
@@ -24,6 +26,10 @@ class FPSCounter final {
 	uint32_t frames = 0;
 
 public:
+	FPSCounter(const std::string& prelude = "FPS")
+		: prelude{ prelude }
+	{}
+
 	float reportPeriod = 1;
 
 	void start();

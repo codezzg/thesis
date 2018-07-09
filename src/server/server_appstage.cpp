@@ -1,5 +1,6 @@
 #include "server_appstage.hpp"
 #include "clock.hpp"
+#include "fps_counter.hpp"
 #include "frame_utils.hpp"
 #include "geom_update.hpp"
 #include "logging.hpp"
@@ -44,6 +45,8 @@ void appstageLoop(Server& server)
 
 	Clock clock;
 	auto beginTime = std::chrono::high_resolution_clock::now();
+	FPSCounter fps{ "Appstage" };
+	fps.reportPeriod = 5;
 
 	while (true) {
 		const LimitFrameTime lft{ 33ms };
@@ -137,6 +140,9 @@ void appstageLoop(Server& server)
 			dt = clock.targetDeltaTime;
 		clock.update(dt);
 		beginTime = endTime;
+
+		fps.addFrame();
+		fps.report();
 	}
 	info("Server appstage loop exited.");
 }

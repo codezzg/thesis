@@ -46,10 +46,13 @@ void ServerActiveEndpoint::loopFunc()
 
 	auto& updates = server.toClient.updates;
 
+	FPSCounter fps{ "ActiveEP" };
+	fps.start();
+	fps.reportPeriod = 5;
+
 	// Send datagrams to the client
 	while (!terminated) {
 
-		std::vector<QueuedUpdate> transitory;
 		if (updates.size() == 0) {
 			// Wait for updates
 			std::unique_lock<std::mutex> ulk{ updates.mtx };
@@ -58,8 +61,11 @@ void ServerActiveEndpoint::loopFunc()
 			});
 			if (terminated)
 				break;
-			transitory = updates.transitory;
 		}
+
+		std::unique_lock<std::mutex> ulk{ updates.mtx };
+		std::vector<QueuedUpdate> transitory = updates.transitory;
+		ulk.unlock();
 
 		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
 		uberverbose("updates.size now = ", updates.size());
@@ -88,7 +94,7 @@ void ServerActiveEndpoint::loopFunc()
 			}
 		}
 
-		std::unique_lock<std::mutex> ulk{ updates.mtx };
+		ulk.lock();
 		// Remove all persistent updates which were acked by the client
 		if (updates.persistent.size() > 0) {
 			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
@@ -130,6 +136,9 @@ void ServerActiveEndpoint::loopFunc()
 			// Need to send the last packet
 			sendPacket(socket, buffer.data(), buffer.size());
 		}
+
+		fps.addFrame();
+		fps.report();
 
 		++packetGen;
 	}

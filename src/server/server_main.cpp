@@ -93,9 +93,11 @@ int main(int argc, char** argv)
 		const auto& model = pair.second;
 		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
 	}
-	auto sponza = server.scene.getNode(sid(xplatGetCwd() + xplatPath("/models/sponza/sponza.dae")));
-	if (sponza)
-		sponza->flags |= (1 << NODE_FLAG_STATIC);
+	{
+		auto sponza = server.scene.getNode(sid(xplatGetCwd() + xplatPath("/models/sponza/sponza.dae")));
+		if (sponza)
+			sponza->flags |= (1 << NODE_FLAG_STATIC);
+	}
 
 	for (const auto& light : server.resources.pointLights) {
 		server.scene.addNode(light.name, NodeType::POINT_LIGHT, Transform{});
