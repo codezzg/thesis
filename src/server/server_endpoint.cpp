@@ -260,6 +260,10 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 	const auto readableAddr = inet_ntoa(clientAddr.sin_addr);
 
 	{
+		std::lock_guard<std::mutex> lock{ server.toClient.updates.mtx };
+		server.toClient.updates.persistent.clear();
+	}
+	{
 		// Build the initial list of models to send to the client
 		std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
 		server.toClient.modelsToSend.reserve(server.resources.models.size());
@@ -280,26 +284,26 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 			goto dropclient;
 
 		// Send one-time data
-		info("Sending one time data...");
-		if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
-			goto dropclient;
+		// info("Sending one time data...");
+		// if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
+		// goto dropclient;
 
-		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::RSRC_EXCHANGE_ACK))
-			goto dropclient;
+		// if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::RSRC_EXCHANGE_ACK))
+		// goto dropclient;
 
-		if (!sendOneTimeData(clientSocket))
-			goto dropclient;
+		// if (!sendOneTimeData(clientSocket))
+		// goto dropclient;
 
-		if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
-			goto dropclient;
+		// if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
+		// goto dropclient;
 
 		// Wait for ready signal from client
 		if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::READY))
 			goto dropclient;
 
 		// Starts UDP loops and send ready to client
-		server.activeEP.startActive(readableAddr, cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
-		server.activeEP.runLoop();
+		// server.activeEP.startActive(readableAddr, cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
+		// server.activeEP.runLoop();
 		server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
 		server.passiveEP.runLoop();
 

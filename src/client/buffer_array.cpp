@@ -149,8 +149,10 @@ SubBuffer* BufferArray::addBuffer(StringId name, VkDeviceSize size)
 
 	// Need to allocate another buffer
 	backingBuffers.emplace_back(createBuffer(*app, std::max(minBufferSize, size), usage, properties));
-	const auto& buf = backingBuffers.back();
+	auto& buf = backingBuffers.back();
 	debug("Allocated new buffer in BufferArray with size ", buf.size, " B");
+	if (mappingBuffers)
+		mapBuffersMemory(app->device, { &buf });
 	bufferFreeRanges.emplace_back(std::vector<BufferFreeRange>{});
 	if (size < buf.size)
 		bufferFreeRanges.back().emplace_back(BufferFreeRange{ size, buf.size });

@@ -30,8 +30,8 @@ struct SubBuffer : public Buffer {
 class BufferArray {
 
 	const Application* app = nullptr;
-	const VkBufferUsageFlags usage;
-	const VkMemoryPropertyFlags properties;
+	VkBufferUsageFlags usage;
+	VkMemoryPropertyFlags properties;
 	VkDeviceSize minAlign;
 	/** Minimum size of the allocated buffers */
 	VkDeviceSize minBufferSize;
@@ -60,6 +60,9 @@ public:
 		: usage{ usage }
 		, properties{ properties }
 	{}
+	explicit BufferArray(BufferArray&& other) = default;
+
+	BufferArray& operator=(BufferArray&& other) = default;
 
 	/** Needs to be called before calling reserve() or addBuffer().
 	 *  If `minBufferSize` == 0, it will be set to a small multiple of minAlign.
@@ -91,7 +94,7 @@ public:
 	/** Invalidates SubBuffer `name` and marks its memory as available. */
 	void rmBuffer(StringId name);
 
-	void dump()
+	void dump() const
 	{
 		for (unsigned i = 0; i < backingBuffers.size(); ++i)
 			std::cout << "freeRanges[" << i << "] = " << listToString(bufferFreeRanges[i]) << "\n";

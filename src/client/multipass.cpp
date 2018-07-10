@@ -12,6 +12,67 @@
 
 using namespace logging;
 
+inline static void drawModels(const Application& app,
+	VkCommandBuffer cmdBuf,
+	const Geometry& geometry,
+	const NetworkResources& netRsrc,
+	const BufferArray& uniformBuffers)
+{
+	assert(geometry.locations.size() == netRsrc.models.size() &&
+		"Geometry locations should be the same number as models!");
+
+	std::array<VkBuffer, 1> vertexBuffers = { geometry.vertexBuffer.handle };
+	std::vector<VkDeviceSize> offsets(geometry.locations.size());
+
+	// Use the same vertex buffer for all models, but with a different offset for each model.
+	// The offsets to use are saved in geometry.locations.
+	for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
+		auto loc_it = geometry.locations.find(netRsrc.models[j].name);
+		assert(loc_it != geometry.locations.end());
+		offsets[j] = loc_it->second.vertexOff;
+	}
+
+	for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
+		const auto& model = netRsrc.models[j];
+
+		// Bind the vertex buffer at the proper offset
+		vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers.data(), &offsets[j]);
+
+		// Bind the index buffer at the proper offset
+		const auto loc_it = geometry.locations.find(model.name);
+		assert(loc_it != geometry.locations.end());
+		vkCmdBindIndexBuffer(
+			cmdBuf, geometry.indexBuffer.handle, loc_it->second.indexOff, VK_INDEX_TYPE_UINT32);
+
+		const auto dynOff = static_cast<uint32_t>(uniformBuffers.getBuffer(model.name)->bufOffset);
+		// Bind object descriptor set
+		vkCmdBindDescriptorSets(cmdBuf,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			app.res.pipelineLayouts->get("multi"),
+			3,
+			1,
+			&app.res.descriptorSets->get(model.name),
+			1,
+			&dynOff);
+
+		for (const auto& mesh : model.meshes) {
+			const auto& matName = mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
+
+			// Bind material descriptor set
+			vkCmdBindDescriptorSets(cmdBuf,
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				app.res.pipelineLayouts->get("multi"),
+				2,
+				1,
+				&app.res.descriptorSets->get(matName),
+				0,
+				nullptr);
+
+			vkCmdDrawIndexed(cmdBuf, mesh.len, 1, mesh.offset, 0, 0);
+		}
+	}
+}
+
 void recordMultipassCommandBuffers(const Application& app,
 	std::vector<VkCommandBuffer>& commandBuffers,
 	const Geometry& geometry,
@@ -78,60 +139,8 @@ void recordMultipassCommandBuffers(const Application& app,
 		// material descriptor set)
 
 		// Draw all models
-		assert(geometry.locations.size() == netRsrc.models.size() &&
-			"Geometry locations should be the same number as models!");
-
-		std::array<VkBuffer, 1> vertexBuffers = { geometry.vertexBuffer.handle };
-		std::vector<VkDeviceSize> offsets(geometry.locations.size());
-
-		// Use the same vertex buffer for all models, but with a different offset for each model.
-		// The offsets to use are saved in geometry.locations.
-		for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
-			auto loc_it = geometry.locations.find(netRsrc.models[j].name);
-			assert(loc_it != geometry.locations.end());
-			offsets[j] = loc_it->second.vertexOff;
-		}
-
-		for (unsigned j = 0; j < netRsrc.models.size(); ++j) {
-			const auto& model = netRsrc.models[j];
-
-			// Bind the vertex buffer at the proper offset
-			vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers.data(), &offsets[j]);
-
-			// Bind the index buffer at the proper offset
-			const auto loc_it = geometry.locations.find(model.name);
-			assert(loc_it != geometry.locations.end());
-			vkCmdBindIndexBuffer(
-				cmdBuf, geometry.indexBuffer.handle, loc_it->second.indexOff, VK_INDEX_TYPE_UINT32);
-
-			const auto dynOff = static_cast<uint32_t>(uniformBuffers.getBuffer(model.name)->bufOffset);
-			// Bind object descriptor set
-			vkCmdBindDescriptorSets(cmdBuf,
-				VK_PIPELINE_BIND_POINT_GRAPHICS,
-				app.res.pipelineLayouts->get("multi"),
-				3,
-				1,
-				&app.res.descriptorSets->get(model.name),
-				1,
-				&dynOff);
-
-			for (const auto& mesh : model.meshes) {
-				const auto& matName =
-					mesh.materialId >= 0 ? model.materials[mesh.materialId] : SID_NONE;
-
-				// Bind material descriptor set
-				vkCmdBindDescriptorSets(cmdBuf,
-					VK_PIPELINE_BIND_POINT_GRAPHICS,
-					app.res.pipelineLayouts->get("multi"),
-					2,
-					1,
-					&app.res.descriptorSets->get(matName),
-					0,
-					nullptr);
-
-				vkCmdDrawIndexed(cmdBuf, mesh.len, 1, mesh.offset, 0, 0);
-			}
-		}
+		if (netRsrc.models.size() > 0)
+			drawModels(app, cmdBuf, geometry, netRsrc, uniformBuffers);
 
 		//// Second subpass: draw skybox
 		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
@@ -159,8 +168,8 @@ void recordMultipassCommandBuffers(const Application& app,
 
 		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
 
-		vertexBuffers[0] = app.screenQuadBuffer.handle;
-		vkCmdBindVertexBuffers(cmdBuf, 0, 1, vertexBuffers.data(), offsets.data());
+		const std::array<VkDeviceSize, 1> offsets = { 0 };
+		vkCmdBindVertexBuffers(cmdBuf, 0, 1, &app.screenQuadBuffer.handle, offsets.data());
 		vkCmdDraw(cmdBuf, 4, 1, 0, 0);
 
 		vkCmdEndRenderPass(cmdBuf);

@@ -48,7 +48,7 @@ void VulkanClient::run(const char* ip)
 	if (!connectToServer(ip))
 		return;
 
-	measure_ms("Init Vulkan", LOGLV_INFO, [this]() { initVulkan(); });   // deferred rendering
+	measure_ms("Init Vulkan", LOGLV_INFO, [this]() { initVulkan(); });
 
 	mainLoop();
 	cleanup();
@@ -62,6 +62,39 @@ void VulkanClient::disconnect()
 
 void VulkanClient::initVulkan()
 {
+	{
+		auto stagingBuffer = createStagingBuffer(app, megabytes(16));
+		DEFER([&]() { destroyBuffer(app.device, stagingBuffer); });
+
+		createPermanentBuffers(stagingBuffer);
+
+		// Create default textures
+		TextureLoader texLoader{ stagingBuffer };
+		std::vector<std::future<bool>> texLoadTasks;
+		texLoadTasks.emplace_back(texLoader.addTextureAsync(
+			netRsrc.defaults.diffuseTex, "textures/default.jpg", shared::TextureFormat::RGBA));
+		texLoadTasks.emplace_back(texLoader.addTextureAsync(
+			netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY));
+		texLoadTasks.emplace_back(texLoader.addTextureAsync(
+			netRsrc.defaults.normalTex, "textures/default_norm.jpg", shared::TextureFormat::RGBA));
+		for (auto& res : texLoadTasks) {
+			if (!res.get()) {
+				err("Failed to load texture image! Latest error: ", texLoader.getLatestError());
+			}
+		}
+		texLoader.create(app);
+	}
+
+	{
+		// Create default materials
+		shared::Material dfltMat = { SID_NONE, SID_NONE, SID_NONE, SID_NONE };
+		netRsrc.defaults.material = createMaterial(dfltMat, netRsrc);
+	}
+
+	app.texSampler = createTextureSampler(app);
+	// app.cubeSampler = createTextureCubeSampler(app);
+	// loadSkybox();
+
 	// Create basic Vulkan resources
 	app.swapChain = createSwapChain(app);
 	app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
@@ -71,8 +104,6 @@ void VulkanClient::initVulkan()
 	app.gBuffer.createAttachments(app);
 
 	app.swapChain.depthImage = createDepthImage(app);
-	// app.swapChain.depthOnlyView = createImageView(app, app.swapChain.depthImage.handle,
-	// formats::depth, VK_IMAGE_ASPECT_DEPTH_BIT);
 	app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 	app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 	app.pipelineCache = createPipelineCache(app);
@@ -129,6 +160,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 		return false;
 	}
 
+	/*
 	debug(":: Expecting START_RSRC_EXCHANGE");
 	if (!endpoints.reliable.expectStartResourceExchange()) {
 		err("Didn't receive START_RSRC_EXCHANGE.");
@@ -166,7 +198,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 		}
 
 		// Drop the memory used for staging the resources as it's not needed anymore.
-	}
+	}*/
 
 	debug(":: Starting UDP endpoints...");
 	startNetwork(serverIp);
@@ -241,26 +273,31 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources)
 		destroyBuffer(app.device, stagingBuffer);
 	});
 
-	// loadSkybox();
-
 	// Save models into permanent storage
-	// NOTE: resources.models becomes invalid after this move
-	netRsrc.models = std::move(resources.models);
-	for (const auto& model : netRsrc.models)
+	netRsrc.models = resources.models;
+	for (const auto& model : netRsrc.models) {
+		if (objTransforms.find(model.name) != objTransforms.end()) {
+			warn("Received model ", model.name, " more than once: ignoring.");
+			continue;
+		}
 		objTransforms[model.name] = glm::mat4{ 1.f };
+	}
 
 	// Save lights into permanent storage
-	// NOTE: resources.pointLights becomes invalid after this move
-	netRsrc.pointLights = std::move(resources.pointLights);
+	netRsrc.pointLights = resources.pointLights;
 	for (const auto& light : netRsrc.pointLights) {
+		if (objTransforms.find(light.name) != objTransforms.end()) {
+			warn("Received light ", light.name, " more than once: ignoring.");
+			continue;
+		}
 		objTransforms[light.name] = glm::mat4{ 1.f };
-		debug("Saved transform for light ", light.name);
 	}
 
 	// Save shaders into permanent storage
 	netRsrc.shaders.reserve(resources.shaders.size());
 	std::size_t shaderMemNeeded = 0;
 	for (const auto& pair : resources.shaders) {
+		// TODO right now we don't check if we receive the same shader two times.
 		const auto& shader = pair.second;
 		netRsrc.shaders.emplace_back(shader);
 		shaderMemNeeded += shader.codeSizeInBytes;
@@ -280,15 +317,8 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources)
 		/// Load textures
 		TextureLoader texLoader{ stagingBuffer };
 		std::vector<std::future<bool>> texLoadTasks;
-		texLoadTasks.reserve(3 + resources.textures.size());
+		texLoadTasks.reserve(resources.textures.size());
 
-		// Create default textures
-		texLoadTasks.emplace_back(texLoader.addTextureAsync(
-			netRsrc.defaults.diffuseTex, "textures/default.jpg", shared::TextureFormat::RGBA));
-		texLoadTasks.emplace_back(texLoader.addTextureAsync(
-			netRsrc.defaults.specularTex, "textures/default_spec.jpg", shared::TextureFormat::GREY));
-		texLoadTasks.emplace_back(texLoader.addTextureAsync(
-			netRsrc.defaults.normalTex, "textures/default_norm.jpg", shared::TextureFormat::RGBA));
 		// Create textures received from server
 		for (const auto& pair : resources.textures) {
 			if (pair.first == SID_NONE)
@@ -304,20 +334,12 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources)
 		}
 
 		texLoader.create(app);
-		app.texSampler = createTextureSampler(app);
 	}
 
 	// Prepare materials
-	{
-		shared::Material dfltMat = { SID_NONE, SID_NONE, SID_NONE, SID_NONE };
-		netRsrc.defaults.material = createMaterial(dfltMat, netRsrc);
-	}
 	for (const auto& mat : resources.materials) {
 		netRsrc.materials.emplace_back(createMaterial(mat, netRsrc));
 	}
-
-	// Prepare buffers
-	prepareBufferMemory(stagingBuffer);
 
 	return true;
 }
@@ -340,8 +362,10 @@ void VulkanClient::mainLoop()
 		lft.enabled = gLimitFrameTime;
 
 		// Check if we disconnected
-		if (!endpoints.reliable.isConnected())
+		if (!endpoints.reliable.isConnected()) {
+			warn("RelEP disconnected");
 			break;
+		}
 
 		glfwPollEvents();
 
@@ -366,9 +390,21 @@ void VulkanClient::runFrame()
 {
 	// Receive network data
 	updateReqs.clear();
-	receiveData(endpoints.passive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
+
+	// Check for TCP messages
+	if (endpoints.reliable.tryLockResources()) {
+		const auto resources = endpoints.reliable.retreiveResources();
+		loadAssets(*resources);
+		endpoints.reliable.releaseResources();
+	}
+
+	// Check for UDP messages
+	measure_ms("receiveData", LOGLV_DEBUG, [&]() {
+		receiveData(endpoints.passive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
+	});
 
 	// Apply update requests
+	START_PROFILE(updateReq);
 	for (const auto& req : updateReqs) {
 		switch (req.type) {
 		case UpdateReq::Type::GEOM:
@@ -395,6 +431,7 @@ void VulkanClient::runFrame()
 			break;
 		}
 	}
+	END_PROFILE(updateReq, "updateReq", LOGLV_DEBUG);
 
 	// Enqueue acks to send (does not block if the mutex is not available yet)
 	if (acksToSend.size() > 0 && endpoints.active.acks.mtx.try_lock()) {
@@ -537,15 +574,14 @@ void VulkanClient::updateObjectsUniformBuffer()
 		auto ubo = reinterpret_cast<ObjectUniformBufferObject*>(objBuf->ptr);
 
 		if (gUseCamera) {
-			// TODO
 			ubo->model = objTransforms[model.name];
-			verbose("filling ",
-				ubo,
-				" / ",
-				std::hex,
-				(uintptr_t)((uint8_t*)ubo + sizeof(ObjectUniformBufferObject)),
-				"  with transform ",
-				glm::to_string(ubo->model));
+			// verbose("filling ",
+			// ubo,
+			//" / ",
+			// std::hex,
+			//(uintptr_t)((uint8_t*)ubo + sizeof(ObjectUniformBufferObject)),
+			//"  with transform ",
+			// glm::to_string(ubo->model));
 		} else {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime)
@@ -553,8 +589,6 @@ void VulkanClient::updateObjectsUniformBuffer()
 			ubo->model = glm::rotate(glm::mat4{ 1.0f },
 				(time + model.name % 259) * glm::radians(89.f),
 				glm::vec3{ 0.f, -1.f, 0.f });
-			// ubo->view = glm::lookAt(glm::vec3{ 14, 14, 14 },
-			// glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
 		}
 	}
 }
@@ -584,54 +618,36 @@ void VulkanClient::updateViewUniformBuffer()
 	uberverbose("viewPos = ", glm::to_string(ubo->viewPos));
 }
 
-void VulkanClient::prepareBufferMemory(Buffer& stagingBuffer)
+void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
 {
-	const auto uboSize =
-		sizeof(ViewUniformBufferObject) + sizeof(ObjectUniformBufferObject) * netRsrc.models.size();
-	// We store all possible uniform buffers inside as little actual Buffers as possible.
-	// Then, we use descriptors of type UNIFORM_BUFFER_DYNAMIC with the subBuffers' bufOffset
-	// as dynamic offset.
-	uniformBuffers.initialize(app, findMaxUboRange(app.physicalDevice));
-	uniformBuffers.reserve(uboSize);
-	uniformBuffers.addBuffer(sid("view"), sizeof(ViewUniformBufferObject));
-	for (const auto& model : netRsrc.models)
-		uniformBuffers.addBuffer(model.name, sizeof(ObjectUniformBufferObject));
+	{
+		// Create uniform buffers.
+		// We store all possible uniform buffers inside as little actual Buffers as possible via a BufferArray.
+		// Then we use descriptors of type UNIFORM_BUFFER_DYNAMIC with the subBuffers' bufOffset
+		// as dynamic offset.
+		const auto uboSize = sizeof(ViewUniformBufferObject) + 10 * sizeof(ObjectUniformBufferObject);
+		uniformBuffers.initialize(app, findMaxUboRange(app.physicalDevice));
+		uniformBuffers.reserve(uboSize);
+		uniformBuffers.mapAllBuffers();
 
-	// Create vertex, index and uniform buffers. These buffers are all created una-tantum.
+		// Add the View UBO once
+		uniformBuffers.addBuffer(sid("view"), sizeof(ViewUniformBufferObject));
+	}
+
+	updateGeometryBuffers(app, geometry, netRsrc.models);
+
 	BufferAllocator bufAllocator;
-
-	// schedule vertex/index buffer to be created and set the proper offsets into the
-	// common buffer for all models
-	geometry.locations =
-		addVertexAndIndexBuffers(bufAllocator, geometry.vertexBuffer, geometry.indexBuffer, netRsrc.models);
-
-	// uniform buffers
-	// bufAllocator.addBuffer(uniformBuffers,
-	// uboSize,
-	// VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-	// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	// screen quad buffer
 	bufAllocator.addBuffer(app.screenQuadBuffer, getScreenQuadBufferProperties());
+
 	// skybox buffer
 	// bufAllocator.addBuffer(app.skybox.buffer, getSkyboxBufferProperties());
 
 	bufAllocator.create(app);
 
-	// Map device memory to host
-	mapBuffersMemory(app.device,
-		{
-			&geometry.vertexBuffer,
-			&geometry.indexBuffer,
-		});
-	uniformBuffers.mapAllBuffers();
-
 	// Allocate enough memory to contain all vertices and indices
 	streamingBuffer.resize(megabytes(64));
-	// std::accumulate(
-	// netRsrc.models.begin(), netRsrc.models.end(), 0, [](auto acc, const auto& pair) {
-	// return acc + pair.second.nVertices + pair.second.nIndices;
-	//}));
 
 	if (!fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer))
 		throw std::runtime_error("Failed to create screenQuadBuffer!");
@@ -666,7 +682,6 @@ void VulkanClient::loadSkybox()
 		}
 		assert(app.skybox.image.memory != VK_NULL_HANDLE);
 	});
-	app.cubeSampler = createTextureCubeSampler(app);
 }
 
 void VulkanClient::recordAllCommandBuffers()
@@ -701,9 +716,9 @@ void VulkanClient::createDescriptorSets()
 void VulkanClient::cleanupSwapChain()
 {
 	// Destroy the gbuffer and all its attachments
-	app.gBuffer.destroyTransient(app.device);
+	app.gBuffer.destroy(app.device);
 	// Destroy the swapchain and all its images and framebuffers
-	app.swapChain.destroyTransient(app.device);
+	app.swapChain.destroy(app.device);
 	vkDestroyPipeline(app.device, app.skybox.pipeline, nullptr);
 
 	vkDestroyRenderPass(app.device, app.renderPass, nullptr);
@@ -718,15 +733,18 @@ void VulkanClient::cleanup()
 {
 	cleanupSwapChain();
 
-	unmapBuffersMemory(app.device,
-		{
-			geometry.vertexBuffer,
-			geometry.indexBuffer,
-		});
+	if (geometry.locations.size() > 0) {
+		unmapBuffersMemory(app.device,
+			{
+				geometry.vertexBuffer,
+				geometry.indexBuffer,
+			});
+	}
 	uniformBuffers.unmapAllBuffers();
 
 	vkDestroySampler(app.device, app.texSampler, nullptr);
 	// vkDestroySampler(app.device, app.cubeSampler, nullptr);
+
 	{
 		std::vector<Image> imagesToDestroy;
 		imagesToDestroy.reserve(2 + netRsrc.textures.size());
@@ -739,8 +757,15 @@ void VulkanClient::cleanup()
 	}
 	// destroyImage(app.device, app.skybox.image);
 
-	destroyAllBuffers(app.device,
-		{ geometry.indexBuffer, geometry.vertexBuffer, app.screenQuadBuffer /*, app.skybox.buffer*/ });
+	{
+		std::vector<Buffer> buffersToDestroy;
+		buffersToDestroy.emplace_back(app.screenQuadBuffer);
+		if (geometry.locations.size() > 0) {
+			buffersToDestroy.emplace_back(geometry.vertexBuffer);
+			buffersToDestroy.emplace_back(geometry.indexBuffer);
+		}
+		destroyAllBuffers(app.device, buffersToDestroy);
+	}
 	uniformBuffers.cleanup();
 
 	vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);

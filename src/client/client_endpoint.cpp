@@ -203,6 +203,9 @@ void ClientReliableEndpoint::loopFunc()
 		case TcpMsgType::DISCONNECT:
 			connected = false;
 			break;
+		case TcpMsgType::START_RSRC_EXCHANGE:
+			performResourceExchange();
+			break;
 		default:
 			break;
 		}
@@ -220,7 +223,37 @@ void ClientReliableEndpoint::onClose()
 	keepaliveCv.notify_all();
 }
 
-bool ClientReliableEndpoint::receiveOneTimeData(ClientTmpResources& resources)
+void ClientReliableEndpoint::performResourceExchange()
+{
+	// If previous resources were there, clear them unless the client hasn't
+	// retreived them yet.
+	std::lock_guard<std::mutex> lock{ resourcesMtx };
+
+	if (!resourcesAvailable)
+		resources.clear();
+
+	sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK);
+
+	if (receiveOneTimeData()) {
+		resourcesAvailable = true;
+	}
+}
+
+bool ClientReliableEndpoint::tryLockResources()
+{
+	if (resourcesAvailable) {
+		return resourcesMtx.try_lock();
+	}
+	return false;
+}
+
+void ClientReliableEndpoint::releaseResources()
+{
+	resourcesAvailable = false;
+	resourcesMtx.unlock();
+}
+
+bool ClientReliableEndpoint::receiveOneTimeData()
 {
 	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
 

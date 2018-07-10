@@ -76,6 +76,9 @@ private:
 	/** Contains togglable debug options for shaders */
 	ShaderOpts shaderOpts;
 
+	/** Creates all the permanent Vulkan resources.
+	 *  Those are freed by cleanup().
+	 */
 	void initVulkan();
 
 	/** Starts the network endpoints */
@@ -91,7 +94,10 @@ private:
 	bool loadAssets(const ClientTmpResources& resources);
 
 	void prepareReceivedGeomHashset();
-	void prepareBufferMemory(Buffer& stagingBuffer);
+	/** Creates the buffers that will stay alive until cleanup */
+	void createPermanentBuffers(Buffer& stagingBuffer);
+	void createSemaphores();
+	void createDescriptorSets();
 	void prepareCamera();
 	void loadSkybox();
 
@@ -102,8 +108,8 @@ private:
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime);
 
 	void recreateSwapChain();
-	void createSemaphores();
-	void createDescriptorSets();
+	/** Creates or updates the buffers which get regenerated every time new resources arrive */
+	void updateBuffers();
 
 	void drawFrame();
 	void renderFrame(uint32_t imageIndex);

@@ -6,7 +6,7 @@
 
 using namespace logging;
 
-std::vector<char> readFileIntoMemory(const char* path)
+std::vector<char> readFile(const char* path)
 {
 	std::ifstream file{ path, std::ios::binary | std::ios::ate };
 	auto dataLen = file.tellg();

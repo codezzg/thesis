@@ -20,14 +20,13 @@ struct SwapChain final {
 	std::vector<VkImageView> imageViews;
 	std::vector<VkFramebuffer> framebuffers;
 	Image depthImage;
-	// VkImageView depthOnlyView; // view of depthImage without the stencil
 
 	VkDescriptorSet descriptorSet;
 
 	// @see comment of gbuffer.pipeline.
 	VkPipeline pipeline;
 
-	void destroyTransient(VkDevice device);
+	void destroy(VkDevice device);
 };
 
 /** Creates a new SwapChain object and fills its `images`, `extent` and `imageFormat`.

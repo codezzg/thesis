@@ -80,7 +80,7 @@ static VkCompositeAlphaFlagBitsKHR chooseCompositeAlphaMode(const SwapChainSuppo
 	return cAlpha;
 }
 
-void SwapChain::destroyTransient(VkDevice device)
+void SwapChain::destroy(VkDevice device)
 {
 	for (auto framebuffer : framebuffers)
 		vkDestroyFramebuffer(device, framebuffer, nullptr);

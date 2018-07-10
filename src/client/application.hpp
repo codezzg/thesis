@@ -41,8 +41,8 @@ struct Application final {
 	Buffer screenQuadBuffer;
 	Skybox skybox;
 
-	VkSampler texSampler;
-	VkSampler cubeSampler;
+	VkSampler texSampler = VK_NULL_HANDLE;
+	VkSampler cubeSampler = VK_NULL_HANDLE;
 
 	Resources res;
 

@@ -149,21 +149,28 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 
 	std::vector<VkPipeline> pipelines;
 
-	const auto mustFindShader = [&shaders](uint8_t passNumber, ShaderStage stage) -> shared::SpirvShader {
+	const auto createShader = [&app, &shaders](uint8_t passNumber, ShaderStage stage) -> VkShaderModule {
+		if (passNumber >= 3) {
+			err("Invalid passNumber: ", int(passNumber));
+			throw;
+		}
 		auto shad_it = std::find_if(shaders.begin(), shaders.end(), [&](const auto& sh) {
 			return sh.passNumber == passNumber && sh.stage == stage;
 		});
 		if (shad_it == shaders.end()) {
-			err("Couldn't find shader for pass ", passNumber, " and stage ", stage, "!");
-			throw;
+			warn("Couldn't find shader for pass ", int(passNumber), " and stage ", stage, "!");
+			std::string defaultFile = std::array<std::string, 3>{
+				"shaders/gbuffer", "shaders/skybox", "shaders/composition"
+			}[passNumber];
+			return createShaderModule(app, (defaultFile + shaderStageToExt(stage) + ".spv").c_str());
 		}
-		return *shad_it;
+		return createShaderModule(app, *shad_it);
 	};
 
 	/// Multipass
 	{
-		auto vertShaderModule = createShaderModule(app, mustFindShader(0, ShaderStage::VERTEX));
-		auto fragShaderModule = createShaderModule(app, mustFindShader(0, ShaderStage::FRAGMENT));
+		auto vertShaderModule = createShader(0, ShaderStage::VERTEX);
+		auto fragShaderModule = createShader(0, ShaderStage::FRAGMENT);
 
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -195,8 +202,8 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 		colorBlending.attachmentCount = 1;
 		pipelineInfo.subpass = 1;
 
-		auto vertShaderModule = createShaderModule(app, mustFindShader(1, ShaderStage::VERTEX));
-		auto fragShaderModule = createShaderModule(app, mustFindShader(1, ShaderStage::FRAGMENT));
+		auto vertShaderModule = createShader(1, ShaderStage::VERTEX);
+		auto fragShaderModule = createShader(1, ShaderStage::FRAGMENT);
 
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -230,8 +237,8 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 		colorBlending.attachmentCount = 1;
 		pipelineInfo.subpass = 2;
 
-		auto vertShaderModule = createShaderModule(app, mustFindShader(2, ShaderStage::VERTEX));
-		auto fragShaderModule = createShaderModule(app, mustFindShader(2, ShaderStage::FRAGMENT));
+		auto vertShaderModule = createShader(2, ShaderStage::VERTEX);
+		auto fragShaderModule = createShader(2, ShaderStage::FRAGMENT);
 
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

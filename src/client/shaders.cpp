@@ -1,8 +1,8 @@
 #include "shaders.hpp"
 #include "application.hpp"
 #include "shared_resources.hpp"
+#include "utils.hpp"
 #include "vulk_errors.hpp"
-#include "vulk_utils.hpp"
 #include <vector>
 
 VkShaderModule createShaderModule(const Application& app, const char* fname)
@@ -33,4 +33,19 @@ VkShaderModule createShaderModule(const Application& app, const shared::SpirvSha
 	app.validation.addObjectInfo(shaderModule, __FILE__, __LINE__);
 
 	return shaderModule;
+}
+
+std::string shaderStageToExt(shared::ShaderStage s)
+{
+	switch (s) {
+		using S = shared::ShaderStage;
+	case S::VERTEX:
+		return ".vert";
+	case S::FRAGMENT:
+		return ".frag";
+	case S::GEOMETRY:
+		return ".geom";
+	default:
+		return "???";
+	}
 }

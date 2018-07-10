@@ -168,18 +168,21 @@ public:
 		hashmap<TKey, TValue> map = {};
 
 		map.m_buffer = (uint8_t*)buffer;
-		map.m_num_elements = 0;
 		map.m_capacity = (size_t)(buffer_size / (sizeof(TKey) + sizeof(TValue) + sizeof(uint32_t)));
 
-		size_t capacity = map.m_capacity;
-
-		uint32_t* hashes = (uint32_t*)map.m_buffer;
-
-		for (size_t i = 0; i < capacity; i++) {
-			hashes[i] = EMPTY_HASH;
-		}
+		map.clear();
 
 		return map;
+	}
+
+	void clear()
+	{
+		m_num_elements = 0;
+
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		for (size_t i = 0; i < m_capacity; i++) {
+			hashes[i] = EMPTY_HASH;
+		}
 	}
 
 	/// Associate a key with a value. The hash is the hash value of the key. This hashmap doesn't

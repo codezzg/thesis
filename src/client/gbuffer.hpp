@@ -12,7 +12,6 @@ struct GBuffer final {
 	Image position;
 	Image normal;
 	Image albedoSpec;
-	// Image depth;
 
 	VkDescriptorSet descriptorSet;
 
@@ -23,7 +22,7 @@ struct GBuffer final {
 
 	void createAttachments(const Application& app);
 
-	void destroyTransient(VkDevice device)
+	void destroy(VkDevice device)
 	{
 		destroyAllImages(device,
 			{
@@ -31,7 +30,6 @@ struct GBuffer final {
 				normal,
 				albedoSpec,
 			});
-
 		vkDestroyPipeline(device, pipeline, nullptr);
 	}
 };

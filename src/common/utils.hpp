@@ -11,7 +11,7 @@ inline bool startsWith(const std::string& haystack, const std::string& needle)
 }
 
 /** Reads a file into memory. The memory is allocated as a vector<char> and returned. */
-std::vector<char> readFileIntoMemory(const char* path);
+std::vector<char> readFile(const char* path);
 
 /** Reads a file into a provided buffer.
  *  The load will fail if given buffer length is less than required.

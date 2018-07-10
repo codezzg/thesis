@@ -2,6 +2,7 @@
 
 #include "client_resources.hpp"
 #include "endpoint.hpp"
+#include "units.hpp"
 #include "vertex.hpp"
 #include <chrono>
 #include <condition_variable>
@@ -59,12 +60,18 @@ public:
  */
 class ClientReliableEndpoint : public Endpoint {
 
+	ClientTmpResources resources{ megabytes(128) };
+	std::mutex resourcesMtx;
+	bool resourcesAvailable = false;
+
 	std::condition_variable keepaliveCv;
 
 	bool connected = false;
 
 	void loopFunc() override;
 	void onClose() override;
+
+	void performResourceExchange();
 
 public:
 	bool disconnect();
@@ -73,8 +80,13 @@ public:
 	bool performHandshake();
 	bool expectStartResourceExchange();
 	bool sendRsrcExchangeAck();
-	bool receiveOneTimeData(ClientTmpResources& resources);
+	/** Fills `resources` with the data incoming from the server until END_RSRC_EXCHANGE is received. */
+	bool receiveOneTimeData();
 	bool sendReadyAndWait();
+
+	bool tryLockResources();
+	const ClientTmpResources* retreiveResources() const { return &resources; }
+	void releaseResources();
 };
 
 struct ClientEndpoints {

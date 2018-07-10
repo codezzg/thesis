@@ -39,6 +39,16 @@ public:
 	{
 		allocator.init(memory.data(), memory.size());
 	}
+
+	void clear()
+	{
+		allocator.deallocAll();
+		textures.clear();
+		shaders.clear();
+		materials.clear();
+		models.clear();
+		pointLights.clear();
+	}
 };
 
 /** This struct stores the "final form" of the resources received via network. */
