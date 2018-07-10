@@ -56,8 +56,7 @@ void VulkanClient::run(const char* ip)
 
 void VulkanClient::disconnect()
 {
-	if (!endpoints.reliable.disconnect())
-		warn("Failed to disconnect!");
+	sendTCPMsg(endpoints.reliable.socket, TcpMsgType::DISCONNECT);
 }
 
 void VulkanClient::initVulkan()
@@ -139,23 +138,22 @@ void VulkanClient::initVulkan()
 void VulkanClient::startNetwork(const char* serverIp)
 {
 	debug("Starting passive EP...");
-	endpoints.passive.startPassive("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
-	endpoints.passive.runLoop();
+	endpoints.passive = startEndpoint("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
+	networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(endpoints.passive);
 
 	debug("Starting active EP towards ", serverIp, ":", cfg::CLIENT_TO_SERVER_PORT, " ...");
-	endpoints.active.startActive(serverIp, cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
-	endpoints.active.targetFrameTime = SERVER_UPDATE_TIME;
-	endpoints.active.runLoop();
+	endpoints.active = startEndpoint(serverIp, cfg::CLIENT_TO_SERVER_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
+	networkThreads.udpActive = std::make_unique<UdpActiveThread>(endpoints.active);
 
 	updateReqs.reserve(256);
 }
 
 bool VulkanClient::connectToServer(const char* serverIp)
 {
-	endpoints.reliable.startActive(serverIp, cfg::RELIABLE_PORT, SOCK_STREAM);
+	endpoints.reliable = startEndpoint(serverIp, cfg::RELIABLE_PORT, Endpoint::Type::ACTIVE, SOCK_STREAM);
 
 	debug(":: Performing handshake");
-	if (!endpoints.reliable.performHandshake()) {
+	if (!tcp_performHandshake(endpoints.reliable.socket)) {
 		err("Failed to perform handshake.");
 		return false;
 	}
@@ -204,14 +202,15 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	startNetwork(serverIp);
 
 	debug(":: Sending READY...");
-	if (!endpoints.reliable.sendReadyAndWait()) {
+	if (!tcp_sendReadyAndWait(endpoints.reliable.socket)) {
 		err("Failed to send or receive READY.");
 		return false;
 	}
 	debug(":: Received READY.");
 
 	debug(":: Starting TCP listening loop");
-	endpoints.reliable.runLoop();
+	networkThreads.keepalive = std::make_unique<KeepaliveThread>(endpoints.reliable.socket);
+	networkThreads.tcpMsg = std::make_unique<TcpMsgThread>(endpoints.reliable);
 
 	// Ready to start the main loop
 
@@ -362,7 +361,7 @@ void VulkanClient::mainLoop()
 		lft.enabled = gLimitFrameTime;
 
 		// Check if we disconnected
-		if (!endpoints.reliable.isConnected()) {
+		if (!endpoints.reliable.connected) {
 			warn("RelEP disconnected");
 			break;
 		}
@@ -376,11 +375,11 @@ void VulkanClient::mainLoop()
 
 	// Close sockets
 	info("closing endpoints.passive");
-	endpoints.passive.close();
+	closeEndpoint(endpoints.passive);
 	info("closing endpoints.active");
-	endpoints.active.close();
+	closeEndpoint(endpoints.active);
 	info("closing endpoints.reliable");
-	endpoints.reliable.close();
+	closeEndpoint(endpoints.reliable);
 
 	info("waiting device idle");
 	VLKCHECK(vkDeviceWaitIdle(app.device));
@@ -392,15 +391,15 @@ void VulkanClient::runFrame()
 	updateReqs.clear();
 
 	// Check for TCP messages
-	if (endpoints.reliable.tryLockResources()) {
-		const auto resources = endpoints.reliable.retreiveResources();
+	if (networkThreads.tcpMsg->tryLockResources()) {
+		const auto resources = networkThreads.tcpMsg->retreiveResources();
 		loadAssets(*resources);
-		endpoints.reliable.releaseResources();
+		networkThreads.tcpMsg->releaseResources();
 	}
 
 	// Check for UDP messages
 	measure_ms("receiveData", LOGLV_DEBUG, [&]() {
-		receiveData(endpoints.passive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
+		receiveData(*networkThreads.udpPassive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
 	});
 
 	// Apply update requests
@@ -434,12 +433,12 @@ void VulkanClient::runFrame()
 	END_PROFILE(updateReq, "updateReq", LOGLV_DEBUG);
 
 	// Enqueue acks to send (does not block if the mutex is not available yet)
-	if (acksToSend.size() > 0 && endpoints.active.acks.mtx.try_lock()) {
+	auto& acks = networkThreads.udpActive->acks;
+	if (acksToSend.size() > 0 && acks.mtx.try_lock()) {
 		debug("inserting ", acksToSend.size(), " acks");
-		endpoints.active.acks.list.insert(
-			endpoints.active.acks.list.end(), acksToSend.begin(), acksToSend.end());
-		endpoints.active.acks.mtx.unlock();
-		endpoints.active.acks.cv.notify_one();
+		acks.list.insert(acks.list.end(), acksToSend.begin(), acksToSend.end());
+		acks.mtx.unlock();
+		acks.cv.notify_one();
 		acksToSend.clear();
 	}
 
@@ -668,7 +667,6 @@ void VulkanClient::prepareCamera()
 		cameraCtrl = std::make_unique<FPSCameraController>(camera);
 	else
 		cameraCtrl = std::make_unique<CubeCameraController>(camera);
-	endpoints.active.camera = &camera;
 }
 
 void VulkanClient::loadSkybox()

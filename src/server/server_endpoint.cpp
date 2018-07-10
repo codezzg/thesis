@@ -323,21 +323,19 @@ void ServerReliableEndpoint::listenTo(socket_t clientSocket, sockaddr_in clientA
 		const auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
 
 		while (true) {
-			{
-				std::unique_lock<std::mutex> keepaliveUlk{ keepaliveMtx };
-				// TODO: ensure no spurious wakeup
-				if (keepaliveCv.wait_for(keepaliveUlk, interval) == std::cv_status::no_timeout) {
-					info("Keepalive thread should be dead.");
-					break;
-				}
+			std::unique_lock<std::mutex> keepaliveUlk{ keepaliveMtx };
+			// TODO: ensure no spurious wakeup
+			if (keepaliveCv.wait_for(keepaliveUlk, interval) == std::cv_status::no_timeout) {
+				info("Keepalive thread should be dead.");
+				break;
+			}
 
-				// Verify the client has pinged us more recently than
-				const auto now = std::chrono::system_clock::now();
-				if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
-					// drop the client
-					info("Keepalive timeout.");
-					break;
-				}
+			// Verify the client has pinged us more recently than
+			const auto now = std::chrono::system_clock::now();
+			if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
+				// drop the client
+				info("Keepalive timeout.");
+				break;
 			}
 		}
 	}

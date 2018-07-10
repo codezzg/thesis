@@ -41,60 +41,14 @@ bool expectTCPMsg(socket_t socket, uint8_t* buffer, std::size_t len, TcpMsgType 
 bool sendTCPMsg(socket_t socket, TcpMsgType type);
 //
 
-/** Base abstract class for a network endpoint running in a separate thread.
- *  Subclasses must implement `loopFunc`.
- */
-class Endpoint {
-private:
-	std::unique_ptr<std::thread> loopThread = {};
+struct Endpoint {
+	enum class Type { ACTIVE, PASSIVE };
 
-	bool start(const char* remoteIp, uint16_t remotePort, bool passive, int socktype);
-
-protected:
-	/** address this endpoint was started on */
-	std::string ip;
-	/** port this endpoint was started on */
-	int port;
-
-	bool terminated = false;
 	socket_t socket = xplatInvalidSocketID();
-
-	/** The function running in this endpoint's thread. Should implement a loop
-	 *  like `while (!terminated) { ... }`
-	 */
-	virtual void loopFunc() = 0;
-
-	/** Optional callback that is called at the beginning of `close()` */
-	virtual void onClose() {}
-
-public:
-	// To be called once before using any Endpoint
-	static bool initEP();
-	// To be called once after closing all Endpoints
-	static bool cleanupEP();
-
-	virtual ~Endpoint();
-
-	/** Creates an active socket to `remoteIp`:`remotePort`.
-	 *  If a previous socket exists, it will be overridden by the new one
-	 *  (`close` should be called before starting a new socket)
-	 *  @return true if the socket creation was successful.
-	 */
-	bool startActive(const char* remoteIp, uint16_t remotePort, int socktype);
-
-	/** Creates a passive socket to `remoteIp`:`remotePort`.
-	 *  If a previous socket exists, it will be overridden by the new one
-	 *  (`close` should be called before starting a new socket)
-	 *  @return true if the socket creation was successful.
-	 */
-	bool startPassive(const char* remoteIp, uint16_t remotePort, int socktype);
-
-	/** Starts the `loopFunc` in a new thread. */
-	void runLoop();
-
-	/** Starts the `loopFunc` in the current thread. */
-	void runLoopSync();
-
-	/** Terminates the loop and closes the socket */
-	void close();
+	std::string ip;
+	int port;
+	bool connected;
 };
+
+Endpoint startEndpoint(const char* ip, int port, Endpoint::Type type, int socktype);
+void closeEndpoint(Endpoint& ep);

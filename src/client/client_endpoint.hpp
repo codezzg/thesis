@@ -17,18 +17,24 @@ struct PayloadHeader;
  *  and provides the client's rendering thread the frame data via the `peek`
  *  method.
  */
-class ClientPassiveEndpoint : public Endpoint {
+class UdpPassiveThread {
+
+	std::thread thread;
+	Endpoint& ep;
 
 	uint8_t* buffer = nullptr;
 	std::size_t usedBufSize = 0;
 
 	std::mutex bufMtx;
 
-	void loopFunc() override;
+	void udpPassiveTask();
 
 public:
+	explicit UdpPassiveThread(Endpoint& ep);
+	~UdpPassiveThread();
+
 	/* This method should be always called and verified to return true before calling `retreive`. */
-	bool dataAvailable() const { return !terminated && usedBufSize > 0; }
+	bool dataAvailable() const { return ep.connected && usedBufSize > 0; }
 
 	/** Copies the current `buffer` into `outBuf` in a thread-safe way.
 	 *  @return the number of bytes copied.
@@ -39,10 +45,11 @@ public:
 /** This class implements the client's active thread which sends miscellaneous per-frame data
  *  to the server (e.g. the camera position)
  */
-class ClientActiveEndpoint : public Endpoint {
+class UdpActiveThread {
 
-	void loopFunc() override;
-	void onClose() override;
+	std::thread thread;
+
+	void udpActiveTask(Endpoint& ep);
 
 public:
 	struct {
@@ -51,46 +58,7 @@ public:
 		std::condition_variable cv;
 	} acks;
 
-	std::chrono::milliseconds targetFrameTime = std::chrono::milliseconds{ 33 };
-	const Camera* camera = nullptr;
+	explicit UdpActiveThread(Endpoint& ep);
+	~UdpActiveThread();
 };
 
-/** This class implements the client side of the reliable communication channel, used
- *  for handshake and keepalive.
- */
-class ClientReliableEndpoint : public Endpoint {
-
-	ClientTmpResources resources{ megabytes(128) };
-	std::mutex resourcesMtx;
-	bool resourcesAvailable = false;
-
-	std::condition_variable keepaliveCv;
-
-	bool connected = false;
-
-	void loopFunc() override;
-	void onClose() override;
-
-	void performResourceExchange();
-
-public:
-	bool disconnect();
-	bool isConnected() const { return connected; }
-
-	bool performHandshake();
-	bool expectStartResourceExchange();
-	bool sendRsrcExchangeAck();
-	/** Fills `resources` with the data incoming from the server until END_RSRC_EXCHANGE is received. */
-	bool receiveOneTimeData();
-	bool sendReadyAndWait();
-
-	bool tryLockResources();
-	const ClientTmpResources* retreiveResources() const { return &resources; }
-	void releaseResources();
-};
-
-struct ClientEndpoints {
-	ClientPassiveEndpoint passive;
-	ClientActiveEndpoint active;
-	ClientReliableEndpoint reliable;
-};

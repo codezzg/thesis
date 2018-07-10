@@ -5,9 +5,6 @@
 #include "frame_data.hpp"
 #include "frame_utils.hpp"
 #include "logging.hpp"
-#include "shared_resources.hpp"
-#include "tcp_deserialize.hpp"
-#include "tcp_messages.hpp"
 #include "udp_messages.hpp"
 #include "units.hpp"
 #include "utils.hpp"
@@ -24,20 +21,17 @@ using namespace std::literals::chrono_literals;
 
 static constexpr auto BUFSIZE = megabytes(256);
 
-void ClientPassiveEndpoint::loopFunc()
+void UdpPassiveThread::udpPassiveTask()
 {
 	// This will be densely filled like this:
 	// [chunk0.type|chunk0.header|chunk0.payload|chunk1.type|chunk1.header|chunk1.payload|...]
-	buffer = new uint8_t[BUFSIZE];
-	usedBufSize = 0;
-
 	uint32_t packetGen = 0;
 
 	// Receive datagrams and copy them into `buffer`.
-	while (!terminated) {
+	while (ep.connected) {
 		std::array<uint8_t, cfg::PACKET_SIZE_BYTES> packetBuf = {};
 
-		if (!receivePacket(socket, packetBuf.data(), packetBuf.size()))
+		if (!receivePacket(ep.socket, packetBuf.data(), packetBuf.size()))
 			continue;
 
 		if (!validateUDPPacket(packetBuf.data(), packetGen))
@@ -68,11 +62,27 @@ void ClientPassiveEndpoint::loopFunc()
 			usedBufSize = 0;
 		}
 	}
+}
 
+UdpPassiveThread::UdpPassiveThread(Endpoint& ep)
+	: ep{ ep }
+{
+	buffer = new uint8_t[BUFSIZE];
+	usedBufSize = 0;
+	thread = std::thread{ &UdpPassiveThread::udpPassiveTask, this };
+}
+
+UdpPassiveThread::~UdpPassiveThread()
+{
+	if (thread.joinable()) {
+		info("Joining UDP passive thread...");
+		thread.join();
+		info("Joined UDP passive thread.");
+	}
 	delete[] buffer;
 }
 
-std::size_t ClientPassiveEndpoint::retreive(uint8_t* outBuf, std::size_t outBufSize)
+std::size_t UdpPassiveThread::retreive(uint8_t* outBuf, std::size_t outBufSize)
 {
 	if (outBufSize < usedBufSize) {
 		std::stringstream ss;
@@ -93,14 +103,14 @@ std::size_t ClientPassiveEndpoint::retreive(uint8_t* outBuf, std::size_t outBufS
 }
 
 /////////////////////// Active EP
-void ClientActiveEndpoint::loopFunc()
+void UdpActiveThread::udpActiveTask(Endpoint& ep)
 {
 	// Send ACKs
-	while (!terminated) {
+	while (ep.connected) {
 		std::unique_lock<std::mutex> ulk{ acks.mtx };
 		if (acks.list.size() == 0) {
 			// Wait for ACKs to send
-			acks.cv.wait(ulk, [this]() { return terminated || acks.list.size() > 0; });
+			acks.cv.wait(ulk, [&]() { return !ep.connected || acks.list.size() > 0; });
 		}
 
 		AckPacket packet;
@@ -112,13 +122,13 @@ void ClientActiveEndpoint::loopFunc()
 			packet.nAcks++;
 			if (packet.nAcks == packet.acks.size()) {
 				// Packet is full: send
-				sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(AckPacket));
+				sendPacket(ep.socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(AckPacket));
 				// info("Sent ", packet.nAcks, " acks: ", listToString(acks.list));
 				packet.nAcks = 0;
 			}
 		}
 		if (packet.nAcks > 0) {
-			sendPacket(socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(AckPacket));
+			sendPacket(ep.socket, reinterpret_cast<const uint8_t*>(&packet), sizeof(AckPacket));
 			verbose("Sent ", packet.nAcks, " acks");
 		}
 
@@ -126,232 +136,17 @@ void ClientActiveEndpoint::loopFunc()
 	}
 }
 
-void ClientActiveEndpoint::onClose()
+UdpActiveThread::UdpActiveThread(Endpoint& ep)
+{
+	thread = std::thread{ &UdpActiveThread::udpActiveTask, this, std::ref(ep) };
+}
+
+UdpActiveThread::~UdpActiveThread()
 {
 	acks.cv.notify_all();
-}
-
-/////////////////////// ReliableEP
-
-bool ClientReliableEndpoint::performHandshake()
-{
-	// send HELO message
-	if (!sendTCPMsg(socket, TcpMsgType::HELO))
-		return false;
-
-	uint8_t buffer;
-	return expectTCPMsg(socket, &buffer, 1, TcpMsgType::HELO_ACK);
-}
-
-bool ClientReliableEndpoint::expectStartResourceExchange()
-{
-	uint8_t buffer;
-	return expectTCPMsg(socket, &buffer, 1, TcpMsgType::START_RSRC_EXCHANGE);
-}
-
-bool ClientReliableEndpoint::sendReadyAndWait()
-{
-	if (!sendTCPMsg(socket, TcpMsgType::READY))
-		return false;
-
-	uint8_t buf;
-	return expectTCPMsg(socket, &buf, 1, TcpMsgType::READY);
-}
-
-bool ClientReliableEndpoint::sendRsrcExchangeAck()
-{
-	return sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK);
-}
-
-static void keepaliveTask(socket_t socket, std::condition_variable& cv)
-{
-	std::mutex mtx;
-	while (true) {
-		std::unique_lock<std::mutex> ulk{ mtx };
-
-		// Using a condition variable instead of sleep_for since we want to be able to interrupt it.
-		const auto r = cv.wait_for(ulk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
-		if (r == std::cv_status::no_timeout) {
-			info("keepalive task: interrupted");
-			break;
-		}
-		if (!sendTCPMsg(socket, TcpMsgType::KEEPALIVE))
-			warn("Failed to send keepalive.");
+	if (thread.joinable()) {
+		info("Joining UDP active thread...");
+		thread.join();
+		info("Joined UDP active thread.");
 	}
-}
-
-void ClientReliableEndpoint::loopFunc()
-{
-	// Spawn the keepalive routine
-	std::thread keepaliveThread{
-		keepaliveTask,
-		socket,
-		std::ref(keepaliveCv),
-	};
-
-	std::array<uint8_t, 1> buffer = {};
-	debug("ep :: Starting msg receiving loop");
-	connected = true;
-	while (connected) {
-		TcpMsgType type;
-		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), type)) {
-			connected = false;
-			break;
-		}
-
-		switch (type) {
-		case TcpMsgType::DISCONNECT:
-			connected = false;
-			break;
-		case TcpMsgType::START_RSRC_EXCHANGE:
-			performResourceExchange();
-			break;
-		default:
-			break;
-		}
-	}
-
-	info("Closing TCP connection.");
-	keepaliveCv.notify_all();
-	if (keepaliveThread.joinable())
-		keepaliveThread.join();
-	info("Keepalive thread joined.");
-}
-
-void ClientReliableEndpoint::onClose()
-{
-	keepaliveCv.notify_all();
-}
-
-void ClientReliableEndpoint::performResourceExchange()
-{
-	// If previous resources were there, clear them unless the client hasn't
-	// retreived them yet.
-	std::lock_guard<std::mutex> lock{ resourcesMtx };
-
-	if (!resourcesAvailable)
-		resources.clear();
-
-	sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK);
-
-	if (receiveOneTimeData()) {
-		resourcesAvailable = true;
-	}
-}
-
-bool ClientReliableEndpoint::tryLockResources()
-{
-	if (resourcesAvailable) {
-		return resourcesMtx.try_lock();
-	}
-	return false;
-}
-
-void ClientReliableEndpoint::releaseResources()
-{
-	resourcesAvailable = false;
-	resourcesMtx.unlock();
-}
-
-bool ClientReliableEndpoint::receiveOneTimeData()
-{
-	std::array<uint8_t, cfg::PACKET_SIZE_BYTES> buffer;
-
-	// Receive data
-	while (true) {
-		auto incomingDataType = TcpMsgType::UNKNOWN;
-
-		if (!receiveTCPMsg(socket, buffer.data(), buffer.size(), incomingDataType)) {
-			err("Error receiving data packet.");
-			return false;
-		}
-
-		switch (incomingDataType) {
-
-		case TcpMsgType::DISCONNECT:
-			return false;
-
-		case TcpMsgType::END_RSRC_EXCHANGE:
-			return true;
-
-		case TcpMsgType::RSRC_TYPE_TEXTURE:
-
-			if (!receiveTexture(socket, buffer.data(), buffer.size(), resources)) {
-				err("Failed to receive texture.");
-				return false;
-			}
-
-			// All green, send ACK
-			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
-				err("Failed to send ACK");
-				return false;
-			}
-
-			break;
-
-		case TcpMsgType::RSRC_TYPE_MATERIAL:
-
-			if (!receiveMaterial(buffer.data(), buffer.size(), resources)) {
-				err("Failed to receive material");
-				return false;
-			}
-
-			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
-				err("Failed to send ACK");
-				return false;
-			}
-
-			break;
-
-		case TcpMsgType::RSRC_TYPE_MODEL:
-
-			if (!receiveModel(socket, buffer.data(), buffer.size(), resources)) {
-				err("Failed to receive model");
-				return false;
-			}
-
-			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
-				err("Failed to send ACK");
-				return false;
-			}
-
-			break;
-
-		case TcpMsgType::RSRC_TYPE_POINT_LIGHT:
-			if (!receivePointLight(buffer.data(), buffer.size(), resources)) {
-				err("Failed to receive point light");
-				return false;
-			}
-
-			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
-				err("Failed to send ACK");
-				return false;
-			}
-
-			break;
-
-		case TcpMsgType::RSRC_TYPE_SHADER:
-			if (!receiveShader(socket, buffer.data(), buffer.size(), resources)) {
-				err("Failed to receive shader");
-				return false;
-			}
-
-			if (!sendTCPMsg(socket, TcpMsgType::RSRC_EXCHANGE_ACK)) {
-				err("Failed to send ACK");
-				return false;
-			}
-
-			break;
-
-		default:
-			err("Invalid data type: ", incomingDataType, " (", unsigned(incomingDataType), ")");
-			// Retry: maybe it was garbage from the previous sending
-			// return false;
-		}
-	}
-}
-
-bool ClientReliableEndpoint::disconnect()
-{
-	return sendTCPMsg(socket, TcpMsgType::DISCONNECT);
 }

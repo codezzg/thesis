@@ -7,6 +7,7 @@
 #include "cf_hashset.hpp"
 #include "client_endpoint.hpp"
 #include "client_resources.hpp"
+#include "client_tcp.hpp"
 #include "fps_counter.hpp"
 #include "geometry.hpp"
 #include "network_data.hpp"
@@ -30,8 +31,18 @@ private:
 
 	bool fullscreen = false;
 
-	ClientEndpoints endpoints;
-	int64_t curFrame = -1;
+	struct {
+		Endpoint active;
+		Endpoint passive;
+		Endpoint reliable;
+	} endpoints;
+
+	struct {
+		std::unique_ptr<UdpActiveThread> udpActive;
+		std::unique_ptr<UdpPassiveThread> udpPassive;
+		std::unique_ptr<TcpMsgThread> tcpMsg;
+		std::unique_ptr<KeepaliveThread> keepalive;
+	} networkThreads;
 
 	/** The semaphores are owned by `app.res`. We save their handles rather than querying them
 	 *  each frame for performance reasons.

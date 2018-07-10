@@ -37,99 +37,61 @@ static socket_t findFirstValidSocket(const addrinfo* result, socket_connect_op o
 	return xplatInvalidSocketID();
 }
 
-bool Endpoint::initEP()
+Endpoint startEndpoint(const char* ip, int port, Endpoint::Type type, int socktype)
 {
-	return xplatSocketInit();
-}
+	Endpoint ep;
 
-bool Endpoint::cleanupEP()
-{
-	return xplatSocketCleanup();
-}
-
-Endpoint::~Endpoint()
-{
-	close();
-}
-
-bool Endpoint::start(const char* ip, uint16_t port, bool passive, int socktype)
-{
-	addrinfo hints = {}, *result;
+	addrinfo hints = {};
+	addrinfo* result;
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = socktype;
-	if (passive)
+	if (type == Endpoint::Type::PASSIVE)
 		hints.ai_flags = AI_PASSIVE;
 
 	auto res = getaddrinfo(ip, std::to_string(port).c_str(), &hints, &result);
 	if (res != 0) {
 		err("getaddrinfo: ", gai_strerror(res));
-		return false;
+		return ep;
 	}
 
-	socket = findFirstValidSocket(result, passive ? ::bind : ::connect);
+	auto socket = findFirstValidSocket(result, type == Endpoint::Type::PASSIVE ? ::bind : ::connect);
 	freeaddrinfo(result);
 
 	if (!xplatIsValidSocket(socket)) {
 		err("failed to connect to remote!");
-		return false;
+		return ep;
 	}
 
-	info("Endpoint: started ", (passive ? "passive" : "active"), " on ", ip, ":", port, " (type ", socktype, ")");
+	info("Endpoint: started ",
+		(type == Endpoint::Type::PASSIVE ? "passive" : "active"),
+		" on ",
+		ip,
+		":",
+		port,
+		" (type ",
+		socktype,
+		")");
 
-	this->ip = ip;
-	this->port = port;
+	ep.socket = socket;
+	ep.ip = ip;
+	ep.port = port;
+	ep.connected = true;
 
-	return true;
+	return ep;
 }
 
-bool Endpoint::startPassive(const char* ip, uint16_t port, int socktype)
+void closeEndpoint(Endpoint& ep)
 {
-	return start(ip, port, true, socktype);
-}
-
-bool Endpoint::startActive(const char* ip, uint16_t port, int socktype)
-{
-	return start(ip, port, false, socktype);
-}
-
-void Endpoint::runLoop()
-{
-	debug("[", this, "] called runLoop(). loopThread = ", loopThread.get());
-	if (loopThread)
-		throw std::logic_error("Called runLoop twice on the same endpoint!");
-
-	info("Starting loop with socket = ", socket);
-	terminated = false;
-	loopThread = std::make_unique<std::thread>(std::bind(&Endpoint::loopFunc, this));
-}
-
-void Endpoint::runLoopSync()
-{
-	debug("[", this, "] called runLoopSync().");
-	if (loopThread)
-		throw std::logic_error("Endpoint is already running an async loop!");
-	terminated = false;
-	loopFunc();
-}
-
-void Endpoint::close()
-{
-	if (terminated)
+	if (!ep.connected)
 		return;
-	terminated = true;
-	verbose("Endpoint::close(): calling onClose()");
-	onClose();
-	if (xplatIsValidSocket(socket)) {
-		verbose("Endpoint::close(): closing socket");
-		const auto res = xplatSockClose(socket);
+
+	ep.connected = false;
+	if (xplatIsValidSocket(ep.socket)) {
+		verbose("Endpoint: closing socket");
+		const auto res = xplatSockClose(ep.socket);
 		if (res != 0)
 			warn("Error closing socket: ", xplatGetErrorString(), " (", xplatGetError(), ")");
 	}
-	if (loopThread && loopThread->joinable()) {
-		verbose("Endpoint::close(): joining loopThread");
-		loopThread->join();
-	}
-	loopThread.reset(nullptr);
 }
 
 bool receivePacket(socket_t socket, uint8_t* buffer, std::size_t len, int* bytesRead)

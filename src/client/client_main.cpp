@@ -11,7 +11,7 @@ bool gLimitFrameTime = true;
 
 int main(int argc, char** argv)
 {
-	if (!Endpoint::initEP()) {
+	if (!xplatSocketInit()) {
 		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;
 	}
@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 	xplatSetExitHandler([]() {
-		if (Endpoint::cleanupEP())
+		if (xplatSocketCleanup())
 			info("Successfully cleaned up sockets.");
 		else
 			err("Failed to cleanup sockets!");

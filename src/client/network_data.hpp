@@ -8,7 +8,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-class ClientPassiveEndpoint;
+class UdpPassiveThread;
 struct Geometry;
 struct NetworkResources;
 
@@ -44,14 +44,17 @@ struct UpdateReq {
 	} data;
 
 	/** Needed to default construct this struct */
-	UpdateReq() : type{ Type::UNKNOWN }, data { UpdateReqGeom{} } {}
+	UpdateReq()
+		: type{ Type::UNKNOWN }
+		, data{ UpdateReqGeom{} }
+	{}
 };
 
 /** Receives network data from `passiveEP`, storing them into the staging buffer `buffer`.
  *  Then interprets the chunks received and fills `updateReqs` with all the updates that
  *  the server sent to us.
  */
-void receiveData(ClientPassiveEndpoint& passiveEP,
+void receiveData(UdpPassiveThread& passiveEP,
 	/* inout */ std::vector<uint8_t>& buffer,
 	const Geometry& geometry,
 	/* out */ std::vector<UpdateReq>& updateReqs,

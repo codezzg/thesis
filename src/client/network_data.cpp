@@ -224,7 +224,7 @@ static std::size_t readChunk(const uint8_t* ptr,
 	return maxBytesToRead;
 }
 
-void receiveData(ClientPassiveEndpoint& passiveEP,
+void receiveData(UdpPassiveThread& passiveEP,
 	std::vector<uint8_t>& buffer,
 	const Geometry& geometry,
 	std::vector<UpdateReq>& updateReqs,
