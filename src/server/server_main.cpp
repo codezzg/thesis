@@ -7,6 +7,7 @@
 #include "server.hpp"
 #include "server_appstage.hpp"
 #include "server_endpoint.hpp"
+#include "server_tcp.hpp"
 #include "units.hpp"
 #include "xplatform.hpp"
 #include <chrono>
@@ -42,7 +43,7 @@ int main(int argc, char** argv)
 	std::cerr << "Debug level = " << static_cast<int>(gDebugLv) << "\n";
 
 	/// Initial setup
-	if (!Endpoint::initEP()) {
+	if (!xplatSocketInit()) {
 		err("Failed to initialize sockets.");
 		return EXIT_FAILURE;
 	}
@@ -59,7 +60,7 @@ int main(int argc, char** argv)
 		// "Ensure" we close the sockets even if we terminate abruptly
 		gBandwidthLimiter.stop();
 		server.closeNetwork();
-		if (Endpoint::cleanupEP())
+		if (xplatSocketCleanup())
 			info("Successfully cleaned up sockets.");
 		else
 			warn("Error cleaning up sockets: ", xplatGetErrorString());
@@ -71,9 +72,6 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 	xplatSetExitHandler(atExit);
-
-	server.activeEP.targetFrameTime = CLIENT_UPDATE_TIME;
-	server.relEP.serverIp = args.ip;
 
 	/// Startup server: load models, assets, etc
 	if (!loadAssets(server)) {
@@ -104,8 +102,9 @@ int main(int argc, char** argv)
 	}
 
 	/// Start TCP socket and wait for connections
-	server.relEP.startPassive(args.ip.c_str(), cfg::RELIABLE_PORT, SOCK_STREAM);
-	server.relEP.runLoop();
+	server.endpoints.tcpActive =
+		startEndpoint(args.ip.c_str(), cfg::RELIABLE_PORT, Endpoint::Type::PASSIVE, SOCK_STREAM);
+	server.networkThreads.tcpActive = std::make_unique<TcpActiveThread>(server, server.endpoints.tcpActive);
 
 	appstageLoop(server);
 	atExit();
@@ -223,7 +222,7 @@ bool loadAssets(Server& server)
 	// if (!loadSingleModel("/models/wall/wall2.obj"))
 	// return false;
 
-	//if (!loadSingleModel("/models/cat/cat.obj"))
+	// if (!loadSingleModel("/models/cat/cat.obj"))
 	//	return false;
 
 	return true;

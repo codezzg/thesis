@@ -83,4 +83,6 @@ public:
 		logging::debug("Deallocating all the ", allocations.size(), " allocs.");
 		allocations.clear();
 	}
+
+	std::size_t remaining() const { return memsize - used; }
 };

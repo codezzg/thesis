@@ -4,10 +4,12 @@
 #include "queued_update.hpp"
 #include "server_endpoint.hpp"
 #include "server_resources.hpp"
+#include "server_tcp.hpp"
 #include "spatial.hpp"
 #include "udp_messages.hpp"
 #include <array>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -57,10 +59,20 @@ struct ServerToClientData {
  */
 struct Server {
 	std::vector<uint8_t> memory;
+	StackAllocator allocator;
 
-	ServerActiveEndpoint activeEP;
-	ServerPassiveEndpoint passiveEP;
-	ServerReliableEndpoint relEP;
+	struct {
+		Endpoint udpActive;
+		Endpoint udpPassive;
+		Endpoint tcpActive;
+	} endpoints;
+
+	struct {
+		std::unique_ptr<UdpActiveThread> udpActive;
+		std::unique_ptr<UdpPassiveThread> udpPassive;
+		std::unique_ptr<TcpActiveThread> tcpActive;
+		// KeepaliveListenThread keepaliveListen;
+	} networkThreads;
 
 	ClientToServerData fromClient;
 	ServerToClientData toClient;

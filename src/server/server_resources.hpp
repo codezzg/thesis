@@ -9,6 +9,7 @@
 #include "utils.hpp"
 #include <cassert>
 #include <unordered_map>
+#include <unordered_set>
 
 /** This class manages the portion of server memory which stores resources, such as
  *  models and textures. Resources can have different lifespans: models are long-lived
@@ -51,4 +52,13 @@ struct ServerResources final : public ExternalMemoryUser {
 
 private:
 	void onInit() override { allocator.init(memory, memsize); }
+};
+
+/** A bunch of (unowned) references to existing resources. */
+struct ResourceBatch {
+	std::unordered_set<Model*> models;
+	std::unordered_set<shared::SpirvShader*> shaders;
+	std::unordered_set<shared::PointLight*> pointLights;
+	// Note: this struct is currently only used by sendResourceBatch, which doesn't need
+	// to save textures, so we don't save them here.
 };
