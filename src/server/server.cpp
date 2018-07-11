@@ -8,7 +8,6 @@ using namespace logging;
  * [66%] resources
  * [10%] scene
  * [05%] toClient.updates.persistent hashmap
- * [19%] active EP tmp buffer
  */
 Server::Server(std::size_t memsize)
 	: memory(memsize)
@@ -27,8 +26,6 @@ Server::Server(std::size_t memsize)
 	memptr = (uint8_t*)allocator.alloc(memsize / 20);
 	toClient.updates.persistent = cf::hashmap<uint32_t, QueuedUpdate>::create(memsize / 20, memptr);
 
-	// Active EP's memory will be initialized later
-
 	info("Server memory:\n- resources: ",
 		resources.getMemsize() / 1024 / 1024,
 		" MiB\n",
@@ -38,7 +35,7 @@ Server::Server(std::size_t memsize)
 		"- persistent updates: ",
 		memsize / 20 / 1024 / 1024,
 		" MiB\n",
-		"- activeEP: ",
+		"- remaining: ",
 		allocator.remaining() / 1024 / 1024,
 		" MiB");
 }

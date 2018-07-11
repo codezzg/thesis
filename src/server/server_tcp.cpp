@@ -55,15 +55,6 @@ static bool tcp_connectionPrelude(socket_t clientSocket)
 	if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::READY))
 		return false;
 
-	// Starts UDP loops and send ready to client
-	// server.activeEP.startActive(readableAddr, cfg::SERVER_TO_CLIENT_PORT, SOCK_DGRAM);
-	// server.activeEP.runLoop();
-	// server.passiveEP.startPassive(ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, SOCK_DGRAM);
-	// server.passiveEP.runLoop();
-
-	if (!sendTCPMsg(clientSocket, TcpMsgType::READY))
-		return false;
-
 	return true;
 }
 
@@ -292,8 +283,23 @@ void TcpActiveThread::tcpActiveTask()
 		if (!tcp_connectionPrelude(clientSocket))
 			dropClient(clientSocket);
 
+		const char* readableAddr = inet_ntoa(clientAddr.sin_addr);
+
+		// Starts UDP loops and send ready to client
+		server.endpoints.udpActive =
+			startEndpoint(readableAddr, cfg::SERVER_TO_CLIENT_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
+		server.networkThreads.udpActive = std::make_unique<UdpActiveThread>(server, server.endpoints.udpActive);
+		server.endpoints.udpPassive =
+			startEndpoint(ep.ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
+		server.networkThreads.udpPassive =
+			std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
+
+		if (!sendTCPMsg(clientSocket, TcpMsgType::READY)) {
+			info("TCP: Dropping client ", readableAddr);
+			dropClient(clientSocket);
+		}
+
 		if (!msgLoop(clientSocket, clientAddr)) {
-			const char* readableAddr = inet_ntoa(clientAddr.sin_addr);
 			info("TCP: Dropping client ", readableAddr);
 			dropClient(clientSocket);
 		}

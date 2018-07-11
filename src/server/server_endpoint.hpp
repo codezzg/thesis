@@ -14,7 +14,7 @@ struct Server;
 struct ServerSharedData;
 
 /** This class implements the active server thread which sends messages to client via an UDP socket. */
-class UdpActiveThread : public ExternalMemoryUser {
+class UdpActiveThread {
 
 	std::thread thread;
 
