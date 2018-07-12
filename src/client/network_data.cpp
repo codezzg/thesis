@@ -1,6 +1,6 @@
 #include "network_data.hpp"
-#include "client_endpoint.hpp"
 #include "client_resources.hpp"
+#include "client_udp.hpp"
 #include "geometry.hpp"
 #include "logging.hpp"
 #include "shared_resources.hpp"

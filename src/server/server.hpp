@@ -2,9 +2,9 @@
 
 #include "cf_hashmap.hpp"
 #include "queued_update.hpp"
-#include "server_endpoint.hpp"
 #include "server_resources.hpp"
 #include "server_tcp.hpp"
+#include "server_udp.hpp"
 #include "spatial.hpp"
 #include "udp_messages.hpp"
 #include <array>
