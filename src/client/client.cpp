@@ -133,7 +133,7 @@ void VulkanClient::initVulkan()
 	prepareCamera();
 }
 
-void VulkanClient::startUDP(const char* serverIp)
+void VulkanClient::startUdp(const char* serverIp)
 {
 	debug("Starting passive EP...");
 	endpoints.passive =
@@ -158,7 +158,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	}
 
 	debug(":: Starting UDP endpoints...");
-	// startUDP(serverIp);
+	startUdp(serverIp);
 
 	debug(":: Sending READY...");
 	if (!tcp_sendReadyAndWait(endpoints.reliable.socket)) {
@@ -367,12 +367,12 @@ void VulkanClient::runFrame()
 	}
 
 	// Check for UDP messages
-	// measure_ms("receiveData", LOGLV_VERBOSE, [&]() {
-	// receiveData(*networkThreads.udpPassive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
-	//});
+	measure_ms("receiveData", LOGLV_VERBOSE, [&]() {
+		receiveData(*networkThreads.udpPassive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
+	});
 
 	// Apply UDP update requests
-	// measure_ms("updateReq", LOGLV_VERBOSE, [&]() { applyUpdateRequests(); });
+	measure_ms("updateReq", LOGLV_VERBOSE, [&]() { applyUpdateRequests(); });
 
 	// Enqueue acks to send (does not block if the mutex is not available yet)
 	auto& acks = networkThreads.udpActive->acks;
@@ -437,8 +437,10 @@ void VulkanClient::calcTimeStats(FPSCounter& fps,
 
 void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, const std::vector<Material>& newMaterials)
 {
-	info("Updating geometry buffers");
-	updateGeometryBuffers(app, geometry, newModels);
+	if (newModels.size() > 0) {
+		info("Updating geometry buffers");
+		updateGeometryBuffers(app, geometry, newModels);
+	}
 
 	info("Updating uniform buffers");
 	// Create new UBOs for new models
@@ -446,9 +448,9 @@ void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, co
 		uniformBuffers.addBuffer(model.name, sizeof(ObjectUniformBufferObject));
 	}
 
-	info("Updating descriptor sets");
 	// Create new descriptor sets for new materials and models
 	if (newModels.size() + newMaterials.size() > 0) {
+		info("Updating descriptor sets");
 		auto descriptorSets = createMultipassTransitoryDescriptorSets(
 			app, uniformBuffers, newMaterials, newModels, app.texSampler, app.cubeSampler);
 
@@ -462,9 +464,11 @@ void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, co
 		for (unsigned i = 0; i < newModels.size(); ++i) {
 			app.res.descriptorSets->add(newModels[i].name, descriptorSets[newMaterials.size() + i]);
 		}
-	}
 
-	recreateSwapChain();
+		recreateSwapChain();
+	} else {
+		err("Nothing new to update!?");
+	}
 }
 
 void VulkanClient::recreateSwapChain()
@@ -661,7 +665,7 @@ void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
 	memset(geometry.indexBuffer.ptr, 0, geometry.indexBuffer.size);
 
 	// Allocate enough memory to contain all vertices and indices
-	streamingBuffer.resize(megabytes(64));
+	streamingBuffer.resize(megabytes(128));
 
 	if (!fillScreenQuadBuffer(app, app.screenQuadBuffer, stagingBuffer))
 		throw std::runtime_error("Failed to create screenQuadBuffer!");

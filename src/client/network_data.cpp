@@ -235,7 +235,7 @@ void receiveData(UdpPassiveThread& passiveEP,
 	std::vector<UpdateReq>& updateReqs,
 	const cf::hashset<uint32_t>& serialsToIgnore)
 {
-	info("data available: ", passiveEP.dataAvailable());
+	// info("data available: ", passiveEP.dataAvailable());
 	if (!passiveEP.dataAvailable())
 		return;
 

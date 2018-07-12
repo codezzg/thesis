@@ -118,14 +118,16 @@ static Buffer accomodateNewData(Geometry& geometry,
 
 	// Add the vertex locations of the new models
 	auto nextOff = firstFreePos;
-	for (const auto& model : newModels) {
-		if (listType == ListType::VERTEX) {
+	if (listType == ListType::VERTEX) {
+		for (const auto& model : newModels) {
 			geometry.locations[model.name].vertexOff = nextOff;
-			geometry.locations[model.name].vertexLen = model.nVertices;
+			geometry.locations[model.name].vertexLen = model.nVertices * dataSize;
 			nextOff += model.nVertices * dataSize;
-		} else {
+		}
+	} else {
+		for (const auto& model : newModels) {
 			geometry.locations[model.name].indexOff = nextOff;
-			geometry.locations[model.name].indexLen = model.nIndices;
+			geometry.locations[model.name].indexLen = model.nIndices * dataSize;
 			nextOff += model.nIndices * dataSize;
 		}
 	}
@@ -161,8 +163,8 @@ void updateGeometryBuffers(const Application& app, Geometry& geometry, const std
 
 	info("new locations: ", mapToString(geometry.locations, [](auto l) -> std::string {
 		std::stringstream ss;
-		ss << "{ voff: " << l.vertexOff << ", vlen: " << l.vertexLen
-		   << ", ioff: " << l.indexOff + ", ilen: " << l.indexLen << " }";
+		ss << "{ voff: " << std::to_string(l.vertexOff) << ", vlen: " << std::to_string(l.vertexLen)
+		   << ", ioff: " << std::to_string(l.indexOff) + ", ilen: " << std::to_string(l.indexLen) << " }";
 		return ss.str();
 	}));
 

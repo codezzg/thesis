@@ -18,7 +18,7 @@
 using namespace logging;
 using namespace std::literals::chrono_literals;
 
-static constexpr auto BUFSIZE = megabytes(256);
+static constexpr auto BUFSIZE = megabytes(128);
 
 void UdpPassiveThread::udpPassiveTask()
 {
@@ -49,16 +49,15 @@ void UdpPassiveThread::udpPassiveTask()
 		{
 			std::lock_guard<std::mutex> lock{ bufMtx };
 
-			assert(usedBufSize + size < BUFSIZE);
+			if (usedBufSize + size >= BUFSIZE) {
+				warn("Warning: buffer is being filled faster than it's consumed! Some data is being lost!");
+				usedBufSize = 0;
+				continue;
+			}
 
 			// Write packet data
 			memcpy(buffer + usedBufSize, packet->payload.data(), size);
 			usedBufSize += size;
-		}
-
-		if (usedBufSize >= BUFSIZE) {
-			warn("Warning: buffer is being filled faster than it's consumed! Some data is being lost!");
-			usedBufSize = 0;
 		}
 	}
 }

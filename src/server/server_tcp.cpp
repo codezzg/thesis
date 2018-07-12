@@ -229,11 +229,10 @@ static bool sendResourceBatch(socket_t clientSocket, ServerResources& resources,
 	}
 
 	// Send shaders (and unload them immediately after)
-	const std::array<const char*, 3> shadersToSend = { "shaders/gbuffer", "shaders/skybox", "shaders/composition" };
-	for (unsigned i = 0; i < shadersToSend.size(); ++i) {
-		if (!batch_sendShaders(clientSocket, resources, shadersToSend[i], i))
-			return false;
-	}
+	// const std::array<const char*, 3> shadersToSend = { "shaders/gbuffer", "shaders/skybox", "shaders/composition"
+	// }; for (unsigned i = 0; i < shadersToSend.size(); ++i) { if (!batch_sendShaders(clientSocket, resources,
+	// shadersToSend[i], i)) return false;
+	//}
 
 	if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
 		return false;
@@ -317,12 +316,12 @@ void TcpActiveThread::connectToClient(socket_t clientSocket, const char* clientA
 	// std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
 
 	// Starts UDP loops and send ready to client
-	// server.endpoints.udpActive =
-	// startEndpoint(clientAddr, cfg::UDP_SERVER_TO_CLIENT_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
-	// server.networkThreads.udpActive = std::make_unique<UdpActiveThread>(server, server.endpoints.udpActive);
-	// server.endpoints.udpPassive =
-	// startEndpoint(ep.ip.c_str(), cfg::UDP_CLIENT_TO_SERVER_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
-	// server.networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
+	server.endpoints.udpActive =
+		startEndpoint(clientAddr, cfg::UDP_SERVER_TO_CLIENT_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
+	server.networkThreads.udpActive = std::make_unique<UdpActiveThread>(server, server.endpoints.udpActive);
+	server.endpoints.udpPassive =
+		startEndpoint(ep.ip.c_str(), cfg::UDP_CLIENT_TO_SERVER_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
+	server.networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
 }
 
 bool TcpActiveThread::msgLoop(socket_t clientSocket, sockaddr_in clientAddr)
