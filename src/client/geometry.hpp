@@ -19,8 +19,9 @@ struct Geometry {
 	/** Offsets in byte of the first vertex/index inside the buffers for each model */
 	struct Location {
 		VkDeviceSize vertexOff;
+		VkDeviceSize vertexLen;
 		VkDeviceSize indexOff;
-		// No need to save vertexLen/indexLen, as this information is held in the models themselves.
+		VkDeviceSize indexLen;
 	};
 
 	/** Maps modelName => location into buffers */

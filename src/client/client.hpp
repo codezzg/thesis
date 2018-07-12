@@ -57,6 +57,8 @@ private:
 	BufferArray uniformBuffers{ VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT };
 
+	Buffer stagingBuffer;
+
 	/** Stores resources received via network */
 	NetworkResources netRsrc;
 
@@ -102,19 +104,24 @@ private:
 	void checkAssets(const ClientTmpResources& resources);
 
 	/** Takes the raw resources received by the server and processes them into usable resources */
-	bool loadAssets(const ClientTmpResources& resources);
+	bool loadAssets(const ClientTmpResources& resources,
+		/* out */ std::vector<ModelInfo>& newModels,
+		/* out */ std::vector<Material>& newMaterials);
 
 	void prepareReceivedGeomHashset();
 	/** Creates the buffers that will stay alive until cleanup */
 	void createPermanentBuffers(Buffer& stagingBuffer);
 	void createSemaphores();
-	void createDescriptorSets();
+	void createPermanentDescriptorSets();
 	void prepareCamera();
 	void loadSkybox();
 
 	void mainLoop();
 
 	void runFrame();
+
+	void applyUpdateRequests();
+	void recreateResources(const std::vector<ModelInfo>& newModels, const std::vector<Material>& newMaterials);
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime);
 

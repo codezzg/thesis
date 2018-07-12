@@ -169,7 +169,7 @@ static std::size_t addTransformUpdate(uint8_t* buffer, std::size_t bufsize, std:
 	reinterpret_cast<UdpHeader*>(buffer)->size += written;
 	verbose("Packet size is now ", reinterpret_cast<UdpHeader*>(buffer)->size);
 
-	dumpFullPacket(buffer, bufsize, LOGLV_DEBUG);
+	dumpFullPacket(buffer, bufsize, LOGLV_VERBOSE);
 
 	return written;
 }

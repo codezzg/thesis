@@ -21,10 +21,18 @@ void recordMultipassCommandBuffers(const Application& app,
 
 std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const Application& app);
 
-/** Creates descriptor sets for all the given materials, assigning the proper textures.
- *  @return A vector where each descriptorset correspond to the i-th material in input.
+/** Creates the fixed descriptor sets that don't depend on server resources.
+ *  @return A vector containing { viewDescSet, gbufDescSet }
  */
-std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
+std::vector<VkDescriptorSet> createMultipassPermanentDescriptorSets(const Application& app,
+	const BufferArray& uniformBuffers,
+	VkSampler texSampler);
+
+/** Creates descriptor sets for all the given materials and models, assigning the proper textures
+ *  and uniform buffers.
+ *  @return A vector containing all consecutive materials' and models' descriptor sets.
+ */
+std::vector<VkDescriptorSet> createMultipassTransitoryDescriptorSets(const Application& app,
 	const BufferArray& uniformBuffers,
 	const std::vector<Material>& materials,
 	const std::vector<ModelInfo>& models,

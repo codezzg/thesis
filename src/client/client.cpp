@@ -61,10 +61,8 @@ void VulkanClient::disconnect()
 
 void VulkanClient::initVulkan()
 {
+	stagingBuffer = createStagingBuffer(app, megabytes(256));
 	{
-		auto stagingBuffer = createStagingBuffer(app, megabytes(16));
-		DEFER([&]() { destroyBuffer(app.device, stagingBuffer); });
-
 		createPermanentBuffers(stagingBuffer);
 
 		// Create default textures
@@ -107,7 +105,7 @@ void VulkanClient::initVulkan()
 	app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 	app.pipelineCache = createPipelineCache(app);
 
-	app.descriptorPool = createDescriptorPool(app, netRsrc);
+	app.descriptorPool = createDescriptorPool(app);
 
 	// Initialize resource maps
 	app.res.init(app.device, app.descriptorPool);
@@ -126,7 +124,7 @@ void VulkanClient::initVulkan()
 	app.skybox.pipeline = pipelines[1];
 	app.swapChain.pipeline = pipelines[2];
 
-	createDescriptorSets();
+	createPermanentDescriptorSets();
 
 	recordAllCommandBuffers();
 
@@ -159,48 +157,8 @@ bool VulkanClient::connectToServer(const char* serverIp)
 		return false;
 	}
 
-	/*
-	debug(":: Expecting START_RSRC_EXCHANGE");
-	if (!endpoints.reliable.expectStartResourceExchange()) {
-		err("Didn't receive START_RSRC_EXCHANGE.");
-		return false;
-	}
-
-	// Retreive one-time data from server
-	{
-		constexpr std::size_t ONE_TIME_DATA_BUFFER_SIZE = megabytes(128);
-		ClientTmpResources resources{ ONE_TIME_DATA_BUFFER_SIZE };
-
-		if (!endpoints.reliable.sendRsrcExchangeAck()) {
-			err("Failed to send RSRC_EXCHANGE_ACK");
-			return false;
-		}
-
-		bool success = false;
-		debug(":: Receiving one-time resources...");
-		measure_ms("Recv Assets", LOGLV_INFO, [this, &resources, &success]() {
-			success = endpoints.reliable.receiveOneTimeData(resources);
-		});
-		if (!success) {
-			err("Failed to receive one-time data.");
-			return false;
-		}
-
-		// Process the received data
-		debug(":: processing received resources...");
-		measure_ms("Check Assets", LOGLV_INFO, [this, &resources]() { checkAssets(resources); });
-		measure_ms(
-			"Load Assets", LOGLV_INFO, [this, &resources, &success]() { success = loadAssets(resources); });
-		if (!success) {
-			err("Failed to load assets.");
-			return false;
-		}
-
-		// Drop the memory used for staging the resources as it's not needed anymore.
-	}*/
-
 	debug(":: Starting UDP endpoints...");
-	startUDP(serverIp);
+	// startUDP(serverIp);
 
 	debug(":: Sending READY...");
 	if (!tcp_sendReadyAndWait(endpoints.reliable.socket)) {
@@ -263,29 +221,25 @@ void VulkanClient::checkAssets(const ClientTmpResources& resources)
 	}
 }
 
-bool VulkanClient::loadAssets(const ClientTmpResources& resources)
+bool VulkanClient::loadAssets(const ClientTmpResources& resources,
+	std::vector<ModelInfo>& newModels,
+	std::vector<Material>& newMaterials)
 {
-	constexpr VkDeviceSize STAGING_BUFFER_SIZE = megabytes(256);
-
-	auto stagingBuffer = createStagingBuffer(app, STAGING_BUFFER_SIZE);
-	DEFER([&]() {
-		unmapBuffersMemory(app.device, { stagingBuffer });
-		destroyBuffer(app.device, stagingBuffer);
-	});
-
 	// Save models into permanent storage
-	netRsrc.models = resources.models;
-	for (const auto& model : netRsrc.models) {
+	netRsrc.models.insert(netRsrc.models.end(), resources.models.begin(), resources.models.end());
+	for (const auto& model : resources.models) {
 		if (objTransforms.find(model.name) != objTransforms.end()) {
 			warn("Received model ", model.name, " more than once: ignoring.");
 			continue;
 		}
 		objTransforms[model.name] = glm::mat4{ 1.f };
+		newModels.emplace_back(model);
 	}
 
 	// Save lights into permanent storage
-	netRsrc.pointLights = resources.pointLights;
-	for (const auto& light : netRsrc.pointLights) {
+	netRsrc.pointLights.insert(
+		netRsrc.pointLights.end(), resources.pointLights.begin(), resources.pointLights.end());
+	for (const auto& light : resources.pointLights) {
 		if (objTransforms.find(light.name) != objTransforms.end()) {
 			warn("Received light ", light.name, " more than once: ignoring.");
 			continue;
@@ -293,24 +247,26 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources)
 		objTransforms[light.name] = glm::mat4{ 1.f };
 	}
 
-	// Save shaders into permanent storage
-	netRsrc.shaders.reserve(resources.shaders.size());
-	std::size_t shaderMemNeeded = 0;
-	for (const auto& pair : resources.shaders) {
-		// TODO right now we don't check if we receive the same shader two times.
-		const auto& shader = pair.second;
-		netRsrc.shaders.emplace_back(shader);
-		shaderMemNeeded += shader.codeSizeInBytes;
-	}
+	{
+		// Save shaders into permanent storage
+		netRsrc.shaders.reserve(resources.shaders.size());
+		std::size_t shaderMemNeeded = 0;
+		for (const auto& pair : resources.shaders) {
+			// TODO right now we don't check if we receive the same shader two times.
+			const auto& shader = pair.second;
+			netRsrc.shaders.emplace_back(shader);
+			shaderMemNeeded += shader.codeSizeInBytes;
+		}
 
-	// Copy the shader code from temporary to permanent area
-	netRsrc.shadersCode.reserve(shaderMemNeeded);
-	std::size_t shaderMemOffset = 0;
-	for (auto& shader : netRsrc.shaders) {
-		memcpy(netRsrc.shadersCode.data() + shaderMemOffset, shader.code, shader.codeSizeInBytes);
-		// Update the pointer
-		shader.code = reinterpret_cast<uint32_t*>(netRsrc.shadersCode.data() + shaderMemOffset);
-		shaderMemOffset += shader.codeSizeInBytes;
+		// Copy the shader code from temporary to permanent area
+		netRsrc.shadersCode.reserve(shaderMemNeeded);
+		std::size_t shaderMemOffset = 0;
+		for (auto& shader : netRsrc.shaders) {
+			memcpy(netRsrc.shadersCode.data() + shaderMemOffset, shader.code, shader.codeSizeInBytes);
+			// Update the pointer
+			shader.code = reinterpret_cast<uint32_t*>(netRsrc.shadersCode.data() + shaderMemOffset);
+			shaderMemOffset += shader.codeSizeInBytes;
+		}
 	}
 
 	{
@@ -336,10 +292,14 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources)
 		texLoader.create(app);
 	}
 
-	// Prepare materials
+	// Convert shared::Materials to Materials we can use
+	newMaterials.reserve(resources.materials.size());
 	for (const auto& mat : resources.materials) {
-		netRsrc.materials.emplace_back(createMaterial(mat, netRsrc));
+		newMaterials.emplace_back(createMaterial(mat, netRsrc));
 	}
+
+	// Save materials into netRsrc
+	netRsrc.materials.insert(netRsrc.materials.end(), newMaterials.begin(), newMaterials.end());
 
 	return true;
 }
@@ -394,44 +354,25 @@ void VulkanClient::runFrame()
 	// Check for TCP messages
 	if (networkThreads.tcpMsg->tryLockResources()) {
 		const auto resources = networkThreads.tcpMsg->retreiveResources();
-		loadAssets(*resources);
+
+		// These are needed later, so save them
+		std::vector<ModelInfo> newModels;
+		std::vector<Material> newMaterials;
+		loadAssets(*resources, newModels, newMaterials);
+
 		networkThreads.tcpMsg->releaseResources();
+
+		// Regenerate network-dependant data structures and resources
+		recreateResources(newModels, newMaterials);
 	}
 
 	// Check for UDP messages
-	measure_ms("receiveData", LOGLV_DEBUG, [&]() {
-		receiveData(*networkThreads.udpPassive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
-	});
+	// measure_ms("receiveData", LOGLV_VERBOSE, [&]() {
+	// receiveData(*networkThreads.udpPassive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
+	//});
 
-	// Apply update requests
-	START_PROFILE(updateReq);
-	for (const auto& req : updateReqs) {
-		switch (req.type) {
-		case UpdateReq::Type::GEOM:
-			updateModel(req.data.geom);
-			acksToSend.emplace_back(req.data.geom.serialId);
-			if (receivedGeomIds.load_factor() > 0.9) {
-				receivedGeomIdsMemSize *= 2;
-				receivedGeomIdsMem = realloc(receivedGeomIdsMem, receivedGeomIdsMemSize);
-				receivedGeomIds = receivedGeomIds.copy(receivedGeomIdsMemSize, receivedGeomIdsMem);
-				info("Reallocating receivedGeomIds. New size: ", receivedGeomIdsMemSize / 1024, " KiB");
-			}
-			// XXX: we use the id itself as its hash, as it's expected to be a counter.
-			// Not sure if it's a good idea though.
-			receivedGeomIds.insert(req.data.geom.serialId, req.data.geom.serialId);
-			break;
-		case UpdateReq::Type::POINT_LIGHT:
-			updatePointLight(req.data.pointLight, netRsrc);
-			break;
-		case UpdateReq::Type::TRANSFORM:
-			updateTransform(req.data.transform, objTransforms);
-			break;
-		default:
-			assert(false);
-			break;
-		}
-	}
-	END_PROFILE(updateReq, "updateReq", LOGLV_DEBUG);
+	// Apply UDP update requests
+	// measure_ms("updateReq", LOGLV_VERBOSE, [&]() { applyUpdateRequests(); });
 
 	// Enqueue acks to send (does not block if the mutex is not available yet)
 	auto& acks = networkThreads.udpActive->acks;
@@ -451,6 +392,34 @@ void VulkanClient::runFrame()
 	drawFrame();
 }
 
+void VulkanClient::applyUpdateRequests()
+{
+	for (const auto& req : updateReqs) {
+		switch (req.type) {
+		case UpdateReq::Type::GEOM:
+			updateModel(req.data.geom);
+			acksToSend.emplace_back(req.data.geom.serialId);
+			if (receivedGeomIds.load_factor() > 0.9) {
+				receivedGeomIdsMemSize *= 2;
+				receivedGeomIdsMem = realloc(receivedGeomIdsMem, receivedGeomIdsMemSize);
+				receivedGeomIds = receivedGeomIds.copy(receivedGeomIdsMemSize, receivedGeomIdsMem);
+				info("Reallocating receivedGeomIds. New size: ", receivedGeomIdsMemSize / 1024, " KiB");
+			}
+			receivedGeomIds.insert(req.data.geom.serialId, req.data.geom.serialId);
+			break;
+		case UpdateReq::Type::POINT_LIGHT:
+			updatePointLight(req.data.pointLight, netRsrc);
+			break;
+		case UpdateReq::Type::TRANSFORM:
+			updateTransform(req.data.transform, objTransforms);
+			break;
+		default:
+			assert(false);
+			break;
+		}
+	}
+}
+
 void VulkanClient::calcTimeStats(FPSCounter& fps,
 	std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime)
 {
@@ -464,6 +433,38 @@ void VulkanClient::calcTimeStats(FPSCounter& fps,
 
 	fps.addFrame();
 	fps.report();
+}
+
+void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, const std::vector<Material>& newMaterials)
+{
+	info("Updating geometry buffers");
+	updateGeometryBuffers(app, geometry, newModels);
+
+	info("Updating uniform buffers");
+	// Create new UBOs for new models
+	for (const auto model : newModels) {
+		uniformBuffers.addBuffer(model.name, sizeof(ObjectUniformBufferObject));
+	}
+
+	info("Updating descriptor sets");
+	// Create new descriptor sets for new materials and models
+	if (newModels.size() + newMaterials.size() > 0) {
+		auto descriptorSets = createMultipassTransitoryDescriptorSets(
+			app, uniformBuffers, newMaterials, newModels, app.texSampler, app.cubeSampler);
+
+		// One descriptor set per material
+		for (unsigned i = 0; i < newMaterials.size(); ++i) {
+			auto& mat = newMaterials[i];
+			auto descSet = descriptorSets[i];
+			app.res.descriptorSets->add(mat.name, descSet);
+		}
+		// One descriptor set per object (model)
+		for (unsigned i = 0; i < newModels.size(); ++i) {
+			app.res.descriptorSets->add(newModels[i].name, descriptorSets[newMaterials.size() + i]);
+		}
+	}
+
+	recreateSwapChain();
 }
 
 void VulkanClient::recreateSwapChain()
@@ -634,8 +635,6 @@ void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
 		uniformBuffers.addBuffer(sid("view"), sizeof(ViewUniformBufferObject));
 	}
 
-	updateGeometryBuffers(app, geometry, netRsrc.models);
-
 	BufferAllocator bufAllocator;
 
 	// screen quad buffer
@@ -644,7 +643,22 @@ void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
 	// skybox buffer
 	// bufAllocator.addBuffer(app.skybox.buffer, getSkyboxBufferProperties());
 
+	// Create initial buffers for geometry
+	bufAllocator.addBuffer(geometry.vertexBuffer,
+		8192 * sizeof(Vertex),
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	bufAllocator.addBuffer(geometry.indexBuffer,
+		32768 * sizeof(Index),
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
 	bufAllocator.create(app);
+
+	// Bind memory for geometry buffers
+	mapBuffersMemory(app.device, { &geometry.vertexBuffer, &geometry.indexBuffer });
+	memset(geometry.vertexBuffer.ptr, 0, geometry.vertexBuffer.size);
+	memset(geometry.indexBuffer.ptr, 0, geometry.indexBuffer.size);
 
 	// Allocate enough memory to contain all vertices and indices
 	streamingBuffer.resize(megabytes(64));
@@ -685,31 +699,20 @@ void VulkanClient::loadSkybox()
 
 void VulkanClient::recordAllCommandBuffers()
 {
+	info("recording cmd buffers with ", netRsrc.models.size(), " models");
 	recordMultipassCommandBuffers(app, app.commandBuffers, geometry, netRsrc, uniformBuffers);
 }
 
-void VulkanClient::createDescriptorSets()
+void VulkanClient::createPermanentDescriptorSets()
 {
-	// Create the descriptor sets
-	auto descriptorSets = createMultipassDescriptorSets(
-		app, uniformBuffers, netRsrc.materials, netRsrc.models, app.texSampler, app.cubeSampler);
+	// Create the permanent descriptor sets. This won't ever be recreated.
+	auto descriptorSets = createMultipassPermanentDescriptorSets(app, uniformBuffers, app.texSampler);
 
 	//// Store them into app resources
 	// A descriptor set for the view-dependant stuff
 	app.res.descriptorSets->add("view_res", descriptorSets[0]);
 	// One for the shader-dependant stuff
 	app.res.descriptorSets->add("gbuffer_res", descriptorSets[1]);
-	// One descriptor set per material
-	for (unsigned i = 0; i < netRsrc.materials.size(); ++i) {
-		auto& mat = netRsrc.materials[i];
-		auto descSet = descriptorSets[2 + i];
-		mat.descriptorSet = descSet;
-		app.res.descriptorSets->add(mat.name, descSet);
-	}
-	// One descriptor set per object (model)
-	for (unsigned i = 0; i < netRsrc.models.size(); ++i) {
-		app.res.descriptorSets->add(netRsrc.models[i].name, descriptorSets[2 + netRsrc.materials.size() + i]);
-	}
 }
 
 void VulkanClient::cleanupSwapChain()
@@ -732,13 +735,11 @@ void VulkanClient::cleanup()
 {
 	cleanupSwapChain();
 
-	if (geometry.locations.size() > 0) {
-		unmapBuffersMemory(app.device,
-			{
-				geometry.vertexBuffer,
-				geometry.indexBuffer,
-			});
-	}
+	unmapBuffersMemory(app.device,
+		{
+			geometry.vertexBuffer,
+			geometry.indexBuffer,
+		});
 	uniformBuffers.unmapAllBuffers();
 
 	vkDestroySampler(app.device, app.texSampler, nullptr);
@@ -767,6 +768,8 @@ void VulkanClient::cleanup()
 	}
 	uniformBuffers.cleanup();
 
+	destroyBuffer(app.device, stagingBuffer);
+
 	vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
 
 	free(receivedGeomIdsMem);
@@ -783,15 +786,11 @@ void VulkanClient::prepareReceivedGeomHashset()
 	constexpr auto payloadSize = UdpPacket().payload.size();
 	const auto maxVerticesPerPayload = (payloadSize - sizeof(GeomUpdateHeader)) / sizeof(Vertex);
 	const auto maxIndicesPerPayload = (payloadSize - sizeof(GeomUpdateHeader)) / sizeof(Index);
-	auto totVertices = 0;
-	auto totIndices = 0;
-	for (const auto& model : netRsrc.models) {
-		totVertices += model.nVertices;
-		totIndices += model.nIndices;
-	}
+	const auto expectedVertices = 300'000;
+	const auto expectedIndices = 500'000;
 
 	receivedGeomIdsMemSize = CF_HASHSET_GET_BUFFER_SIZE(
-		uint32_t, 2 * (totVertices / maxVerticesPerPayload + totIndices / maxIndicesPerPayload));
+		uint32_t, 2 * (expectedVertices / maxVerticesPerPayload + expectedIndices / maxIndicesPerPayload));
 	receivedGeomIdsMem = malloc(receivedGeomIdsMemSize);
 
 	receivedGeomIds = cf::hashset<uint32_t>::create(receivedGeomIdsMemSize, receivedGeomIdsMem);

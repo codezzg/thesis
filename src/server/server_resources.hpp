@@ -56,11 +56,18 @@ private:
 
 /** A bunch of (unowned) references to existing resources. */
 struct ResourceBatch {
-	std::unordered_set<Model*> models;
-	std::unordered_set<shared::SpirvShader*> shaders;
-	std::unordered_set<shared::PointLight*> pointLights;
+	std::unordered_set<const Model*> models;
+	std::unordered_set<const shared::SpirvShader*> shaders;
+	std::unordered_set<const shared::PointLight*> pointLights;
 	// Note: this struct is currently only used by sendResourceBatch, which doesn't need
 	// to save textures, so we don't save them here.
 
 	std::size_t size() const { return models.size() + shaders.size() + pointLights.size(); }
+
+	void clear()
+	{
+		models.clear();
+		shaders.clear();
+		pointLights.clear();
+	}
 };

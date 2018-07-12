@@ -12,7 +12,7 @@
 
 using namespace logging;
 
-inline static void drawModels(const Application& app,
+inline static void recordDrawModels(const Application& app,
 	VkCommandBuffer cmdBuf,
 	const Geometry& geometry,
 	const NetworkResources& netRsrc,
@@ -44,7 +44,10 @@ inline static void drawModels(const Application& app,
 		vkCmdBindIndexBuffer(
 			cmdBuf, geometry.indexBuffer.handle, loc_it->second.indexOff, VK_INDEX_TYPE_UINT32);
 
-		const auto dynOff = static_cast<uint32_t>(uniformBuffers.getBuffer(model.name)->bufOffset);
+		const auto ubo = uniformBuffers.getBuffer(model.name);
+		assert(ubo);
+
+		const auto dynOff = static_cast<uint32_t>(ubo->bufOffset);
 		// Bind object descriptor set
 		vkCmdBindDescriptorSets(cmdBuf,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -140,7 +143,7 @@ void recordMultipassCommandBuffers(const Application& app,
 
 		// Draw all models
 		if (netRsrc.models.size() > 0)
-			drawModels(app, cmdBuf, geometry, netRsrc, uniformBuffers);
+			recordDrawModels(app, cmdBuf, geometry, netRsrc, uniformBuffers);
 
 		//// Second subpass: draw skybox
 		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
@@ -325,30 +328,17 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 	return descriptorSetLayouts;
 }
 
-std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& app,
+std::vector<VkDescriptorSet> createMultipassPermanentDescriptorSets(const Application& app,
 	const BufferArray& uniformBuffers,
-	const std::vector<Material>& materials,
-	const std::vector<ModelInfo>& models,
-	VkSampler texSampler,
-	VkSampler cubeSampler)
+	VkSampler texSampler)
 {
-	std::vector<VkDescriptorSetLayout> layouts(1 + 1 + materials.size() + models.size());
+	std::vector<VkDescriptorSetLayout> layouts(2);
 
 	// 1 descriptor set per view
 	layouts[0] = app.res.descriptorSetLayouts->get("view_res");
 
 	// 1 descriptor set for the gbuffer
 	layouts[1] = app.res.descriptorSetLayouts->get("gbuffer_res");
-
-	// 1 descriptor set per material
-	for (unsigned i = 0; i < materials.size(); ++i)
-		layouts[2 + i] = app.res.descriptorSetLayouts->get("mat_res");
-
-	// 1 descriptor set per model
-	// NOTE: technically we may only have 1 descriptor set per backing buffer inside the
-	// `uniformBuffers` BufferArray; however, for simplicity we just use 1 per model for now.
-	for (unsigned i = 0; i < models.size(); ++i)
-		layouts[2 + materials.size() + i] = app.res.descriptorSetLayouts->get("obj_res");
 
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -386,25 +376,6 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 
 		descriptorWrites.emplace_back(descriptorWrite);
 	}
-
-	// Skybox
-	/*{
-		VkDescriptorImageInfo skyboxInfo = {};
-		skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		skyboxInfo.imageView = app.skybox.image.view;
-		skyboxInfo.sampler = cubeSampler;
-
-		VkWriteDescriptorSet descriptorWrite = {};
-		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = descriptorSets[0];
-		descriptorWrite.dstBinding = 1;
-		descriptorWrite.dstArrayElement = 0;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pImageInfo = &skyboxInfo;
-
-		descriptorWrites.emplace_back(descriptorWrite);
-	}*/
 
 	//// Set #1: gbuffer shader resources
 	{
@@ -461,7 +432,65 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		descriptorWrites.emplace_back(descriptorWrite);
 	}
 
-	//// Sets #2-#materials.size()+1: material resources
+	vkUpdateDescriptorSets(app.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+
+	return descriptorSets;
+}
+
+std::vector<VkDescriptorSet> createMultipassTransitoryDescriptorSets(const Application& app,
+	const BufferArray& uniformBuffers,
+	const std::vector<Material>& materials,
+	const std::vector<ModelInfo>& models,
+	VkSampler texSampler,
+	VkSampler cubeSampler)
+{
+	std::vector<VkDescriptorSetLayout> layouts(materials.size() + models.size());
+
+	// 1 descriptor set per material
+	for (unsigned i = 0; i < materials.size(); ++i)
+		layouts[i] = app.res.descriptorSetLayouts->get("mat_res");
+
+	// 1 descriptor set per model
+	// NOTE: technically we may only have 1 descriptor set per backing buffer inside the
+	// `uniformBuffers` BufferArray; however, for simplicity we just use 1 per model for now.
+	for (unsigned i = 0; i < models.size(); ++i)
+		layouts[materials.size() + i] = app.res.descriptorSetLayouts->get("obj_res");
+
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = app.descriptorPool;
+	allocInfo.descriptorSetCount = layouts.size();
+	allocInfo.pSetLayouts = layouts.data();
+
+	debug(__FILE__, ":", __LINE__, ": Allocating ", allocInfo.descriptorSetCount, " descriptor sets");
+	std::vector<VkDescriptorSet> descriptorSets(layouts.size());
+	VLKCHECK(vkAllocateDescriptorSets(app.device, &allocInfo, descriptorSets.data()));
+	for (const auto& descriptorSet : descriptorSets)
+		app.validation.addObjectInfo(descriptorSet, __FILE__, __LINE__);
+
+	std::vector<VkWriteDescriptorSet> descriptorWrites;
+	descriptorWrites.reserve(layouts.size());
+
+	// Skybox
+	/*{
+		VkDescriptorImageInfo skyboxInfo = {};
+		skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		skyboxInfo.imageView = app.skybox.image.view;
+		skyboxInfo.sampler = cubeSampler;
+
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[0];
+		descriptorWrite.dstBinding = 1;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pImageInfo = &skyboxInfo;
+
+		descriptorWrites.emplace_back(descriptorWrite);
+	}*/
+
+	//// Sets #0-#materials.size()+1: material resources
 	std::vector<VkDescriptorImageInfo> diffuseInfos(materials.size());
 	std::vector<VkDescriptorImageInfo> specularInfos(materials.size());
 	std::vector<VkDescriptorImageInfo> normalInfos(materials.size());
@@ -474,7 +503,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = descriptorSets[2 + i];
+			descriptorWrite.dstSet = descriptorSets[i];
 			descriptorWrite.dstBinding = 0;
 			descriptorWrite.dstArrayElement = 0;
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -491,7 +520,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = descriptorSets[2 + i];
+			descriptorWrite.dstSet = descriptorSets[i];
 			descriptorWrite.dstBinding = 1;
 			descriptorWrite.dstArrayElement = 0;
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -508,7 +537,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 
 			VkWriteDescriptorSet descriptorWrite = {};
 			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			descriptorWrite.dstSet = descriptorSets[2 + i];
+			descriptorWrite.dstSet = descriptorSets[i];
 			descriptorWrite.dstBinding = 2;
 			descriptorWrite.dstArrayElement = 0;
 			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -519,7 +548,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 		}
 	}
 
-	//// Sets #materials.size()+2 - ...: object resources
+	//// Sets #materials.size() - ...: object resources
 	for (unsigned i = 0; i < models.size(); ++i) {
 		auto objBuf = uniformBuffers.getBuffer(models[i].name);
 		assert(objBuf);
@@ -532,7 +561,7 @@ std::vector<VkDescriptorSet> createMultipassDescriptorSets(const Application& ap
 
 		VkWriteDescriptorSet descriptorWrite = {};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = descriptorSets[2 + materials.size() + i];
+		descriptorWrite.dstSet = descriptorSets[materials.size() + i];
 		descriptorWrite.dstBinding = 0;
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;

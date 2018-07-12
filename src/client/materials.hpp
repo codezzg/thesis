@@ -11,7 +11,6 @@ struct Material {
 	VkImageView diffuse;
 	VkImageView specular;
 	VkImageView normal;
-	VkDescriptorSet descriptorSet;
 };
 
 /** Creates a Material from a shared::Material.

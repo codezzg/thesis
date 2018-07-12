@@ -127,7 +127,7 @@ void TcpMsgThread::performResourceExchange()
 	if (!resourcesAvailable)
 		resources.clear();
 
-	sendTCPMsg(ep.socket, TcpMsgType::RSRC_EXCHANGE_ACK);
+	// sendTCPMsg(ep.socket, TcpMsgType::RSRC_EXCHANGE_ACK);
 
 	if (receiveOneTimeData()) {
 		resourcesAvailable = true;

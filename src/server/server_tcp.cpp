@@ -71,7 +71,7 @@ static bool batch_sendTexture(socket_t clientSocket,
 
 	bool ok = sendTexture(clientSocket, resources, texName, fmt);
 	if (!ok) {
-		err("sendOneTimeData: failed");
+		err("batch_sendTexture: failed");
 		return false;
 	}
 
@@ -235,6 +235,9 @@ static bool sendResourceBatch(socket_t clientSocket, ServerResources& resources,
 			return false;
 	}
 
+	if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
+		return false;
+
 	info("Done sending data");
 
 	return true;
@@ -310,16 +313,16 @@ void TcpActiveThread::tcpActiveTask()
 void TcpActiveThread::connectToClient(socket_t clientSocket, const char* clientAddr)
 {
 	// Start keepalive listening thread
-	server.networkThreads.keepalive =
-		std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
+	// server.networkThreads.keepalive =
+	// std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
 
 	// Starts UDP loops and send ready to client
-	server.endpoints.udpActive =
-		startEndpoint(clientAddr, cfg::UDP_SERVER_TO_CLIENT_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
-	server.networkThreads.udpActive = std::make_unique<UdpActiveThread>(server, server.endpoints.udpActive);
-	server.endpoints.udpPassive =
-		startEndpoint(ep.ip.c_str(), cfg::UDP_CLIENT_TO_SERVER_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
-	server.networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
+	// server.endpoints.udpActive =
+	// startEndpoint(clientAddr, cfg::UDP_SERVER_TO_CLIENT_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
+	// server.networkThreads.udpActive = std::make_unique<UdpActiveThread>(server, server.endpoints.udpActive);
+	// server.endpoints.udpPassive =
+	// startEndpoint(ep.ip.c_str(), cfg::UDP_CLIENT_TO_SERVER_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
+	// server.networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
 }
 
 bool TcpActiveThread::msgLoop(socket_t clientSocket, sockaddr_in clientAddr)
@@ -327,15 +330,27 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket, sockaddr_in clientAddr)
 	while (ep.connected) {
 		std::unique_lock<std::mutex> ulk{ mtx };
 		cv.wait(ulk, [this]() {
-			return !ep.connected || !server.networkThreads.keepalive->isClientConnected() ||
+			return !ep.connected ||   //! server.networkThreads.keepalive->isClientConnected() ||
 			       resourcesToSend.size() > 0;
 		});
 
-		if (!ep.connected || !server.networkThreads.keepalive->isClientConnected())
+		if (!ep.connected)   //|| !server.networkThreads.keepalive->isClientConnected())
 			return false;
 
-		if (!sendResourceBatch(clientSocket, server.resources, resourcesToSend))
-			return false;
+		if (resourcesToSend.size() > 0) {
+			if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
+				return false;
+
+			// uint8_t packet;
+			// if (!expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK))
+			// return false;
+
+			info("Send ResourceBatch");
+			if (!sendResourceBatch(clientSocket, server.resources, resourcesToSend))
+				return false;
+
+			resourcesToSend.clear();
+		}
 	}
 
 	return false;

@@ -53,7 +53,4 @@ struct Application final {
 	void cleanup();
 };
 
-/** Creates a DescriptorPool with enough space to create the descriptors needed
- *  by resources in `netRsrc`.
- */
-VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResources& netRsrc);
+VkDescriptorPool createDescriptorPool(const Application& app);

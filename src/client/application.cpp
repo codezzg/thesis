@@ -81,8 +81,11 @@ static void createLogicalDevice(Application& app)
 	vkGetDeviceQueue(app.device, indices.presentFamily, 0, &app.queues.present);
 }
 
-VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResources& netRsrc)
+VkDescriptorPool createDescriptorPool(const Application& app)
 {
+	constexpr auto MAX_MATERIALS_EXPECTED = 64;
+	constexpr auto MAX_MODELS_EXPECTED = 24;
+
 	// TODO: re-read and reason about this procedure, it's kinda messy
 
 	/* We have 4 kinds of DescriptorSets, each updated at a different frequency:
@@ -98,9 +101,9 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 1;
 
-	// TODO: use a less wasteful approach for image allocation than 2 per material
+	// at most 3 textures per material
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = 3 * (netRsrc.materials.size() + 1);   // diff/spec/normal + default ones
+	poolSizes[1].descriptorCount = 3 * (MAX_MATERIALS_EXPECTED + 1);   // diff/spec/normal + default ones
 
 	// 1 input attachment per G-buffer attachment
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
@@ -108,7 +111,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 
 	// 1 dynamic uniform buffer per model
 	poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-	poolSizes[3].descriptorCount = std::max(std::size_t(1), netRsrc.models.size());
+	poolSizes[3].descriptorCount = std::max(1, MAX_MODELS_EXPECTED);
 
 	debug("Created descriptorPool with sizes ",
 		poolSizes[0].descriptorCount,
@@ -123,8 +126,7 @@ VkDescriptorPool createDescriptorPool(const Application& app, const NetworkResou
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = poolSizes.size();
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = 2 + std::max(std::size_t(1), netRsrc.models.size()) +
-			   std::max(std::size_t(1), netRsrc.materials.size());
+	poolInfo.maxSets = 2 + std::max(1, MAX_MODELS_EXPECTED) + std::max(1, MAX_MATERIALS_EXPECTED);
 	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
 	VkDescriptorPool descriptorPool;
