@@ -58,7 +58,6 @@ static void wrapper(int sig)
 void xplatSetExitHandler(signal_handler_t handler)
 {
 	gHandler = handler;
-	std::atexit([]() { wrapper(0); });
 }
 
 bool xplatEnableExitHandler()

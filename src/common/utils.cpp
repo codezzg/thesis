@@ -19,7 +19,7 @@ std::vector<char> readFile(const char* path)
 		std::vector<char>().swap(data);
 	}
 
-	info("loaded file ", path, ": ", data.size(), " bytes (", data.size() / 1024 / 1024., " MiB) into memory");
+	info("loaded file ", path, ": ", data.size(), " bytes (", data.size() / 1024, " KiB) into memory");
 	return data;
 }
 

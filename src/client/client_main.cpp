@@ -19,12 +19,14 @@ int main(int argc, char** argv)
 		err("Failed to enable exit handler!");
 		return EXIT_FAILURE;
 	}
-	xplatSetExitHandler([]() {
+	const auto atExit = []() {
 		if (xplatSocketCleanup())
 			info("Successfully cleaned up sockets.");
 		else
 			err("Failed to cleanup sockets!");
-	});
+	};
+	xplatSetExitHandler(atExit);
+	std::atexit(atExit);
 
 	// Parse args
 	int i = argc - 1;

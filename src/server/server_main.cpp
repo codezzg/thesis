@@ -57,6 +57,14 @@ int main(int argc, char** argv)
 	Server server{ MEMSIZE };
 
 	const auto atExit = [&server]() {
+		debug("Sockets:\nudpActive: ",
+			server.endpoints.udpActive.socket,
+			"\nudpPassive: ",
+			server.endpoints.udpPassive.socket,
+			"\nreliable: ",
+			server.endpoints.reliable.socket,
+			"\nclient: ",
+			server.networkThreads.keepalive->clientSocket);
 		// "Ensure" we close the sockets even if we terminate abruptly
 		gBandwidthLimiter.stop();
 		server.closeNetwork();
@@ -102,10 +110,15 @@ int main(int argc, char** argv)
 	}
 
 	/// Start TCP socket and wait for connections
-	server.endpoints.tcpActive =
+	server.endpoints.reliable =
 		startEndpoint(args.ip.c_str(), cfg::RELIABLE_PORT, Endpoint::Type::PASSIVE, SOCK_STREAM);
-	server.networkThreads.tcpActive = std::make_unique<TcpActiveThread>(server, server.endpoints.tcpActive);
+	if (!xplatIsValidSocket(server.endpoints.reliable.socket)) {
+		err("Failed to listen on ", args.ip, ":", cfg::RELIABLE_PORT, ": quitting.");
+		return 1;
+	}
+	server.networkThreads.tcpActive = std::make_unique<TcpActiveThread>(server, server.endpoints.reliable);
 
+	std::this_thread::sleep_for(999999s);
 	appstageLoop(server);
 	atExit();
 }

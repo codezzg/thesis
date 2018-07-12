@@ -92,8 +92,8 @@ private:
 	 */
 	void initVulkan();
 
-	/** Starts the network endpoints */
-	void startNetwork(const char* serverIp);
+	/** Starts the UDP network endpoints */
+	void startUDP(const char* serverIp);
 
 	/** Performs the initial handshake with the server and receives the one-time data */
 	bool connectToServer(const char* serverIp);

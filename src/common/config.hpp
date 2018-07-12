@@ -22,8 +22,8 @@ constexpr auto MAX_SHADER_SIZE = kilobytes(100);
 // constexpr uint32_t PACKET_MAGIC = 0x14101991;
 constexpr std::size_t PACKET_SIZE_BYTES = 480;
 
-constexpr int SERVER_TO_CLIENT_PORT = 1234;
-constexpr int CLIENT_TO_SERVER_PORT = 1235;
+constexpr int UDP_SERVER_TO_CLIENT_PORT = 1234;
+constexpr int UDP_CLIENT_TO_SERVER_PORT = 1235;
 constexpr int RELIABLE_PORT = 1236;
 
 constexpr int CLIENT_KEEPALIVE_INTERVAL_SECONDS = 30;

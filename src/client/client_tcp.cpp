@@ -88,6 +88,7 @@ void TcpMsgThread::tcpMsgTask()
 
 		switch (type) {
 		case TcpMsgType::DISCONNECT:
+			info("Received DISCONNECT");
 			running = false;
 			break;
 		case TcpMsgType::START_RSRC_EXCHANGE:
@@ -98,6 +99,7 @@ void TcpMsgThread::tcpMsgTask()
 		}
 	}
 	info("tcpMsgTask: exiting.");
+	closeEndpoint(ep);
 }
 
 TcpMsgThread::TcpMsgThread(Endpoint& ep)

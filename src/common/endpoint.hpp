@@ -47,7 +47,7 @@ struct Endpoint {
 	socket_t socket = xplatInvalidSocketID();
 	std::string ip;
 	int port;
-	bool connected;
+	bool connected = false;
 };
 
 Endpoint startEndpoint(const char* ip, int port, Endpoint::Type type, int socktype);

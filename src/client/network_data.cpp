@@ -57,11 +57,16 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 		return maxBytesToRead;
 	}
 
-	assert(dataSize != 0 && req.data.geom.dst != nullptr);
-
-	req.data.geom.nBytes = header->len * dataSize;
+	assert(dataSize != 0);
 
 	const auto chunkSize = sizeof(GeomUpdateHeader) + dataSize * header->len;
+
+	if (req.data.geom.dst == nullptr) {
+		warn("Received geom update for unknown model ", header->modelId);
+		return chunkSize;
+	}
+
+	req.data.geom.nBytes = header->len * dataSize;
 
 	if (header->serialId == 0) {
 		err("Invalid serial 0 for geom update chunk!");

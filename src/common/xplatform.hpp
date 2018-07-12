@@ -19,8 +19,9 @@ std::string xplatGetCwd();
  */
 bool xplatEnableExitHandler();
 
-/** Sets `handler` as the custom exit handler. It will be called when the
- *  program exits normally or is terminated by a signal.
+/** Sets `handler` as the custom exit handler.
+ *  It will only be called when the program exits abnormally (i.e. is terminated by a signal).
+ *  If you wish to call it also on normal termination, use std::atexit.
  */
 void xplatSetExitHandler(signal_handler_t handler);
 

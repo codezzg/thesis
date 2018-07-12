@@ -262,7 +262,10 @@ void TcpActiveThread::tcpActiveTask()
 {
 	info("Listening...");
 	// One client at a time
-	::listen(ep.socket, 1);
+	if (::listen(ep.socket, 1) != 0) {
+		err("Error listening: ", xplatGetErrorString(), " (", xplatGetError(), ")");
+		return;
+	}
 
 	while (ep.connected) {
 		sockaddr_in clientAddr;
@@ -271,8 +274,11 @@ void TcpActiveThread::tcpActiveTask()
 		info("Accepting...");
 		auto clientSocket = ::accept(ep.socket, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
 		if (clientSocket == -1) {
-			if (ep.connected)
+			if (ep.connected) {
 				err("Error: couldn't accept connection.");
+				closeEndpoint(ep);
+				break;
+			}
 			continue;
 		}
 
@@ -285,14 +291,7 @@ void TcpActiveThread::tcpActiveTask()
 
 		const char* readableAddr = inet_ntoa(clientAddr.sin_addr);
 
-		// Starts UDP loops and send ready to client
-		server.endpoints.udpActive =
-			startEndpoint(readableAddr, cfg::SERVER_TO_CLIENT_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
-		server.networkThreads.udpActive = std::make_unique<UdpActiveThread>(server, server.endpoints.udpActive);
-		server.endpoints.udpPassive =
-			startEndpoint(ep.ip.c_str(), cfg::CLIENT_TO_SERVER_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
-		server.networkThreads.udpPassive =
-			std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
+		connectToClient(clientSocket, readableAddr);
 
 		if (!sendTCPMsg(clientSocket, TcpMsgType::READY)) {
 			info("TCP: Dropping client ", readableAddr);
@@ -304,13 +303,39 @@ void TcpActiveThread::tcpActiveTask()
 			dropClient(clientSocket);
 		}
 	}
+
+	info("tcpActiveTask: ended.");
+}
+
+void TcpActiveThread::connectToClient(socket_t clientSocket, const char* clientAddr)
+{
+	// Start keepalive listening thread
+	server.networkThreads.keepalive =
+		std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
+
+	// Starts UDP loops and send ready to client
+	server.endpoints.udpActive =
+		startEndpoint(clientAddr, cfg::UDP_SERVER_TO_CLIENT_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
+	server.networkThreads.udpActive = std::make_unique<UdpActiveThread>(server, server.endpoints.udpActive);
+	server.endpoints.udpPassive =
+		startEndpoint(ep.ip.c_str(), cfg::UDP_CLIENT_TO_SERVER_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
+	server.networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
 }
 
 bool TcpActiveThread::msgLoop(socket_t clientSocket, sockaddr_in clientAddr)
 {
-	while (true) {
-		std::this_thread::sleep_for(std::chrono::seconds{ 1000000 });
-		break;
+	while (ep.connected) {
+		std::unique_lock<std::mutex> ulk{ mtx };
+		cv.wait(ulk, [this]() {
+			return !ep.connected || !server.networkThreads.keepalive->isClientConnected() ||
+			       resourcesToSend.size() > 0;
+		});
+
+		if (!ep.connected || !server.networkThreads.keepalive->isClientConnected())
+			return false;
+
+		if (!sendResourceBatch(clientSocket, server.resources, resourcesToSend))
+			return false;
 	}
 
 	return false;
@@ -318,56 +343,69 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket, sockaddr_in clientAddr)
 
 void TcpActiveThread::dropClient(socket_t clientSocket)
 {
+	info("Dropping client");
+
 	// Send disconnect message
 	sendTCPMsg(clientSocket, TcpMsgType::DISCONNECT);
+
 	info("Closing passiveEP");
 	closeEndpoint(server.endpoints.udpPassive);
+	server.networkThreads.udpPassive.reset(nullptr);
+
 	info("Closing activeEP");
 	closeEndpoint(server.endpoints.udpActive);
+	server.networkThreads.udpActive.reset(nullptr);
+
+	server.networkThreads.keepalive->disconnect();
+	server.networkThreads.keepalive.reset(nullptr);
 }
 ///////////
 
-// KeepaliveListenThread::KeepaliveListenThread(socket_t clientSocket)
-//: clientSocket{ clientSocket }
-//{
-// thread = std::thread{ &KeepaliveListenThread::keepaliveListenTask, this };
-//}
+KeepaliveListenThread::KeepaliveListenThread(Server& server, Endpoint& ep, socket_t clientSocket)
+	: server{ server }
+	, ep{ ep }
+	, clientSocket{ clientSocket }
+{
+	thread = std::thread{ &KeepaliveListenThread::keepaliveListenTask, this };
+}
 
-// KeepaliveListenThread::~KeepaliveListenThread()
-//{
-// if (thread.joinable()) {
-// info("Joining keepaliveThread...");
-// thread.join();
-// info("Joined keepaliveThread.");
-//}
-//}
+KeepaliveListenThread::~KeepaliveListenThread()
+{
+	if (thread.joinable()) {
+		info("Joining keepaliveThread...");
+		thread.join();
+		info("Joined keepaliveThread.");
+	}
+}
 
-//[>* This task listens for keepalives and updates `latestPing` with the current time every time it receives one. <]
-// void KeepaliveListenThread::keepaliveListenTask()
-//{
-// std::array<uint8_t, 1> buffer = {};
+/* This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
+void KeepaliveListenThread::keepaliveListenTask()
+{
+	std::array<uint8_t, 1> buffer = {};
 
-// while (true) {
-// TcpMsgType type;
-// if (!receiveTCPMsg(clientSocket, buffer.data(), buffer.size(), type)) {
-// break;
-//}
+	while (ep.connected) {
+		TcpMsgType type;
+		if (!receiveTCPMsg(clientSocket, buffer.data(), buffer.size(), type)) {
+			break;
+		}
 
-// switch (type) {
-// case TcpMsgType::KEEPALIVE:
-// latestPing = std::chrono::system_clock::now();
-// break;
-// case TcpMsgType::DISCONNECT:
-// goto exit;
-// default:
-// break;
-//}
-//}
-// exit:
-// info("KEEPALIVE: dead");
-// cv.notify_one();
-// return;
-//}
+		switch (type) {
+		case TcpMsgType::KEEPALIVE:
+			// latestPing = std::chrono::system_clock::now();
+			break;
+		case TcpMsgType::DISCONNECT:
+			info("Received DISCONNECT from client.");
+			goto exit;
+		default:
+			break;
+		}
+	}
+exit:
+	info("KEEPALIVE: dead");
+	clientConnected = false;
+	if (server.networkThreads.tcpActive)
+		server.networkThreads.tcpActive->cv.notify_one();
+}
 
 /*
 		std::unique_lock<std::mutex> keepaliveUlk{ keepaliveMtx };

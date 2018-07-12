@@ -135,14 +135,15 @@ void VulkanClient::initVulkan()
 	prepareCamera();
 }
 
-void VulkanClient::startNetwork(const char* serverIp)
+void VulkanClient::startUDP(const char* serverIp)
 {
 	debug("Starting passive EP...");
-	endpoints.passive = startEndpoint("0.0.0.0", cfg::SERVER_TO_CLIENT_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
+	endpoints.passive =
+		startEndpoint("0.0.0.0", cfg::UDP_SERVER_TO_CLIENT_PORT, Endpoint::Type::PASSIVE, SOCK_DGRAM);
 	networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(endpoints.passive);
 
-	debug("Starting active EP towards ", serverIp, ":", cfg::CLIENT_TO_SERVER_PORT, " ...");
-	endpoints.active = startEndpoint(serverIp, cfg::CLIENT_TO_SERVER_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
+	debug("Starting active EP towards ", serverIp, ":", cfg::UDP_CLIENT_TO_SERVER_PORT, " ...");
+	endpoints.active = startEndpoint(serverIp, cfg::UDP_CLIENT_TO_SERVER_PORT, Endpoint::Type::ACTIVE, SOCK_DGRAM);
 	networkThreads.udpActive = std::make_unique<UdpActiveThread>(endpoints.active);
 
 	updateReqs.reserve(256);
@@ -199,7 +200,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	}*/
 
 	debug(":: Starting UDP endpoints...");
-	startNetwork(serverIp);
+	startUDP(serverIp);
 
 	debug(":: Sending READY...");
 	if (!tcp_sendReadyAndWait(endpoints.reliable.socket)) {
@@ -209,7 +210,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	debug(":: Received READY.");
 
 	debug(":: Starting TCP listening loop");
-	networkThreads.keepalive = std::make_unique<KeepaliveThread>(endpoints.reliable.socket);
+	// networkThreads.keepalive = std::make_unique<KeepaliveThread>(endpoints.reliable.socket);
 	networkThreads.tcpMsg = std::make_unique<TcpMsgThread>(endpoints.reliable);
 
 	// Ready to start the main loop

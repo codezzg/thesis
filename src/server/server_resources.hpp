@@ -61,4 +61,6 @@ struct ResourceBatch {
 	std::unordered_set<shared::PointLight*> pointLights;
 	// Note: this struct is currently only used by sendResourceBatch, which doesn't need
 	// to save textures, so we don't save them here.
+
+	std::size_t size() const { return models.size() + shaders.size() + pointLights.size(); }
 };

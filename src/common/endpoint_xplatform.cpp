@@ -38,6 +38,9 @@ int xplatSockClose(socket_t sock)
 	// This may fail if the socket is UDP, just don't care
 	status = shutdown(sock, SHUT_RDWR);
 	if (status == 0 || errno == ENOTCONN) {
+		char buf[256];
+		while (read(sock, buf, 256) > 0) {
+		}
 		status = close(sock);
 		logging::info("Socket ", sock, " shut down.");
 #endif

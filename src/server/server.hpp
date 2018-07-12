@@ -64,14 +64,14 @@ struct Server {
 	struct {
 		Endpoint udpActive;
 		Endpoint udpPassive;
-		Endpoint tcpActive;
+		Endpoint reliable;
 	} endpoints;
 
 	struct {
 		std::unique_ptr<UdpActiveThread> udpActive;
 		std::unique_ptr<UdpPassiveThread> udpPassive;
 		std::unique_ptr<TcpActiveThread> tcpActive;
-		// KeepaliveListenThread keepaliveListen;
+		std::unique_ptr<KeepaliveListenThread> keepalive;
 	} networkThreads;
 
 	ClientToServerData fromClient;

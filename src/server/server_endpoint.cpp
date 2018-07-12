@@ -208,7 +208,6 @@ void UdpPassiveThread::udpPassiveTask()
 		}
 
 		if (server.fromClient.acksReceivedMtx.try_lock()) {
-			// std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
 			for (unsigned i = 0; i < packet->nAcks; ++i)
 				server.fromClient.acksReceived.emplace_back(packet->acks[i]);
 			server.fromClient.acksReceivedMtx.unlock();

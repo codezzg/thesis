@@ -1,6 +1,7 @@
 #pragma once
 
 #include "endpoint.hpp"
+#include "server_resources.hpp"
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -18,6 +19,9 @@ class TcpActiveThread {
 	Server& server;
 	Endpoint& ep;
 
+	/** Starts the UDP + keepalive endpoints towards client */
+	void connectToClient(socket_t clientSocket, const char* clientAddr);
+
 	/** The TCP main loop */
 	bool msgLoop(socket_t clientSocket, sockaddr_in clientAddr);
 
@@ -29,23 +33,34 @@ class TcpActiveThread {
 	void tcpActiveTask();
 
 public:
+	ResourceBatch resourcesToSend;
+	std::mutex mtx;
+	std::condition_variable cv;
+
 	explicit TcpActiveThread(Server& server, Endpoint& ep);
 	~TcpActiveThread();
 };
 
-// class KeepaliveListenThread {
+class KeepaliveListenThread {
 
-// std::thread thread;
+	std::thread thread;
 
-// const socket_t clientSocket;
+	Server& server;
+	Endpoint& ep;
 
-// std::mutex mtx;
-//[>* Used to wait in the keepalive listen loop <]
-// std::condition_variable cv;
+	std::mutex mtx;
+	/* Used to wait in the keepalive listen loop */
+	std::condition_variable cv;
 
-// void keepaliveListenTask();
+	bool clientConnected = true;
 
-// public:
-// explicit KeepaliveListenThread(socket_t clientSocket);
-//~KeepaliveListenThread();
-//};
+	void keepaliveListenTask();
+
+public:
+	const socket_t clientSocket;
+	explicit KeepaliveListenThread(Server& server, Endpoint& ep, socket_t clientSocket);
+	~KeepaliveListenThread();
+
+	bool isClientConnected() const { return clientConnected; }
+	void disconnect() { xplatSockClose(clientSocket); }
+};

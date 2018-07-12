@@ -42,12 +42,16 @@ Server::Server(std::size_t memsize)
 
 Server::~Server()
 {
+	debug("~Server()");
 	closeNetwork();
 }
 
 void Server::closeNetwork()
 {
-	closeEndpoint(endpoints.udpActive);
-	closeEndpoint(endpoints.udpPassive);
-	closeEndpoint(endpoints.tcpActive);
+	info("Closing network");
+	closeEndpoint(endpoints.reliable);
+	if (networkThreads.tcpActive) {
+		networkThreads.tcpActive->cv.notify_all();
+		networkThreads.tcpActive.reset(nullptr);
+	}
 }
