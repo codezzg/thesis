@@ -10,6 +10,9 @@
 #include "vertex.hpp"
 #include <array>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
+
 using namespace logging;
 
 inline static void recordDrawModels(const Application& app,

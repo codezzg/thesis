@@ -85,20 +85,19 @@ static VkDeviceSize getFirstFreePos(const Geometry& geometry, ListType type)
 	return firstFreeByte;
 }
 
-static Buffer accomodateNewData(Geometry& geometry,
+static bool accomodateNewData(Geometry& geometry,
 	BufferAllocator& bufAllocator,
 	const std::vector<ModelInfo>& newModels,
 	ListType listType,
 	unsigned amtNeeded,
-	bool& canAccomodate)
+	Buffer& newBuf)
 {
-	Buffer newBuf;
 	newBuf.handle = VK_NULL_HANDLE;
 
 	const auto dataSize = listType == ListType::VERTEX ? sizeof(Vertex) : sizeof(Index);
 	const auto firstFreePos = getFirstFreePos(geometry, listType);
 	const auto buf = listType == ListType::VERTEX ? geometry.vertexBuffer : geometry.indexBuffer;
-	canAccomodate = (buf.size - firstFreePos) >= (dataSize * amtNeeded);
+	bool canAccomodate = (buf.size - firstFreePos) >= (dataSize * amtNeeded);
 
 	info("geometry: need ", dataSize * amtNeeded, ", have ", buf.size - firstFreePos);
 	if (!canAccomodate) {
@@ -132,7 +131,7 @@ static Buffer accomodateNewData(Geometry& geometry,
 		}
 	}
 
-	return newBuf;
+	return canAccomodate;
 }
 
 void updateGeometryBuffers(const Application& app, Geometry& geometry, const std::vector<ModelInfo>& newModels)
@@ -150,14 +149,13 @@ void updateGeometryBuffers(const Application& app, Geometry& geometry, const std
 
 	// Check if new vertices fit in existing buffer. If that's not the case, schedule a new
 	// vertex buffer to be created. Either way, add the new locations for vertices to geometry.
-	bool canAccomodate = false;
-	auto newVertexBuffer = accomodateNewData(
-		geometry, bufAllocator, newModels, ListType::VERTEX, newVerticesNeeded, canAccomodate);
+	Buffer newVertexBuffer, newIndexBuffer;
+	bool canAccomodate = accomodateNewData(
+		geometry, bufAllocator, newModels, ListType::VERTEX, newVerticesNeeded, newVertexBuffer);
 	if (!canAccomodate)
 		buffersToDestroy.emplace_back(geometry.vertexBuffer);
 
-	auto newIndexBuffer =
-		accomodateNewData(geometry, bufAllocator, newModels, ListType::INDEX, newIndicesNeeded, canAccomodate);
+	canAccomodate = accomodateNewData(geometry, bufAllocator, newModels, ListType::INDEX, newIndicesNeeded, newIndexBuffer);
 	if (!canAccomodate)
 		buffersToDestroy.emplace_back(geometry.indexBuffer);
 

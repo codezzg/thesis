@@ -125,9 +125,9 @@ SubBuffer* BufferArray::addBuffer(StringId name, VkDeviceSize size)
 		buffer.handle = buf.handle;
 		buffer.memory = buf.memory;
 		buffer.offset = buf.offset;
-		buffer.ptr = buf.ptr;
 		buffer.size = size;
 		buffer.bufOffset = freeRanges[0].start;
+		buffer.ptr = reinterpret_cast<uint8_t*>(buf.ptr) + buffer.bufOffset;
 
 		freeRanges[0].start += size;
 		assert(freeRanges[0].len() >= 0);
@@ -161,9 +161,9 @@ SubBuffer* BufferArray::addBuffer(StringId name, VkDeviceSize size)
 	buffer.handle = buf.handle;
 	buffer.memory = buf.memory;
 	buffer.offset = buf.offset;
-	buffer.ptr = buf.ptr;
 	buffer.size = size;
 	buffer.bufOffset = 0;
+	buffer.ptr = reinterpret_cast<uint8_t*>(buf.ptr) + buffer.bufOffset;
 
 	return &buffer;
 }

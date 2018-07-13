@@ -578,7 +578,7 @@ void VulkanClient::updateObjectsUniformBuffer()
 		auto ubo = reinterpret_cast<ObjectUniformBufferObject*>(objBuf->ptr);
 
 		if (gUseCamera) {
-			ubo->model = objTransforms[model.name];
+			ubo->model = glm::mat4{ 1.f };// objTransforms[model.name];
 			// verbose("filling ",
 			// ubo,
 			//" / ",
