@@ -125,23 +125,24 @@ int main(int argc, char** argv)
 		std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
 		for (const auto& pair : server.resources.models)
 			toSend.models.emplace(&pair.second);
+		toSend.models.emplace(&server.resources.models.begin()->second);
 	}
 	server.networkThreads.tcpActive->cv.notify_one();
-	// std::this_thread::sleep_for(2s);
+	std::this_thread::sleep_for(1s);
 	//{
 	// std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
 	// for (const auto& pair : server.resources.shaders)
 	// toSend.shaders.emplace(&pair.second);
 	//}
 	// server.networkThreads.tcpActive->cv.notify_one();
-	// std::this_thread::sleep_for(2s);
-	{
-		std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-		for (const auto& light : server.resources.pointLights)
-			toSend.pointLights.emplace(&light);
-	}
-	server.networkThreads.tcpActive->cv.notify_one();
-	// std::this_thread::sleep_for(2s);
+	// std::this_thread::sleep_for(1s);
+	//{
+	// std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+	// for (const auto& light : server.resources.pointLights)
+	// toSend.pointLights.emplace(&light);
+	//}
+	// server.networkThreads.tcpActive->cv.notify_one();
+	std::this_thread::sleep_for(2s);
 	appstageLoop(server);
 	atExit();
 }
@@ -252,14 +253,17 @@ bool loadAssets(Server& server)
 	// if (!loadSingleModel("/models/sponza/sponza.dae"))
 	// return false;
 
-	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+	// if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
+	// return false;
+
+	if (!loadSingleModel("/models/cube/silver.obj"))
 		return false;
 
 	// if (!loadSingleModel("/models/wall/wall2.obj"))
 	// return false;
 
-	if (!loadSingleModel("/models/cat/cat.obj"))
-		return false;
+	// if (!loadSingleModel("/models/cat/cat.obj"))
+	// return false
 
 	return true;
 }

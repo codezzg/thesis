@@ -225,6 +225,9 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources,
 	std::vector<ModelInfo>& newModels,
 	std::vector<Material>& newMaterials)
 {
+	newModels.reserve(resources.models.size());
+	newMaterials.reserve(resources.materials.size());
+
 	// Save models into permanent storage
 	netRsrc.models.insert(netRsrc.models.end(), resources.models.begin(), resources.models.end());
 	for (const auto& model : resources.models) {
@@ -293,7 +296,6 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources,
 	}
 
 	// Convert shared::Materials to Materials we can use
-	newMaterials.reserve(resources.materials.size());
 	for (const auto& mat : resources.materials) {
 		newMaterials.emplace_back(createMaterial(mat, netRsrc));
 	}
@@ -358,6 +360,7 @@ void VulkanClient::runFrame()
 		// These are needed later, so save them
 		std::vector<ModelInfo> newModels;
 		std::vector<Material> newMaterials;
+		checkAssets(*resources);
 		loadAssets(*resources, newModels, newMaterials);
 
 		networkThreads.tcpMsg->releaseResources();
@@ -367,12 +370,12 @@ void VulkanClient::runFrame()
 	}
 
 	// Check for UDP messages
-	measure_ms("receiveData", LOGLV_VERBOSE, [&]() {
+	measure_ms("receiveData", LOGLV_UBER_VERBOSE, [&]() {
 		receiveData(*networkThreads.udpPassive, streamingBuffer, geometry, updateReqs, receivedGeomIds);
 	});
 
 	// Apply UDP update requests
-	measure_ms("updateReq", LOGLV_VERBOSE, [&]() { applyUpdateRequests(); });
+	measure_ms("updateReq", LOGLV_UBER_VERBOSE, [&]() { applyUpdateRequests(); });
 
 	// Enqueue acks to send (does not block if the mutex is not available yet)
 	auto& acks = networkThreads.udpActive->acks;
@@ -444,7 +447,7 @@ void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, co
 
 	info("Updating uniform buffers");
 	// Create new UBOs for new models
-	for (const auto model : newModels) {
+	for (const auto& model : newModels) {
 		uniformBuffers.addBuffer(model.name, sizeof(ObjectUniformBufferObject));
 	}
 
@@ -453,22 +456,18 @@ void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, co
 		info("Updating descriptor sets");
 		auto descriptorSets = createMultipassTransitoryDescriptorSets(
 			app, uniformBuffers, newMaterials, newModels, app.texSampler, app.cubeSampler);
+		assert(descriptorSets.size() == newModels.size() + newMaterials.size());
 
 		// One descriptor set per material
 		for (unsigned i = 0; i < newMaterials.size(); ++i) {
-			auto& mat = newMaterials[i];
-			auto descSet = descriptorSets[i];
-			app.res.descriptorSets->add(mat.name, descSet);
+			app.res.descriptorSets->add(newMaterials[i].name, descriptorSets[i]);
 		}
 		// One descriptor set per object (model)
 		for (unsigned i = 0; i < newModels.size(); ++i) {
 			app.res.descriptorSets->add(newModels[i].name, descriptorSets[newMaterials.size() + i]);
 		}
-
-		recreateSwapChain();
-	} else {
-		err("Nothing new to update!?");
 	}
+	recreateSwapChain();
 }
 
 void VulkanClient::recreateSwapChain()
@@ -649,11 +648,11 @@ void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
 
 	// Create initial buffers for geometry
 	bufAllocator.addBuffer(geometry.vertexBuffer,
-		8192 * sizeof(Vertex),
+		8 * sizeof(Vertex),
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	bufAllocator.addBuffer(geometry.indexBuffer,
-		32768 * sizeof(Index),
+		32 * sizeof(Index),
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 

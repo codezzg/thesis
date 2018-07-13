@@ -164,13 +164,17 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 			}[passNumber];
 			return createShaderModule(app, (defaultFile + shaderStageToExt(stage) + ".spv").c_str());
 		}
+		info("Using network shader for pass ", int(passNumber), ", stage ", stage);
 		return createShaderModule(app, *shad_it);
 	};
 
+	info("netRsrc.shaders.size = ", shaders.size());
 	/// Multipass
 	{
-		auto vertShaderModule = createShader(0, ShaderStage::VERTEX);
-		auto fragShaderModule = createShader(0, ShaderStage::FRAGMENT);
+		auto vertShaderModule =
+			createShaderModule(app, "shaders/gbuffer.vert.spv");   // createShader(0, ShaderStage::VERTEX);
+		auto fragShaderModule = createShaderModule(
+			app, "shaders/gbuffer.frag.spv");   // createShader(0, ShaderStage::FRAGMENT);
 
 		VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 		vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
