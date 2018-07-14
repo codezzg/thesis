@@ -490,7 +490,7 @@ void VulkanClient::recreateSwapChain()
 	app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
 	app.swapChain.depthImage = createDepthImage(app);
 	app.gBuffer.createAttachments(app);
-	app.renderPass = createMultipassRenderPass(app);
+	//app.renderPass = createMultipassRenderPass(app);
 
 	updateGBufferDescriptors(app, app.res.descriptorSets->get("gbuffer_res"), app.texSampler);
 
@@ -721,9 +721,6 @@ void VulkanClient::cleanupSwapChain()
 	app.gBuffer.destroy(app.device);
 	// Destroy the swapchain and all its images and framebuffers
 	app.swapChain.destroy(app.device);
-	//vkDestroyPipeline(app.device, app.skybox.pipeline, nullptr);
-
-	vkDestroyRenderPass(app.device, app.renderPass, nullptr);
 
 	vkResetCommandPool(app.device, app.commandPool, 0);
 }
@@ -768,6 +765,7 @@ void VulkanClient::cleanup()
 	destroyBuffer(app.device, stagingBuffer);
 
 	vkDestroyPipelineCache(app.device, app.pipelineCache, nullptr);
+	vkDestroyRenderPass(app.device, app.renderPass, nullptr);
 
 	free(receivedGeomIdsMem);
 
