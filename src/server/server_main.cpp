@@ -250,8 +250,8 @@ bool loadAssets(Server& server)
 		return true;
 	};
 
-	if (!loadSingleModel("/models/sponza/sponza.dae"))
-		return false;
+	//if (!loadSingleModel("/models/sponza/sponza.dae"))
+		//return false;
 
 	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
 		return false;

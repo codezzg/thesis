@@ -93,7 +93,7 @@ void SwapChain::destroy(VkDevice device)
 
 	vkDestroySwapchainKHR(device, handle, nullptr);
 
-	vkDestroyPipeline(device, pipeline, nullptr);
+	//vkDestroyPipeline(device, pipeline, nullptr);
 }
 
 SwapChain createSwapChain(const Application& app, VkSwapchainKHR oldSwapchain)

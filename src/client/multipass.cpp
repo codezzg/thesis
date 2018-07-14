@@ -112,6 +112,18 @@ void recordMultipassCommandBuffers(const Application& app,
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
+	VkViewport viewport = {};
+	viewport.x = 0.f;
+	viewport.y = 0.f;
+	viewport.width = static_cast<float>(app.swapChain.extent.width);
+	viewport.height = static_cast<float>(app.swapChain.extent.height);
+	viewport.minDepth = 0.f;
+	viewport.maxDepth = 1.f;
+
+	VkRect2D scissor = {};
+	scissor.offset = { 0, 0 };
+	scissor.extent = app.swapChain.extent;
+
 	for (size_t i = 0; i < commandBuffers.size(); ++i) {
 		auto& cmdBuf = commandBuffers[i];
 
@@ -121,6 +133,10 @@ void recordMultipassCommandBuffers(const Application& app,
 
 		//// First subpass: fill gbuffer
 		vkCmdBeginRenderPass(cmdBuf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		// Set dynamic state
+		vkCmdSetViewport(cmdBuf, 0, 1, &viewport);
+		vkCmdSetScissor(cmdBuf, 0, 1, &scissor);
 
 		// Bind view resources
 		vkCmdBindDescriptorSets(cmdBuf,
@@ -132,7 +148,7 @@ void recordMultipassCommandBuffers(const Application& app,
 			0,
 			nullptr);
 
-		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.gBuffer.pipeline);
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.res.pipelines->get("gbuffer"));
 		// Bind shader resources
 		vkCmdBindDescriptorSets(cmdBuf,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -175,7 +191,7 @@ void recordMultipassCommandBuffers(const Application& app,
 		//// Third subpass: draw combined gbuffer images into a fullscreen quad
 		vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.swapChain.pipeline);
+		vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, app.res.pipelines->get("swap"));
 
 		const std::array<VkDeviceSize, 1> offsets = { 0 };
 		vkCmdBindVertexBuffers(cmdBuf, 0, 1, &app.screenQuadBuffer.handle, offsets.data());

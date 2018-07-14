@@ -11,7 +11,7 @@ struct Skybox {
 	Image image;
 	/** Stores [vertices|indices] */
 	Buffer buffer;
-	VkPipeline pipeline;
+	//VkPipeline pipeline;
 	/** Offset (in bytes) of the first index inside `buffer` */
 	VkDeviceSize indexOff;
 };

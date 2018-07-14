@@ -24,7 +24,7 @@ struct SwapChain final {
 	VkDescriptorSet descriptorSet;
 
 	// @see comment of gbuffer.pipeline.
-	VkPipeline pipeline;
+	//VkPipeline pipeline;
 
 	void destroy(VkDevice device);
 };

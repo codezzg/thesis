@@ -50,6 +50,7 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
+	/*
 	VkViewport viewport = {};
 	viewport.x = 0.f;
 	viewport.y = 0.f;
@@ -61,13 +62,12 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 	VkRect2D scissor = {};
 	scissor.offset = { 0, 0 };
 	scissor.extent = app.swapChain.extent;   // { GBUF_DIM, GBUF_DIM };
+	*/
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportState.viewportCount = 1;
-	viewportState.pViewports = &viewport;
 	viewportState.scissorCount = 1;
-	viewportState.pScissors = &scissor;
 
 	VkPipelineRasterizationStateCreateInfo rasterizer = {};
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -128,6 +128,15 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = {};
 
 	//////////// End common stuff
+	const std::array<VkDynamicState, 2> dynamicStateEnables = {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+	};
+
+	VkPipelineDynamicStateCreateInfo dynamicState = {};
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount = dynamicStateEnables.size();
+	dynamicState.pDynamicStates = dynamicStateEnables.data();
 
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -146,6 +155,7 @@ std::vector<VkPipeline> createPipelines(const Application& app, const std::vecto
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	pipelineInfo.basePipelineIndex = -1;
+	pipelineInfo.pDynamicState = &dynamicState;
 
 	std::vector<VkPipeline> pipelines;
 

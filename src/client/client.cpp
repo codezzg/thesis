@@ -120,9 +120,12 @@ void VulkanClient::initVulkan()
 	app.res.pipelineLayouts->add("multi", createPipelineLayout(app, descSetLayouts));
 
 	const auto pipelines = createPipelines(app, netRsrc.shaders);
-	app.gBuffer.pipeline = pipelines[0];
-	app.skybox.pipeline = pipelines[1];
-	app.swapChain.pipeline = pipelines[2];
+	app.res.pipelines->add("gbuffer", pipelines[0]);
+	app.res.pipelines->add("skybox", pipelines[1]);
+	app.res.pipelines->add("swap", pipelines[2]);
+	//app.gBuffer.pipeline = pipelines[0];
+	//app.skybox.pipeline = pipelines[1];
+	//app.swapChain.pipeline = pipelines[2];
 
 	createPermanentDescriptorSets();
 
@@ -491,10 +494,10 @@ void VulkanClient::recreateSwapChain()
 
 	updateGBufferDescriptors(app, app.res.descriptorSets->get("gbuffer_res"), app.texSampler);
 
-	const auto pipelines = createPipelines(app, netRsrc.shaders);
-	app.gBuffer.pipeline = pipelines[0];
-	app.skybox.pipeline = pipelines[1];
-	app.swapChain.pipeline = pipelines[2];
+	//const auto pipelines = createPipelines(app, netRsrc.shaders);
+	//app.gBuffer.pipeline = pipelines[0];
+	//app.skybox.pipeline = pipelines[1];
+	//app.swapChain.pipeline = pipelines[2];
 
 	app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
 	app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
@@ -724,7 +727,7 @@ void VulkanClient::cleanupSwapChain()
 	app.gBuffer.destroy(app.device);
 	// Destroy the swapchain and all its images and framebuffers
 	app.swapChain.destroy(app.device);
-	vkDestroyPipeline(app.device, app.skybox.pipeline, nullptr);
+	//vkDestroyPipeline(app.device, app.skybox.pipeline, nullptr);
 
 	vkDestroyRenderPass(app.device, app.renderPass, nullptr);
 

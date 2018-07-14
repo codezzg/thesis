@@ -3,6 +3,7 @@
 #include "logging.hpp"
 #include <cstring>
 #include <exception>
+#include <functional>
 
 using namespace logging;
 
@@ -92,7 +93,7 @@ bool BandwidthLimiter::requestTokens(int n)
 		return true;
 
 	std::lock_guard<std::mutex> lock{ mtx };
-	
+
 	if (n < tokens) {
 		tokens -= n;
 		return true;

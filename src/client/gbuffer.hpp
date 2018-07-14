@@ -18,7 +18,7 @@ struct GBuffer final {
 	// TODO: for now this is owned by gbuffer, as ResourceMap has not way to
 	// remove an element. In future, add that method and make this pipeline
 	// owned by app.res.
-	VkPipeline pipeline;
+	//VkPipeline pipeline;
 
 	void createAttachments(const Application& app);
 
@@ -30,7 +30,7 @@ struct GBuffer final {
 				normal,
 				albedoSpec,
 			});
-		vkDestroyPipeline(device, pipeline, nullptr);
+		//vkDestroyPipeline(device, pipeline, nullptr);
 	}
 };
 
