@@ -494,13 +494,7 @@ void VulkanClient::recreateSwapChain()
 
 	updateGBufferDescriptors(app, app.res.descriptorSets->get("gbuffer_res"), app.texSampler);
 
-	//const auto pipelines = createPipelines(app, netRsrc.shaders);
-	//app.gBuffer.pipeline = pipelines[0];
-	//app.skybox.pipeline = pipelines[1];
-	//app.swapChain.pipeline = pipelines[2];
-
 	app.swapChain.framebuffers = createSwapChainMultipassFramebuffers(app, app.swapChain);
-	app.commandBuffers = createSwapChainCommandBuffers(app, app.commandPool);
 
 	recordAllCommandBuffers();
 	updateObjectsUniformBuffer();
@@ -731,10 +725,7 @@ void VulkanClient::cleanupSwapChain()
 
 	vkDestroyRenderPass(app.device, app.renderPass, nullptr);
 
-	vkFreeCommandBuffers(app.device,
-		app.commandPool,
-		static_cast<uint32_t>(app.commandBuffers.size()),
-		app.commandBuffers.data());
+	vkResetCommandPool(app.device, app.commandPool, 0);
 }
 
 void VulkanClient::cleanup()
