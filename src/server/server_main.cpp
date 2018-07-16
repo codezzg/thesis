@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstring>
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <thread>
 #include <unordered_map>
@@ -93,6 +94,7 @@ int main(int argc, char** argv)
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 	}
 
+	/*
 	info("Filling spatial data structures...");
 	/// Build and fill spatial data structures with the loaded objects
 	for (const auto& pair : server.resources.models) {
@@ -103,7 +105,7 @@ int main(int argc, char** argv)
 		auto sponza = server.scene.getNode(sid(xplatGetCwd() + xplatPath("/models/sponza/sponza.dae")));
 		if (sponza)
 			sponza->flags |= (1 << NODE_FLAG_STATIC);
-	}
+	}*/
 
 	for (const auto& light : server.resources.pointLights) {
 		server.scene.addNode(light.name, NodeType::POINT_LIGHT, Transform{});
@@ -118,31 +120,51 @@ int main(int argc, char** argv)
 	}
 	server.networkThreads.tcpActive = std::make_unique<TcpActiveThread>(server, server.endpoints.reliable);
 
-	auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
+	auto res = std::async(std::launch::async, [&]() {
+		// FIXME add stuff to send via TCP
+		auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
 
-	std::this_thread::sleep_for(5s);
-	{
-		std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-		for (const auto& pair : server.resources.models)
-			toSend.models.emplace(&pair.second);
-		toSend.models.emplace(&server.resources.models.begin()->second);
-	}
-	server.networkThreads.tcpActive->cv.notify_one();
-	std::this_thread::sleep_for(1s);
-	//{
-	// std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-	// for (const auto& pair : server.resources.shaders)
-	// toSend.shaders.emplace(&pair.second);
-	//}
-	// server.networkThreads.tcpActive->cv.notify_one();
-	// std::this_thread::sleep_for(1s);
-	{
-		std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-		for (const auto& light : server.resources.pointLights)
-			toSend.pointLights.emplace(&light);
-	}
-	server.networkThreads.tcpActive->cv.notify_one();
-	std::this_thread::sleep_for(2s);
+		// std::this_thread::sleep_for(5s);
+		auto model = &(++server.resources.models.begin())->second;
+		{
+			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+			toSend.models.emplace(model);
+		}
+		server.scene.addNode(model->name, NodeType::MODEL, Transform{});
+		{
+			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+			server.toClient.modelsToSend.emplace_back(model);
+		}
+		server.networkThreads.tcpActive->cv.notify_one();
+		std::this_thread::sleep_for(4s);
+		//{
+		// std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+		// for (const auto& pair : server.resources.shaders)
+		// toSend.shaders.emplace(&pair.second);
+		//}
+		// server.networkThreads.tcpActive->cv.notify_one();
+		// std::this_thread::sleep_for(1s);
+		{
+			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+			for (const auto& light : server.resources.pointLights)
+				toSend.pointLights.emplace(&light);
+		}
+		server.networkThreads.tcpActive->cv.notify_one();
+		std::this_thread::sleep_for(4s);
+		model = &(server.resources.models.begin())->second;
+		{
+			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+			toSend.models.emplace(model);
+		}
+		server.scene.addNode(model->name, NodeType::MODEL, Transform{});
+		{
+			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+			server.toClient.modelsToSend.emplace_back(model);
+		}
+		server.networkThreads.tcpActive->cv.notify_one();
+		std::this_thread::sleep_for(2s);
+	});
+	info("Started appstage");
 	appstageLoop(server);
 	atExit();
 }
@@ -256,7 +278,7 @@ bool loadAssets(Server& server)
 	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
 		return false;
 
-	//if (!loadSingleModel("/models/cube/silver.obj"))
+	// if (!loadSingleModel("/models/cube/silver.obj"))
 	//	return false;
 
 	// if (!loadSingleModel("/models/wall/wall2.obj"))

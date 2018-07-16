@@ -84,7 +84,7 @@ static std::size_t readGeomUpdateChunk(const uint8_t* ptr,
 
 	auto it = geometry.locations.find(header->modelId);
 	if (it == geometry.locations.end()) {
-		warn("Received an Update Chunk for inexistent model ", header->modelId, "!");
+		verbose("Received a Geometry Update Chunk for inexistent model ", header->modelId, "!");
 		return chunkSize;
 	}
 
@@ -287,7 +287,7 @@ void updatePointLight(const UpdateReqPointLight& req, NetworkResources& netRsrc)
 		netRsrc.pointLights.end(),
 		[name = req.lightId](const auto light) { return light.name == name; });
 	if (it == netRsrc.pointLights.end()) {
-		warn("Received an Update Chunk for inexistent pointLight ", req.lightId, "!");
+		verbose("Received an Update Chunk for inexistent pointLight ", req.lightId, "!");
 		return;
 	}
 
@@ -302,7 +302,7 @@ void updateTransform(const UpdateReqTransform& req, ObjectTransforms& transforms
 
 	auto it = transforms.find(req.objectId);
 	if (it == transforms.end()) {
-		warn("Received a Transform Update Chunk for inexistent node ", req.objectId, "!");
+		verbose("Received a Transform Update Chunk for inexistent node ", req.objectId, "!");
 		return;
 	}
 

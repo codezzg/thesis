@@ -25,11 +25,11 @@ struct Sphere {
 	float radius;
 };
 
-static std::vector<QueuedUpdate> enqueueModelsGeomUpdates(const std::vector<Model>& modelsToSend)
+static std::vector<QueuedUpdate> enqueueModelsGeomUpdates(const std::vector<const Model*>& modelsToSend)
 {
 	std::vector<QueuedUpdate> updates;
 	for (const auto& model : modelsToSend) {
-		const auto updatePackets = buildUpdatePackets(model);
+		const auto updatePackets = buildUpdatePackets(*model);
 		for (const auto& up : updatePackets) {
 			updates.emplace_back(newQueuedUpdateGeom(up));
 		}

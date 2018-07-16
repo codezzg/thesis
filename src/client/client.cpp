@@ -123,9 +123,9 @@ void VulkanClient::initVulkan()
 	app.res.pipelines->add("gbuffer", pipelines[0]);
 	app.res.pipelines->add("skybox", pipelines[1]);
 	app.res.pipelines->add("swap", pipelines[2]);
-	//app.gBuffer.pipeline = pipelines[0];
-	//app.skybox.pipeline = pipelines[1];
-	//app.swapChain.pipeline = pipelines[2];
+	// app.gBuffer.pipeline = pipelines[0];
+	// app.skybox.pipeline = pipelines[1];
+	// app.swapChain.pipeline = pipelines[2];
 
 	createPermanentDescriptorSets();
 
@@ -490,7 +490,7 @@ void VulkanClient::recreateSwapChain()
 	app.swapChain.imageViews = createSwapChainImageViews(app, app.swapChain);
 	app.swapChain.depthImage = createDepthImage(app);
 	app.gBuffer.createAttachments(app);
-	//app.renderPass = createMultipassRenderPass(app);
+	// app.renderPass = createMultipassRenderPass(app);
 
 	updateGBufferDescriptors(app, app.res.descriptorSets->get("gbuffer_res"), app.texSampler);
 
@@ -575,11 +575,11 @@ void VulkanClient::updateObjectsUniformBuffer()
 		auto ubo = reinterpret_cast<ObjectUniformBufferObject*>(objBuf->ptr);
 
 		if (gUseCamera) {
-			ubo->model = glm::mat4{ 1.f };// objTransforms[model.name];
-			// verbose("filling ",
-			// ubo,
-			//" / ",
-			// std::hex,
+			ubo->model = glm::mat4{ 1.f };   // objTransforms[model.name];
+							 // verbose("filling ",
+							 // ubo,
+							 //" / ",
+							 // std::hex,
 			//(uintptr_t)((uint8_t*)ubo + sizeof(ObjectUniformBufferObject)),
 			//"  with transform ",
 			// glm::to_string(ubo->model));
@@ -645,11 +645,11 @@ void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
 
 	// Create initial buffers for geometry
 	bufAllocator.addBuffer(geometry.vertexBuffer,
-		8 * sizeof(Vertex),
+		8192 * sizeof(Vertex),
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	bufAllocator.addBuffer(geometry.indexBuffer,
-		32 * sizeof(Index),
+		32768 * sizeof(Index),
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 

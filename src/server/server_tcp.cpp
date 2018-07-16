@@ -20,7 +20,7 @@ static void genUpdateLists(Server& server)
 		std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
 		server.toClient.modelsToSend.reserve(server.resources.models.size());
 		for (const auto& pair : server.resources.models)
-			server.toClient.modelsToSend.emplace_back(pair.second);
+			server.toClient.modelsToSend.emplace_back(&pair.second);
 	}
 }
 
@@ -286,7 +286,7 @@ void TcpActiveThread::tcpActiveTask()
 
 		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
 
-		genUpdateLists(server);
+		// genUpdateLists(server);
 
 		if (!tcp_connectionPrelude(clientSocket))
 			dropClient(clientSocket);

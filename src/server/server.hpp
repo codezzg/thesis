@@ -50,7 +50,7 @@ struct ServerToClientData {
 	UpdateList updates;
 
 	/** List of models whose geometry still needs to be sent to client */
-	std::vector<Model> modelsToSend;
+	std::vector<const Model*> modelsToSend;
 	std::mutex modelsToSendMtx;
 };
 

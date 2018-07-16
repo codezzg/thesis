@@ -63,31 +63,25 @@ static auto addVertexAndIndexBuffers(BufferAllocator& bufAllocator,
 
 enum ListType { VERTEX, INDEX };
 
-static VkDeviceSize getFirstFreePos(const Geometry& geometry, ListType type)
+/** @returns the first free byte of vertexBuffer and indexBuffer of `geometry`. */
+static std::pair<VkDeviceSize, VkDeviceSize> getFirstFreePos(const Geometry& geometry)
 {
-	VkDeviceSize firstFreeByte = 0;
+	VkDeviceSize vFirst = 0;
+	VkDeviceSize iFirst = 0;
 
-	if (geometry.locations.size() > 0) {
-		if (type == ListType::VERTEX) {
-			const auto lastElem = std::max_element(geometry.locations.begin(),
-				geometry.locations.end(),
-				[](auto l1, auto l2) { return l1.second.vertexOff < l2.second.vertexOff; });
-
-			firstFreeByte = lastElem->second.vertexOff + lastElem->second.vertexLen;
-		} else {
-			const auto lastElem = std::max_element(geometry.locations.begin(),
-				geometry.locations.end(),
-				[](auto l1, auto l2) { return l1.second.indexOff < l2.second.indexOff; });
-			firstFreeByte = lastElem->second.indexOff + lastElem->second.indexLen;
-		}
+	for (auto loc : geometry.locations) {
+		if (loc.second.vertexOff >= vFirst)
+			vFirst = loc.second.vertexOff + loc.second.vertexLen;
+		if (loc.second.indexOff >= iFirst)
+			iFirst = loc.second.indexOff + loc.second.indexLen;
 	}
 
-	return firstFreeByte;
+	return std::make_pair(vFirst, iFirst);
 }
 
 static bool accomodateNewData(Geometry& geometry,
 	BufferAllocator& bufAllocator,
-	const std::vector<ModelInfo>& newModels,
+	VkDeviceSize firstFreePos,
 	ListType listType,
 	unsigned amtNeeded,
 	Buffer& newBuf)
@@ -95,7 +89,6 @@ static bool accomodateNewData(Geometry& geometry,
 	newBuf.handle = VK_NULL_HANDLE;
 
 	const auto dataSize = listType == ListType::VERTEX ? sizeof(Vertex) : sizeof(Index);
-	const auto firstFreePos = getFirstFreePos(geometry, listType);
 	const auto buf = listType == ListType::VERTEX ? geometry.vertexBuffer : geometry.indexBuffer;
 	bool canAccomodate = (buf.size - firstFreePos) >= (dataSize * amtNeeded);
 
@@ -115,23 +108,26 @@ static bool accomodateNewData(Geometry& geometry,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	}
 
-	// Add the vertex locations of the new models
-	auto nextOff = firstFreePos;
-	if (listType == ListType::VERTEX) {
-		for (const auto& model : newModels) {
-			geometry.locations[model.name].vertexOff = nextOff;
-			geometry.locations[model.name].vertexLen = model.nVertices * dataSize;
-			nextOff += model.nVertices * dataSize;
-		}
-	} else {
-		for (const auto& model : newModels) {
-			geometry.locations[model.name].indexOff = nextOff;
-			geometry.locations[model.name].indexLen = model.nIndices * dataSize;
-			nextOff += model.nIndices * dataSize;
-		}
-	}
-
 	return canAccomodate;
+}
+
+static void updateLocations(Geometry& geometry,
+	VkDeviceSize vFirst,
+	VkDeviceSize iFirst,
+	const std::vector<ModelInfo>& newModels)
+{
+	VkDeviceSize nextOff = vFirst;
+	for (const auto& model : newModels) {
+		geometry.locations[model.name].vertexOff = nextOff;
+		geometry.locations[model.name].vertexLen = model.nVertices * sizeof(Vertex);
+		nextOff += model.nVertices * sizeof(Vertex);
+	}
+	nextOff = iFirst;
+	for (const auto& model : newModels) {
+		geometry.locations[model.name].indexOff = nextOff;
+		geometry.locations[model.name].indexLen = model.nIndices * sizeof(Index);
+		nextOff += model.nIndices * sizeof(Index);
+	}
 }
 
 void updateGeometryBuffers(const Application& app, Geometry& geometry, const std::vector<ModelInfo>& newModels)
@@ -150,14 +146,18 @@ void updateGeometryBuffers(const Application& app, Geometry& geometry, const std
 	// Check if new vertices fit in existing buffer. If that's not the case, schedule a new
 	// vertex buffer to be created. Either way, add the new locations for vertices to geometry.
 	Buffer newVertexBuffer, newIndexBuffer;
+	const auto freePos = getFirstFreePos(geometry);
 	bool canAccomodate = accomodateNewData(
-		geometry, bufAllocator, newModels, ListType::VERTEX, newVerticesNeeded, newVertexBuffer);
+		geometry, bufAllocator, freePos.first, ListType::VERTEX, newVerticesNeeded, newVertexBuffer);
 	if (!canAccomodate)
 		buffersToDestroy.emplace_back(geometry.vertexBuffer);
 
-	canAccomodate = accomodateNewData(geometry, bufAllocator, newModels, ListType::INDEX, newIndicesNeeded, newIndexBuffer);
+	canAccomodate = accomodateNewData(
+		geometry, bufAllocator, freePos.second, ListType::INDEX, newIndicesNeeded, newIndexBuffer);
 	if (!canAccomodate)
 		buffersToDestroy.emplace_back(geometry.indexBuffer);
+
+	updateLocations(geometry, freePos.first, freePos.second, newModels);
 
 	info("new locations: ", mapToString(geometry.locations, [](auto l) -> std::string {
 		std::stringstream ss;
@@ -210,7 +210,15 @@ void updateGeometryBuffers(const Application& app, Geometry& geometry, const std
 	unmapBuffersMemory(app.device, buffersToDestroy);
 	destroyAllBuffers(app.device, buffersToDestroy);
 
-	info("new: ", geometry.vertexBuffer.handle, " / ", geometry.indexBuffer.handle);
+	info("new: ",
+		geometry.vertexBuffer.handle,
+		" / ",
+		geometry.indexBuffer.handle,
+		" (size = ",
+		geometry.vertexBuffer.size / 1024,
+		" KiB / ",
+		geometry.indexBuffer.size / 1024,
+		" KiB)");
 
 	// Map device memory to host for new buffers
 	mapBuffersMemory(app.device,
