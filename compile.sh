@@ -59,7 +59,7 @@ compile() {
 	shaderCode="$(resolve_includes "$shaderCode" "$baseDir")"
 
 	[[ $verbose == 1 ]] && echo -e "--Shader type: $stage; code:\n$shaderCode\n----------"
-	echo "$shaderCode" | "$COMPILER" -V --stdin -o "$shaderFile.spv" -S $stage >/dev/null
+	echo "$shaderCode" | "$COMPILER" -V --stdin -o "$shaderFile.spv" -S $stage > >(egrep -v '^stdin$')
 	return $?
 }
 

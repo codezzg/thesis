@@ -10,6 +10,7 @@
 #include "pipelines.hpp"
 #include "profile.hpp"
 #include "renderpass.hpp"
+#include "shader_data.hpp"
 #include "textures.hpp"
 #include "transform.hpp"
 #include "udp_messages.hpp"
@@ -316,6 +317,7 @@ void VulkanClient::mainLoop()
 
 	updateObjectsUniformBuffer();
 	updateViewUniformBuffer();
+	updateLightsUniformBuffer();
 
 	prepareReceivedGeomHashset();
 
@@ -392,6 +394,7 @@ void VulkanClient::runFrame()
 
 	updateObjectsUniformBuffer();
 	updateViewUniformBuffer();
+	updateLightsUniformBuffer();
 
 	cameraCtrl->processInput(app.window);
 
@@ -451,7 +454,7 @@ void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, co
 	info("Updating uniform buffers");
 	// Create new UBOs for new models
 	for (const auto& model : newModels) {
-		uniformBuffers.addBuffer(model.name, sizeof(ObjectUniformBufferObject));
+		uniformBuffers.addBuffer(model.name, sizeof(ObjectUBO));
 	}
 
 	// Create new descriptor sets for new materials and models
@@ -499,6 +502,7 @@ void VulkanClient::recreateSwapChain()
 	recordAllCommandBuffers();
 	updateObjectsUniformBuffer();
 	updateViewUniformBuffer();
+	updateLightsUniformBuffer();
 }
 
 void VulkanClient::createSemaphores()
@@ -570,9 +574,9 @@ void VulkanClient::updateObjectsUniformBuffer()
 
 	for (const auto& model : netRsrc.models) {
 		auto objBuf = uniformBuffers.getBuffer(model.name);
-		assert(objBuf && objBuf->ptr && objBuf->size >= sizeof(ObjectUniformBufferObject));
+		assert(objBuf && objBuf->ptr && objBuf->size >= sizeof(ObjectUBO));
 
-		auto ubo = reinterpret_cast<ObjectUniformBufferObject*>(objBuf->ptr);
+		auto ubo = reinterpret_cast<ObjectUBO*>(objBuf->ptr);
 
 		if (gUseCamera) {
 			ubo->model = glm::mat4{ 1.f };   // objTransforms[model.name];
@@ -597,9 +601,9 @@ void VulkanClient::updateObjectsUniformBuffer()
 void VulkanClient::updateViewUniformBuffer()
 {
 	auto viewBuf = uniformBuffers.getBuffer(sid("view"));
-	assert(viewBuf && viewBuf->ptr && viewBuf->size >= sizeof(ViewUniformBufferObject));
+	assert(viewBuf && viewBuf->ptr && viewBuf->size >= sizeof(ViewUBO));
 
-	auto ubo = reinterpret_cast<ViewUniformBufferObject*>(viewBuf->ptr);
+	auto ubo = reinterpret_cast<ViewUBO*>(viewBuf->ptr);
 
 	const auto view = camera.viewMatrix();
 	auto proj = glm::perspective(
@@ -607,16 +611,29 @@ void VulkanClient::updateViewUniformBuffer()
 	// Flip y
 	proj[1][1] *= -1;
 	ubo->viewProj = proj * view;
-
-	ubo->viewPos = glm::vec4{ camera.position.x, camera.position.y, camera.position.z, 0.f };
-	if (netRsrc.pointLights.size() > 0) {
-		const auto& pl = netRsrc.pointLights[0];
-		const auto& plt = transformFromMatrix(objTransforms[pl.name]);
-		ubo->pointLight = UboPointLight{ { plt.position.x, plt.position.y, plt.position.z, pl.intensity },
-			{ pl.color.r, pl.color.g, pl.color.b, 0.0 } };
-	}
+	ubo->viewPos = glm::vec3{ camera.position.x, camera.position.y, camera.position.z };
 	ubo->opts = shaderOpts.getRepr();
 	uberverbose("viewPos = ", glm::to_string(ubo->viewPos));
+}
+
+void VulkanClient::updateLightsUniformBuffer()
+{
+	auto lightBuf = uniformBuffers.getBuffer(sid("lights"));
+	assert(lightBuf && lightBuf->ptr && lightBuf->size >= sizeof(LightsUBO));
+
+	auto ubo = reinterpret_cast<LightsUBO*>(lightBuf->ptr);
+
+	// FIXMe
+	assert(netRsrc.pointLights.size() <= LightsUBO::MAX_LIGHTS);
+	ubo->nPointLights = netRsrc.pointLights.size();
+	for (unsigned i = 0; i < netRsrc.pointLights.size(); ++i) {
+		const auto& pl = netRsrc.pointLights[i];
+		const auto& plt = transformFromMatrix(objTransforms[pl.name]);
+		ubo->pointLights[i] = UboPointLight{ { plt.position.x, plt.position.y, plt.position.z },
+			pl.attenuation,
+			{ pl.color.r, pl.color.g, pl.color.b },
+			0 };
+	}
 }
 
 void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
@@ -626,13 +643,16 @@ void VulkanClient::createPermanentBuffers(Buffer& stagingBuffer)
 		// We store all possible uniform buffers inside as little actual Buffers as possible via a BufferArray.
 		// Then we use descriptors of type UNIFORM_BUFFER_DYNAMIC with the subBuffers' bufOffset
 		// as dynamic offset.
-		const auto uboSize = sizeof(ViewUniformBufferObject) + 10 * sizeof(ObjectUniformBufferObject);
+		const auto uboSize = sizeof(ViewUBO) + sizeof(LightsUBO) + 10 * sizeof(ObjectUBO);
 		uniformBuffers.initialize(app, findMaxUboRange(app.physicalDevice));
 		uniformBuffers.reserve(uboSize);
 		uniformBuffers.mapAllBuffers();
 
 		// Add the View UBO once
-		uniformBuffers.addBuffer(sid("view"), sizeof(ViewUniformBufferObject));
+		uniformBuffers.addBuffer(sid("view"), sizeof(ViewUBO));
+
+		// Add the Lights UBO once
+		uniformBuffers.addBuffer(sid("lights"), sizeof(LightsUBO));
 	}
 
 	BufferAllocator bufAllocator;

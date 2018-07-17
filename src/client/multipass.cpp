@@ -227,7 +227,16 @@ std::vector<VkDescriptorSetLayout> createMultipassDescriptorSetLayouts(const App
 		skyboxLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		skyboxLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		const std::array<VkDescriptorSetLayoutBinding, 2> bindings = { viewUboBinding, skyboxLayoutBinding };
+		// Lights UBO
+		VkDescriptorSetLayoutBinding lightsUboBinding = {};
+		lightsUboBinding.binding = 2;
+		lightsUboBinding.descriptorCount = 1;
+		lightsUboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		lightsUboBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		const std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+			viewUboBinding, skyboxLayoutBinding, lightsUboBinding
+		};
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -395,6 +404,27 @@ std::vector<VkDescriptorSet> createMultipassPermanentDescriptorSets(const Applic
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrite.descriptorCount = 1;
 		descriptorWrite.pBufferInfo = &viewUboInfo;
+
+		descriptorWrites.emplace_back(descriptorWrite);
+	}
+
+	{
+		auto lightsBuf = uniformBuffers.getBuffer(sid("lights"));
+		assert(lightsBuf);
+
+		VkDescriptorBufferInfo lightsUboInfo = {};
+		lightsUboInfo.buffer = lightsBuf->handle;
+		lightsUboInfo.offset = lightsBuf->bufOffset;
+		lightsUboInfo.range = lightsBuf->size;
+
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = descriptorSets[0];
+		descriptorWrite.dstBinding = 2;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pBufferInfo = &lightsUboInfo;
 
 		descriptorWrites.emplace_back(descriptorWrite);
 	}

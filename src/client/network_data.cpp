@@ -143,7 +143,7 @@ static std::size_t
 	req.type = UpdateReq::Type::POINT_LIGHT;
 	req.data.pointLight.lightId = header->lightId;
 	req.data.pointLight.color = header->color;
-	req.data.pointLight.intensity = header->intensity;
+	req.data.pointLight.attenuation = header->attenuation;
 
 	assert(req.type == UpdateReq::Type::POINT_LIGHT);
 	updateReqs.emplace_back(req);
@@ -292,7 +292,7 @@ void updatePointLight(const UpdateReqPointLight& req, NetworkResources& netRsrc)
 	}
 
 	it->color = req.color;
-	it->intensity = req.intensity;
+	it->attenuation = req.attenuation;
 }
 
 void updateTransform(const UpdateReqTransform& req, ObjectTransforms& transforms)

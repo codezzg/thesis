@@ -97,9 +97,9 @@ VkDescriptorPool createDescriptorPool(const Application& app)
 	 */
 	std::array<VkDescriptorPoolSize, 4> poolSizes = {};
 
-	// 1 uniform buffer for the view
+	// 2 uniform buffers for the view
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = 1;
+	poolSizes[0].descriptorCount = 2;
 
 	// at most 3 textures per material
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

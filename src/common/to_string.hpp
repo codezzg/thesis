@@ -8,7 +8,7 @@
 inline std::ostream& operator<<(std::ostream& s, const shared::PointLight& light)
 {
 	s << "PointLight { name = " << light.name << ", color = " << glm::to_string(light.color)
-	  << ", int = " << light.intensity << " }";
+	  << ", quad_atten = " << light.attenuation << " }";
 	return s;
 }
 

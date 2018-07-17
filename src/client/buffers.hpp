@@ -27,30 +27,6 @@ struct Buffer {
 	void* ptr = nullptr;
 };
 
-/** This UBO contains the per-model data */
-struct ObjectUniformBufferObject final {
-	glm::mat4 model;
-};
-
-/** Representation of a PointLight inside a uniform buffer */
-struct UboPointLight {
-	glm::vec4 posInt;   // position + intensity
-	glm::vec4 color;
-};
-
-/** This UBO contains the per-view data */
-struct ViewUniformBufferObject final {
-	// TODO this probably doesn't belong here
-	UboPointLight pointLight;
-
-	// Camera stuff
-	glm::mat4 viewProj;
-	glm::vec4 viewPos;
-
-	// Shader options
-	glm::i32 opts;   // showGBufTex | useNormalMap
-};
-
 /** Use this class to allocate a bunch of buffers at once.
  *  This allocator will attempt to minimize the number of allocations by reusing the same memory
  *  for multiple buffers with proper offsets.

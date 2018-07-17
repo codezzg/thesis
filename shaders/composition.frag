@@ -10,48 +10,61 @@ layout (input_attachment_index = 1, set = 1, binding = 1) uniform subpassInput g
 layout (input_attachment_index = 2, set = 1, binding = 2) uniform subpassInput gAlbedoSpec;
 
 #pragma include viewUbo.glsl
+#pragma include lightsUbo.glsl
 
 #define AMBIENT_INTENSITY 0.45
+
+vec3 addPointLight(in PointLight light,
+		in vec3 fragPos,
+		in vec3 viewPos,
+		in vec3 objDiffuse,
+		in vec3 objSpecular,
+		in float objSpecPower,
+		in vec3 objNormal)
+{
+	// diffuse
+	vec3 norm = normalize(objNormal);
+	vec3 fragToLight = light.position - fragPos;
+	vec3 lightDir = normalize(fragToLight);
+	float diff = max(dot(norm, lightDir), 0.0);
+	vec3 diffuse = diff * light.color * objDiffuse;
+
+	// specular
+	vec3 viewDir = normalize(viewPos - fragPos);
+	vec3 halfDir = normalize(lightDir + viewDir);
+	float spec = pow(max(dot(halfDir, norm), 0.0), max(1.0, 32 * objSpecPower));
+	vec3 specular = objSpecular * spec * light.color;
+
+	vec3 result = diffuse + specular;
+
+	// attenuation
+	float dist = length(fragToLight);
+	float atten = 1.0 / (1.0 + light.attenuation * dist * dist);
+
+	return result * atten;
+}
 
 void main() {
 	// For now, hardcode ambient color
 	const vec3 ambientColor = vec3(1.0);
-	PointLight pointLight = viewUbo.pointLight;// PointLight(vec3(10.0, 10.0, 10.0), vec3(1.0, 1.0, 1.0), 1.0);
-
-	// TODO: use material shininess
-	const float shininess = 32.0;
 
 	// Load GBuffer content
 	vec3 fragPos = subpassLoad(gPosition).rgb;
 	vec3 normal = subpassLoad(gNormal).rgb;
 	vec3 albedo = subpassLoad(gAlbedoSpec).rgb;
-	float fragSpec = subpassLoad(gAlbedoSpec).a;
-
-	vec3 lightFragVec = fragPos - pointLight.position.xyz;
-	float lightFragDist = length(lightFragVec);
-	// FIXME wats dis
-	float attenuation = 100.0 * pointLight.intensity / pow(lightFragDist, 2.0);
+	float spec = subpassLoad(gAlbedoSpec).a;
 
 	// Ambient
-	float isSky = float(length(fragPos) > 1000.0); // HACK!
-	vec3 ambient = (isSky + (1.0 - isSky) * AMBIENT_INTENSITY) * ambientColor * albedo;
+	/*float isSky = float(fragPos.z > 1000.0); // HACK!*/
+	/*vec3 ambient = (isSky + (1.0 - isSky) * AMBIENT_INTENSITY) * ambientColor * albedo;*/
+	vec3 ambient = ambientColor * albedo * AMBIENT_INTENSITY;
 
-	// Diffuse
-	vec3 lightDir = normalize(lightFragVec);
-	float diff = max(dot(normal, lightDir), 0.0);
-	vec3 diffuse = pointLight.color.rgb * diff * albedo;
-	diffuse *= attenuation;
+	vec3 lighting = ambient;
 
-	// Specular
-	vec3 viewDir = normalize(viewUbo.viewPos.xyz - fragPos);
-	vec3 reflectDir = reflect(-lightDir, normal);
-
-	vec3 halfDir = normalize(lightDir + viewDir);
-	float spec = pow(max(dot(normal, halfDir), 0.0), shininess);
-	vec3 specular = pointLight.color.rgb * spec * fragSpec;
-	specular *= attenuation;
-
-	vec3 lighting = ambient + diffuse + specular;
+	for (int i = 0; i < lightsUbo.nPointLights; ++i) {
+		lighting += addPointLight(lightsUbo.pointLights[i], fragPos, viewUbo.viewPos,
+				albedo, vec3(1.0, 1.0, 1.0), spec, normal);
+	}
 
 	bool showGBufTexs = (viewUbo.opts & 1) != 0;
 	if (showGBufTexs) {
@@ -64,7 +77,7 @@ void main() {
 			if (texCoords.y < 0.5)
 				fragColor = vec4((1.0 + normal) * 0.5, 1.0);
 			else
-				fragColor = vec4(vec3(fragSpec), 1.0);
+				fragColor = vec4(vec3(spec), 1.0);
 		}
 	} else {
 		/*if (length(fragPos) < 10000.0) {*/

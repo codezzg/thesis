@@ -92,7 +92,7 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	return written;
 }
 
-/** Updates a PointLight's color and/or intensity. To keep it simple, all properties are always sent anyway. */
+/** Updates a PointLight's color and/or attenuation. To keep it simple, all properties are always sent anyway. */
 static std::size_t addPointLightUpdate(uint8_t* buffer,
 	std::size_t bufsize,
 	std::size_t offset,
@@ -121,7 +121,7 @@ static std::size_t addPointLightUpdate(uint8_t* buffer,
 	PointLightUpdateHeader header;
 	header.lightId = pointLight.name;
 	header.color = pointLight.color;
-	header.intensity = pointLight.intensity;
+	header.attenuation = pointLight.attenuation;
 
 	memcpy(buffer + offset + written, &header, sizeof(PointLightUpdateHeader));
 	written += sizeof(PointLightUpdateHeader);
@@ -248,8 +248,8 @@ void dumpFullPacket(const uint8_t* buffer, std::size_t bufsize, LogLevel loglv)
 		dumpBytes(&chunkHead->lightId, sizeof(uint32_t), 50, loglv);
 		log(loglv, true, "chunkHead.color:");
 		dumpBytes(&chunkHead->color, sizeof(glm::vec3), 50, loglv);
-		log(loglv, true, "chunkHead.intensity:");
-		dumpBytes(&chunkHead->intensity, sizeof(float), 50, loglv);
+		log(loglv, true, "chunkHead.attenuation:");
+		dumpBytes(&chunkHead->attenuation, sizeof(float), 50, loglv);
 	} break;
 	default:
 		break;

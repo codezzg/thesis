@@ -221,14 +221,14 @@ bool receivePointLight(const uint8_t* buffer,
 	shared::PointLight light;
 	light.name = lightInfo.name;
 	light.color = glm::vec3{ lightInfo.r, lightInfo.g, lightInfo.b };
-	light.intensity = lightInfo.intensity;
+	light.attenuation = lightInfo.attenuation;
 
 	debug("received pointLight: { name = ",
 		light.name,
 		", color = ",
 		glm::to_string(light.color),
-		", intensity = ",
-		light.intensity,
+		", attenuation = ",
+		light.attenuation,
 		" }");
 
 	if (std::find_if(

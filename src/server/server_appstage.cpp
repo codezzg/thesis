@@ -73,7 +73,7 @@ void appstageLoop(Server& server)
 				light.color = glm::vec3{ 0.5 + 0.5 * std::sin(t + i * 0.3),
 					0.5 + 0.5 * std::sin(t * 0.33 + i * 0.4),
 					0.5 + 0.5 * std::cos(t * 0.66 + i * 0.56) };
-				light.intensity = std::abs(4 * std::sin(t * 0.75 + i * 0.23));
+				light.attenuation = 0.1 + std::abs(0.3 * std::sin(t * 0.75 + i * 0.23));
 				tUpdates.emplace_back(newQueuedUpdatePointLight(light.name));
 				++i;
 			}
@@ -89,9 +89,11 @@ void appstageLoop(Server& server)
 
 				// node->transform.position = glm::vec3{ 0, 0, i * 5 };
 				if (((node->flags >> NODE_FLAG_STATIC) & 1) == 0) {
-					node->transform.position = glm::vec3{ (5 + 0 * i) * std::sin(0.5 * t + i * 0.4),
-						10 - 9 * (node->type == NodeType::POINT_LIGHT),
-						(2 + 0 * i) * std::cos(0.5 * t + i * 0.3) };
+					node->transform.position =
+						glm::vec3{ (5 + 0 * 4 * i) * std::sin(0.5 * t + i * 0.4),
+							(5 + 0 * 2 * i) * std::sin(0.5 * t + i * 0.4),
+							// 10 - 9 * (node->type == NodeType::POINT_LIGHT),
+							(2 + 0 * 6 * i) * std::cos(0.5 * t + i * 0.3) };
 					node->transform.rotation = glm::vec3{ 0, 0.3 * t + i, 0 };
 					node->transform.scale =
 						glm::vec3{ 1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),

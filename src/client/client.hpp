@@ -135,6 +135,7 @@ private:
 
 	void updateObjectsUniformBuffer();
 	void updateViewUniformBuffer();
+	void updateLightsUniformBuffer();
 
 	void recordAllCommandBuffers();
 

@@ -90,7 +90,7 @@ int main(int argc, char** argv)
 
 	{
 		// Add lights
-		const auto lights = createLights(10);
+		const auto lights = createLights(100);
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 	}
 
@@ -299,7 +299,7 @@ std::vector<shared::PointLight> createLights(int n)
 		shared::PointLight light;
 		light.name = sid(std::string{ "Light " } + std::to_string(i));
 		light.color = glm::vec3{ 1.0, 1.0, 1.0 };
-		light.intensity = 1.0;
+		light.attenuation = 0.5;
 		lights.emplace_back(light);
 	}
 

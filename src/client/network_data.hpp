@@ -26,7 +26,7 @@ struct UpdateReqGeom {
 struct UpdateReqPointLight {
 	StringId lightId;
 	glm::vec3 color;
-	float intensity;
+	float attenuation;
 };
 
 struct UpdateReqTransform {

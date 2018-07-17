@@ -51,7 +51,7 @@ bool sendPointLight(socket_t clientSocket, const shared::PointLight& light)
 	packet.res.r = light.color.r;
 	packet.res.g = light.color.g;
 	packet.res.b = light.color.b;
-	packet.res.intensity = light.intensity;
+	packet.res.attenuation = light.attenuation;
 
 	debug("packet: { type = ",
 		packet.type,
@@ -61,8 +61,8 @@ bool sendPointLight(socket_t clientSocket, const shared::PointLight& light)
 		sidToString(packet.res.name),
 		"), color = ",
 		light.color,
-		", intensity = ",
-		packet.res.intensity,
+		", attenuation = ",
+		packet.res.attenuation,
 		" }");
 
 	// We want to send this in a single packet. This is reasonable, as a packet should be at least

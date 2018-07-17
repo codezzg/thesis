@@ -32,7 +32,7 @@ struct Texture {
  */
 struct PointLight {
 	glm::vec3 color{ 1.f, 1.f, 1.f };
-	float intensity = 1;
+	float attenuation = 0;
 	StringId name;
 };
 
@@ -88,13 +88,11 @@ struct Model {
 struct PointLightInfo {
 	StringId name;
 
-	/** Initial color values (also final ones if color is fixed) */
 	float r;
 	float g;
 	float b;
 
-	/** Initial intensity value (also final one if intensity is fixed) */
-	float intensity;
+	float attenuation;
 };
 
 struct Camera {

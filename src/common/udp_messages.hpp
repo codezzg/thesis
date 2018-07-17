@@ -10,7 +10,7 @@
 enum class UdpMsgType : uint8_t {
 	/** A GeomUpdatePacket, which modifies a model's vertices or indices */
 	GEOM_UPDATE = 0x01,
-	/** A PointLightUpdatePacket, which modifies a light's position and/or color and/or intensity */
+	/** A PointLightUpdatePacket, which modifies a light's position and/or color and/or attenuation */
 	POINT_LIGHT_UPDATE = 0x02,
 	/** A TransformUpdatePacket, which modifies a model's transform */
 	TRANSFORM_UPDATE = 0x03,
@@ -103,13 +103,13 @@ struct GeomUpdateHeader {
 	uint32_t len;
 };
 
-/** Update color/intensity of existing point light
+/** Update color/attenuation of existing point light
  *  Note: this chunk is header-only.
  */
 struct PointLightUpdateHeader {
 	StringId lightId;
 	glm::vec3 color;
-	float intensity;
+	float attenuation;
 };
 
 /** Update transform of an object (currently, only a model).
