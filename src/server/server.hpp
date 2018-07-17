@@ -72,6 +72,7 @@ struct Server {
 		std::unique_ptr<UdpPassiveThread> udpPassive;
 		std::unique_ptr<TcpActiveThread> tcpActive;
 		std::unique_ptr<KeepaliveListenThread> keepalive;
+		std::unique_ptr<TcpReceiveThread> tcpRecv;
 	} networkThreads;
 
 	ClientToServerData fromClient;

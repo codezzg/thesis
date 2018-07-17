@@ -10,6 +10,7 @@
 
 template <typename T>
 class CircularBuffer {
+protected:
 	T* memStart = nullptr;
 	std::size_t cap = 0;
 
@@ -60,10 +61,11 @@ public:
 	{
 		assert(elements > 0);
 		--elements;
+		T res = memStart[startIdx];
 		startIdx = (startIdx + 1) % cap;
-		assert((startIdx == endIdx) == (elements == 0 || elements == capacity));
+		assert((startIdx == endIdx) == (elements == 0 || elements == cap));
 		assert(startIdx < cap && endIdx < cap && elements <= cap);
-		return memStart[startIdx];
+		return res;
 	}
 
 	void clear()

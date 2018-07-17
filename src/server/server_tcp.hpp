@@ -23,7 +23,7 @@ class TcpActiveThread {
 	void connectToClient(socket_t clientSocket, const char* clientAddr);
 
 	/** The TCP main loop */
-	bool msgLoop(socket_t clientSocket, sockaddr_in clientAddr);
+	bool msgLoop(socket_t clientSocket);
 
 	/** Sends all the one-time data the client needs. */
 	bool sendOneTimeData(socket_t clientSocket);
@@ -63,4 +63,15 @@ public:
 
 	bool isClientConnected() const { return clientConnected; }
 	void disconnect() { xplatSockClose(clientSocket); }
+};
+
+/** This thread listens on the TCP endpoint and routes the incoming messages
+ *  either to the keepalive or to the general TCP message queue.
+ */
+class TcpReceiveThread {
+	std::thread thread;
+
+public:
+	explicit TcpReceiveThread(socket_t clientSocket);
+	~TcpReceiveThread();
 };

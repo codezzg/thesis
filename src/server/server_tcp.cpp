@@ -1,12 +1,17 @@
 #include "server_tcp.hpp"
+#include "blocking_queue.hpp"
 #include "logging.hpp"
 #include "server.hpp"
 #include "server_resources.hpp"
 #include "tcp_messages.hpp"
 #include "tcp_serialize.hpp"
 #include <array>
+#include <chrono>
 
 using namespace logging;
+
+static BlockingQueue<TcpMsgType> gMsgRecvQueue;
+static std::chrono::time_point<std::chrono::steady_clock> gLatestPing;
 
 static void genUpdateLists(Server& server)
 {
@@ -24,14 +29,17 @@ static void genUpdateLists(Server& server)
 	}
 }
 
+static bool expectTCPMsg(TcpMsgType type)
+{
+	return gMsgRecvQueue.pop_or_wait() == type;
+}
+
 static bool tcp_connectionPrelude(socket_t clientSocket)
 {
 	// Connection prelude (one-time stuff)
 
-	std::array<uint8_t, 1> buffer = {};
-
 	// Perform handshake
-	if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::HELO))
+	if (!expectTCPMsg(TcpMsgType::HELO))
 		return false;
 
 	if (!sendTCPMsg(clientSocket, TcpMsgType::HELO_ACK))
@@ -52,7 +60,7 @@ static bool tcp_connectionPrelude(socket_t clientSocket)
 	// return false;
 
 	// Wait for ready signal from client
-	if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::READY))
+	if (!expectTCPMsg(TcpMsgType::READY))
 		return false;
 
 	return true;
@@ -75,8 +83,7 @@ static bool batch_sendTexture(socket_t clientSocket,
 		return false;
 	}
 
-	uint8_t packet;
-	ok = expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+	ok = expectTCPMsg(TcpMsgType::RSRC_EXCHANGE_ACK);
 	if (!ok) {
 		warn("Not received RSRC_EXCHANGE_ACK!");
 		return false;
@@ -106,8 +113,7 @@ static bool batch_sendMaterial(socket_t clientSocket,
 		return false;
 	}
 
-	uint8_t packet;
-	ok = expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+	ok = expectTCPMsg(TcpMsgType::RSRC_EXCHANGE_ACK);
 	if (!ok) {
 		warn("Not received RSRC_EXCHANGE_ACK!");
 		return false;
@@ -137,8 +143,7 @@ static bool batch_sendModel(socket_t clientSocket,
 		return false;
 	}
 
-	uint8_t packet;
-	ok = expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+	ok = expectTCPMsg(TcpMsgType::RSRC_EXCHANGE_ACK);
 	if (!ok) {
 		warn("Not received RSRC_EXCHANGE_ACK!");
 		return false;
@@ -166,8 +171,7 @@ static bool
 		return false;
 	}
 
-	uint8_t packet;
-	ok = expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+	ok = expectTCPMsg(TcpMsgType::RSRC_EXCHANGE_ACK);
 	if (!ok) {
 		warn("Not received RSRC_EXCHANGE_ACK!");
 		return false;
@@ -183,7 +187,7 @@ static bool
 		return false;
 	}
 
-	ok = expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+	ok = expectTCPMsg(TcpMsgType::RSRC_EXCHANGE_ACK);
 	if (!ok) {
 		warn("Not received RSRC_EXCHANGE_ACK!");
 		return false;
@@ -194,13 +198,12 @@ static bool
 
 static bool batch_sendPointLight(socket_t clientSocket, const shared::PointLight& light)
 {
-	uint8_t packet;
 	bool ok = sendPointLight(clientSocket, light);
 	if (!ok) {
 		err("Failed sending point light");
 		return false;
 	}
-	ok = expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK);
+	ok = expectTCPMsg(TcpMsgType::RSRC_EXCHANGE_ACK);
 	if (!ok) {
 		warn("Not received RSRC_EXCHANGE_ACK!");
 		return false;
@@ -286,6 +289,9 @@ void TcpActiveThread::tcpActiveTask()
 
 		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
 
+		// Start receiving thread
+		server.networkThreads.tcpRecv = std::make_unique<TcpReceiveThread>(clientSocket);
+
 		// genUpdateLists(server);
 
 		if (!tcp_connectionPrelude(clientSocket))
@@ -300,7 +306,7 @@ void TcpActiveThread::tcpActiveTask()
 			dropClient(clientSocket);
 		}
 
-		if (!msgLoop(clientSocket, clientAddr)) {
+		if (!msgLoop(clientSocket)) {
 			info("TCP: Dropping client ", readableAddr);
 			dropClient(clientSocket);
 		}
@@ -312,8 +318,8 @@ void TcpActiveThread::tcpActiveTask()
 void TcpActiveThread::connectToClient(socket_t clientSocket, const char* clientAddr)
 {
 	// Start keepalive listening thread
-	// server.networkThreads.keepalive =
-	// std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
+	server.networkThreads.keepalive =
+		std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
 
 	// Starts UDP loops and send ready to client
 	server.endpoints.udpActive =
@@ -324,7 +330,7 @@ void TcpActiveThread::connectToClient(socket_t clientSocket, const char* clientA
 	server.networkThreads.udpPassive = std::make_unique<UdpPassiveThread>(server, server.endpoints.udpPassive);
 }
 
-bool TcpActiveThread::msgLoop(socket_t clientSocket, sockaddr_in clientAddr)
+bool TcpActiveThread::msgLoop(socket_t clientSocket)
 {
 	while (ep.connected) {
 		std::unique_lock<std::mutex> ulk{ mtx };
@@ -372,6 +378,8 @@ void TcpActiveThread::dropClient(socket_t clientSocket)
 
 	server.networkThreads.keepalive->disconnect();
 	server.networkThreads.keepalive.reset(nullptr);
+
+	server.networkThreads.tcpRecv.reset(nullptr);
 }
 ///////////
 
@@ -395,45 +403,64 @@ KeepaliveListenThread::~KeepaliveListenThread()
 /* This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
 void KeepaliveListenThread::keepaliveListenTask()
 {
-	std::array<uint8_t, 1> buffer = {};
+	constexpr auto interval = std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS };
 
 	while (ep.connected) {
-		TcpMsgType type;
-		if (!receiveTCPMsg(clientSocket, buffer.data(), buffer.size(), type)) {
+		std::unique_lock<std::mutex> ulk{ mtx };
+		if (cv.wait_for(ulk, interval) == std::cv_status::no_timeout) {
 			break;
 		}
 
-		switch (type) {
-		case TcpMsgType::KEEPALIVE:
-			// latestPing = std::chrono::system_clock::now();
-			break;
-		case TcpMsgType::DISCONNECT:
-			info("Received DISCONNECT from client.");
-			goto exit;
-		default:
+		// Verify the client has pinged us within our sleep time
+		const auto now = std::chrono::steady_clock::now();
+		if (std::chrono::duration_cast<std::chrono::seconds>(now - gLatestPing) > interval) {
+			// drop the client
+			info("Keepalive timeout.");
 			break;
 		}
 	}
-exit:
-	info("KEEPALIVE: dead");
 	clientConnected = false;
 	if (server.networkThreads.tcpActive)
 		server.networkThreads.tcpActive->cv.notify_one();
 }
 
-/*
-		std::unique_lock<std::mutex> keepaliveUlk{ keepaliveMtx };
-		// TODO: ensure no spurious wakeup
-		if (keepaliveCv.wait_for(keepaliveUlk, interval) == std::cv_status::no_timeout) {
-			info("Keepalive thread should be dead.");
-			break;
+///////////////
+static void receiveTask(socket_t clientSocket)
+{
+	info("Started receiveTask");
+	gMsgRecvQueue.reserve(256);
+	while (true) {
+		uint8_t packet;
+		TcpMsgType type;
+		if (receiveTCPMsg(clientSocket, &packet, 1, type)) {
+			switch (type) {
+			case TcpMsgType::DISCONNECT:
+				info("Received DISCONNECT from client.");
+				goto exit;
+			case TcpMsgType::KEEPALIVE:
+				gLatestPing = std::chrono::steady_clock::now();
+				break;
+			default:
+				info("pushing msg ", type);
+				gMsgRecvQueue.push(type);
+				break;
+			}
 		}
+	}
+exit:
+	return;
+}
 
-		// Verify the client has pinged us more recently than
-		const auto now = std::chrono::system_clock::now();
-		if (std::chrono::duration_cast<std::chrono::seconds>(now - roLatestPing) > interval) {
-			// drop the client
-			info("Keepalive timeout.");
-			break;
-		}
-		*/
+TcpReceiveThread::TcpReceiveThread(socket_t clientSocket)
+{
+	thread = std::thread{ receiveTask, clientSocket };
+}
+
+TcpReceiveThread::~TcpReceiveThread()
+{
+	if (thread.joinable()) {
+		info("Joining ReceiveThread...");
+		thread.join();
+		info("Joined ReceiveThread.");
+	}
+}
