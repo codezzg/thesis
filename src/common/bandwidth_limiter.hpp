@@ -25,7 +25,7 @@ class BandwidthLimiter {
 	bool operating = false;
 
 	/** Interval at which refillThread updates (seconds) */
-	const std::chrono::duration<float> updateInterval{ 0.2 };
+	const std::chrono::duration<float> updateInterval{ 0.02 };
 
 	/** Token refill rate (in Hz). This is the simulated bandwidth. */
 	float tokenRate = -1;

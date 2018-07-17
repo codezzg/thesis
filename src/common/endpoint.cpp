@@ -145,7 +145,7 @@ bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 {
 	while (!gBandwidthLimiter.requestTokens(len)) {
 		std::unique_lock<std::mutex> ulk{ gBandwidthLimiter.cvMtx };
-		info("Waiting for BandwidthLimiter (need ", len, ", has ", gBandwidthLimiter.getTokens(), ")");
+		verbose("Waiting for BandwidthLimiter (need ", len, ", has ", gBandwidthLimiter.getTokens(), ")");
 		gBandwidthLimiter.cv.wait(ulk, [len]() {
 			return !gBandwidthLimiter.isActive() ||
 			       static_cast<std::size_t>(gBandwidthLimiter.getTokens()) >= len;
