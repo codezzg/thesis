@@ -39,6 +39,11 @@ public:
 
 	explicit CircularBuffer(std::size_t capacity) { reserve(capacity); }
 
+	/** Changes the capacity of this CircularBuffer to `newCap.`
+	 *  This means that exactly `newCap` elements will be contained at once and if more elements are
+	 *  added, the oldest ones are overwritten.
+	 *  This function reallocates memory if `newCap` > `cap`.
+	 */
 	void reserve(std::size_t newCap)
 	{
 		if (newCap > cap) {
@@ -53,7 +58,7 @@ public:
 
 	void push_back(const T& elem)
 	{
-		if (endIdx == startIdx) {
+		if (elements > 0 && endIdx == startIdx) {
 			// We reached startIdx after looping the buffer: advance it.
 			startIdx = (startIdx + 1) % cap;
 #ifndef NDEBUG
@@ -93,6 +98,9 @@ public:
 		std::size_t nElem;
 	};
 
+	/** Iterates the CircularBuffer.
+	 *  To avoid unexpected behaviour, don't change the buffer's capacity while iterating.
+	 */
 	iter iter_start() const { return iter{ startIdx, 0 }; }
 	bool iter_next(iter& it, T& value) const
 	{

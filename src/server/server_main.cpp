@@ -287,6 +287,9 @@ bool loadAssets(Server& server)
 	// if (!loadSingleModel("/models/cat/cat.obj"))
 	// return false
 
+	// if (!loadSingleModel("/models/chalet.obj"))
+	// return false;
+
 	return true;
 }
 

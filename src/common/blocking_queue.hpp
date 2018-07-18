@@ -15,7 +15,7 @@ public:
 	{
 		mtx.lock();
 		CircularBuffer<T>::push_back(elem);
-		logging::info("elements are now ", CircularBuffer<T>::elements);
+		logging::debug("elements are now ", CircularBuffer<T>::elements);
 		mtx.unlock();
 		cv.notify_one();
 	}
@@ -25,24 +25,24 @@ public:
 	 */
 	T pop_or_wait()
 	{
-		logging::info("pop: elements are now ", CircularBuffer<T>::elements);
+		logging::debug("pop: elements are now ", CircularBuffer<T>::elements);
 		if (CircularBuffer<T>::elements > 0) {
 			std::lock_guard<std::mutex> lock{ mtx };
 			auto res = CircularBuffer<T>::pop_front();
-			logging::info("BlockingQueue: returning immediately ", res);
+			logging::debug("BlockingQueue: returning immediately ", res);
 			return res;
 			// return CircularBuffer<T>::pop_front();
 		}
 
 		std::unique_lock<std::mutex> ulk{ mtx };
 		cv.wait(ulk, [this]() { return CircularBuffer<T>::elements > 0; });
-		logging::info("pop after wait: elements are now ",
+		logging::debug("pop after wait: elements are now ",
 			CircularBuffer<T>::elements,
 			" and mem[0] is ",
 			CircularBuffer<T>::memStart[0]);
 		// return CircularBuffer<T>::pop_front();
 		auto res = CircularBuffer<T>::pop_front();
-		logging::info("BlockingQueue: returning after waiting ", res);
+		logging::debug("BlockingQueue: returning after waiting ", res);
 		return res;
 	}
 
@@ -69,4 +69,7 @@ public:
 		std::lock_guard<std::mutex> lock{ mtx };
 		CircularBuffer<T>::reserve(n);
 	}
+
+	std::size_t capacity() const { return CircularBuffer<T>::capacity(); }
+	std::size_t size() const { return CircularBuffer<T>::size(); }
 };

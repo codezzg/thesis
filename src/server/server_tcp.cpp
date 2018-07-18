@@ -290,7 +290,8 @@ void TcpActiveThread::tcpActiveTask()
 		info("Accepted connection from ", inet_ntoa(clientAddr.sin_addr));
 
 		// Start receiving thread
-		server.networkThreads.tcpRecv = std::make_unique<TcpReceiveThread>(clientSocket);
+		server.networkThreads.tcpRecv =
+			std::make_unique<TcpReceiveThread>(server, server.endpoints.reliable, clientSocket);
 
 		// genUpdateLists(server);
 
@@ -319,7 +320,7 @@ void TcpActiveThread::connectToClient(socket_t clientSocket, const char* clientA
 {
 	// Start keepalive listening thread
 	server.networkThreads.keepalive =
-		std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
+		std::make_unique<KeepaliveListenThread>(server.endpoints.reliable, clientSocket);
 
 	// Starts UDP loops and send ready to client
 	server.endpoints.udpActive =
@@ -335,11 +336,11 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 	while (ep.connected) {
 		std::unique_lock<std::mutex> ulk{ mtx };
 		cv.wait(ulk, [this]() {
-			return !ep.connected ||   //! server.networkThreads.keepalive->isClientConnected() ||
+			return !ep.connected || !server.networkThreads.tcpRecv->isClientConnected() ||
 			       resourcesToSend.size() > 0;
 		});
 
-		if (!ep.connected)   //|| !server.networkThreads.keepalive->isClientConnected())
+		if (!ep.connected || !server.networkThreads.tcpRecv->isClientConnected())
 			return false;
 
 		if (resourcesToSend.size() > 0) {
@@ -376,16 +377,15 @@ void TcpActiveThread::dropClient(socket_t clientSocket)
 	closeEndpoint(server.endpoints.udpActive);
 	server.networkThreads.udpActive.reset(nullptr);
 
-	server.networkThreads.keepalive->disconnect();
 	server.networkThreads.keepalive.reset(nullptr);
 
+	server.networkThreads.tcpRecv->disconnect();
 	server.networkThreads.tcpRecv.reset(nullptr);
 }
 ///////////
 
-KeepaliveListenThread::KeepaliveListenThread(Server& server, Endpoint& ep, socket_t clientSocket)
-	: server{ server }
-	, ep{ ep }
+KeepaliveListenThread::KeepaliveListenThread(const Endpoint& ep, socket_t clientSocket)
+	: ep{ ep }
 	, clientSocket{ clientSocket }
 {
 	thread = std::thread{ &KeepaliveListenThread::keepaliveListenTask, this };
@@ -395,6 +395,7 @@ KeepaliveListenThread::~KeepaliveListenThread()
 {
 	if (thread.joinable()) {
 		info("Joining keepaliveThread...");
+		cv.notify_all();
 		thread.join();
 		info("Joined keepaliveThread.");
 	}
@@ -419,17 +420,36 @@ void KeepaliveListenThread::keepaliveListenTask()
 			break;
 		}
 	}
-	clientConnected = false;
-	if (server.networkThreads.tcpActive)
-		server.networkThreads.tcpActive->cv.notify_one();
 }
 
 ///////////////
-static void receiveTask(socket_t clientSocket)
+TcpReceiveThread::TcpReceiveThread(Server& server, const Endpoint& ep, socket_t clientSocket)
+	: server{ server }
+	, ep{ ep }
+	, clientSocket{ clientSocket }
+{
+	thread = std::thread{ &TcpReceiveThread::receiveTask, this };
+}
+
+TcpReceiveThread::~TcpReceiveThread()
+{
+	if (thread.joinable()) {
+		info("Joining ReceiveThread...");
+		thread.join();
+		info("Joined ReceiveThread.");
+	}
+}
+
+void TcpReceiveThread::receiveTask()
 {
 	info("Started receiveTask");
-	gMsgRecvQueue.reserve(256);
-	while (true) {
+
+	if (gMsgRecvQueue.capacity() == 0)
+		gMsgRecvQueue.reserve(256);
+	else
+		gMsgRecvQueue.clear();
+
+	while (ep.connected) {
 		uint8_t packet;
 		TcpMsgType type;
 		if (receiveTCPMsg(clientSocket, &packet, 1, type)) {
@@ -448,19 +468,8 @@ static void receiveTask(socket_t clientSocket)
 		}
 	}
 exit:
-	return;
+	clientConnected = false;
+	if (server.networkThreads.tcpActive)
+		server.networkThreads.tcpActive->cv.notify_one();
 }
 
-TcpReceiveThread::TcpReceiveThread(socket_t clientSocket)
-{
-	thread = std::thread{ receiveTask, clientSocket };
-}
-
-TcpReceiveThread::~TcpReceiveThread()
-{
-	if (thread.joinable()) {
-		info("Joining ReceiveThread...");
-		thread.join();
-		info("Joined ReceiveThread.");
-	}
-}

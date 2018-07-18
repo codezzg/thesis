@@ -45,24 +45,18 @@ class KeepaliveListenThread {
 
 	std::thread thread;
 
-	Server& server;
-	Endpoint& ep;
+	const Endpoint& ep;
 
 	std::mutex mtx;
 	/* Used to wait in the keepalive listen loop */
 	std::condition_variable cv;
 
-	bool clientConnected = true;
-
 	void keepaliveListenTask();
 
 public:
 	const socket_t clientSocket;
-	explicit KeepaliveListenThread(Server& server, Endpoint& ep, socket_t clientSocket);
+	explicit KeepaliveListenThread(const Endpoint& ep, socket_t clientSocket);
 	~KeepaliveListenThread();
-
-	bool isClientConnected() const { return clientConnected; }
-	void disconnect() { xplatSockClose(clientSocket); }
 };
 
 /** This thread listens on the TCP endpoint and routes the incoming messages
@@ -71,7 +65,18 @@ public:
 class TcpReceiveThread {
 	std::thread thread;
 
+	Server& server;
+	const Endpoint& ep;
+	socket_t clientSocket;
+
+	bool clientConnected = true;
+
+	void receiveTask();
+
 public:
-	explicit TcpReceiveThread(socket_t clientSocket);
+	explicit TcpReceiveThread(Server& server, const Endpoint& ep, socket_t clientSocket);
 	~TcpReceiveThread();
+
+	bool isClientConnected() const { return clientConnected; }
+	void disconnect() { xplatSockClose(clientSocket); }
 };
