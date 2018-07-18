@@ -36,20 +36,19 @@ static std::size_t addGeomUpdate(uint8_t* buffer,
 	assert(geomUpdate.dataType < GeomDataType::INVALID);
 
 	// Retreive data from the model
-	const auto& model_it = resources.models.find(geomUpdate.modelId);
-	if (model_it == resources.models.end())
+	Model model;
+	if (!resources.models.lookup(geomUpdate.modelId, geomUpdate.modelId, model))
 		err("inexisting model ", int(geomUpdate.modelId));
-	assert(model_it != resources.models.end());
 
 	void* dataPtr;
 	std::size_t dataSize;
 	switch (geomUpdate.dataType) {
 	case GeomDataType::VERTEX:
-		dataPtr = model_it->second.vertices;
+		dataPtr = model.vertices;
 		dataSize = sizeof(Vertex);
 		break;
 	case GeomDataType::INDEX:
-		dataPtr = model_it->second.indices;
+		dataPtr = model.indices;
 		dataSize = sizeof(Index);
 		break;
 	default:

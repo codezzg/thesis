@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cf_hashmap.hpp"
 #include "ext_mem_user.hpp"
 #include "hashing.hpp"
 #include "logging.hpp"
@@ -27,7 +28,8 @@ struct ServerResources final : public ExternalMemoryUser {
 	 *  The resource info contains pointers pointing to the actual data which
 	 *  is inside `allocator`.
 	 */
-	std::unordered_map<StringId, Model> models;
+	cf::hashmap<StringId, Model> models;
+	std::vector<ModelColdData*> modelsColdData;
 	std::unordered_map<StringId, shared::Texture> textures;
 	std::unordered_map<StringId, shared::SpirvShader> shaders;
 	/** These have no data inside `allocator`, they're stored "inline" in the map */
@@ -50,8 +52,10 @@ struct ServerResources final : public ExternalMemoryUser {
 	 */
 	shared::SpirvShader loadShader(const char* file);
 
+	~ServerResources();
+
 private:
-	void onInit() override { allocator.init(memory, memsize); }
+	void onInit() override;
 };
 
 /** A bunch of (unowned) references to existing resources. */

@@ -4,6 +4,7 @@
 #	define WINDOWS_LEAN_AND_MEAN 1
 #	include <windows.h>
 #	include <Shlwapi.h>
+#	include <processthreadsapi.h>
 #else
 #	include <csignal>
 #	include <unistd.h>
@@ -192,7 +193,7 @@ static void _winSetThreadName(DWORD dwThreadID, const char* threadName)
 void xplatSetThreadName(std::thread& thread, const char* name)
 {
 #ifdef _WIN32
-	_winSetThreadName(thread.native_handle(), name);
+	_winSetThreadName(GetThreadId(thread.native_handle()), name);
 #else
 	// XXX: this is probably very vulnerable
 	char* nameRW = const_cast<char*>(name);

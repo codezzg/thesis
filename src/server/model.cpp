@@ -8,6 +8,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <chrono>
+#include <memory>
 #include <iostream>
 
 using namespace logging;
@@ -30,7 +31,7 @@ using shared::Mesh;
 
 static Material saveMaterial(const char* modelPath, const aiMaterial* mat);
 
-Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
+Model loadModel(const char* modelPath, void* buffer, ModelColdData** coldData, std::size_t bufsize)
 {
 	const auto modelPathBase = xplatBasename(modelPath);
 	Model model = {};
@@ -61,7 +62,9 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 	auto uniqueVertices = cf::hashmap<Vertex, uint32_t>::create(uniqueVerticesSize, uniqueVerticesMem);
 	std::vector<Index> indices;
 
-	model.meshes.reserve(scene->mNumMeshes);
+	*coldData = new ModelColdData;
+	model.data = *coldData;
+	model.data->meshes.reserve(scene->mNumMeshes);
 	model.nIndices = 0;
 	START_PROFILE(process);
 	for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
@@ -137,7 +140,7 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 		}
 
 		mesh.len = indices.size() - mesh.offset;
-		model.meshes.emplace_back(mesh);
+		model.data->meshes.emplace_back(mesh);
 	}
 
 	if (sizeof(Vertex) * model.nVertices + sizeof(Index) * indices.size() >= bufsize) {
@@ -151,9 +154,9 @@ Model loadModel(const char* modelPath, void* buffer, std::size_t bufsize)
 	model.nIndices = indices.size();
 
 	// Save material info
-	model.materials.reserve(scene->mNumMaterials);
+	model.data->materials.reserve(scene->mNumMaterials);
 	for (unsigned i = 0; i < scene->mNumMaterials; ++i)
-		model.materials.emplace_back(saveMaterial(modelPath, scene->mMaterials[i]));
+		model.data->materials.emplace_back(saveMaterial(modelPath, scene->mMaterials[i]));
 
 	// Copy indices into buffer
 	memcpy(model.indices, indices.data(), sizeof(Index) * indices.size());

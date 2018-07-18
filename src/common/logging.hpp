@@ -45,13 +45,13 @@ inline void err(Args&&... args)
 {
 	log(LOGLV_ERR, true, gColoredLogs ? C_RED : "", "[E] ", std::forward<Args>(args)...);
 #else
-inline void err(Args&&...)
+constexpr void err(Args&&...)
 {
 #endif
 }
 
-template <typename... Args>
 #if MAX_LOG_LV >= 2
+template <typename... Args>
 inline void warn(Args&&... args)
 {
 	log(LOGLV_WARN, true, gColoredLogs ? C_YELLOW : "", "[W] ", std::forward<Args>(args)...);
@@ -67,7 +67,7 @@ inline void info(Args&&... args)
 {
 	log(LOGLV_INFO, true, "[I] ", std::forward<Args>(args)...);
 #else
-inline void info(Args&&...)
+constexpr void info(Args&&...)
 {
 #endif
 }
@@ -78,7 +78,7 @@ inline void debug(Args&&... args)
 {
 	log(LOGLV_DEBUG, true, "[D] ", std::forward<Args>(args)...);
 #else
-inline void debug(Args&&...)
+constexpr void debug(Args&&...)
 {
 #endif
 }
@@ -89,7 +89,7 @@ inline void verbose(Args&&... args)
 {
 	log(LOGLV_VERBOSE, true, "[V] ", std::forward<Args>(args)...);
 #else
-inline void verbose(Args&&...)
+constexpr void verbose(Args&&...)
 {
 #endif
 }
@@ -100,7 +100,7 @@ inline void uberverbose(Args&&... args)
 {
 	log(LOGLV_UBER_VERBOSE, true, "[U] ", std::forward<Args>(args)...);
 #else
-inline void uberverbose(Args&&...)
+constexpr void uberverbose(Args&&...)
 {
 #endif
 }

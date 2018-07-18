@@ -15,6 +15,15 @@ struct Material {
 	std::string normalTex;
 };
 
+/** These data are stored outside the Model struct
+ *  to avoid Model::operator= and similar to do a deep expensive copy
+ *  of all these data.
+ */
+struct ModelColdData {
+	std::vector<shared::Mesh> meshes;
+	std::vector<Material> materials;
+};
+
 /* Model information.
  * A complete "model" consists in attrib data + attrib information
  * 1. Attrib DATA are the actual vertex data (position, normal, texcoords) and indices, and are
@@ -25,18 +34,18 @@ struct Material {
  * This structure only stores the information, not the data itself.
  */
 struct Model {
+
 	StringId name = SID_NONE;
 
 	/** Unowning pointer to the model's vertices */
 	Vertex* vertices = nullptr;
 	/** Unowning pointer to the model's indices */
 	Index* indices = nullptr;
+	/** Unowning pointer to the model's cold data */
+	ModelColdData* data = nullptr;
 
 	uint32_t nVertices = 0;
 	uint32_t nIndices = 0;
-
-	std::vector<shared::Mesh> meshes;
-	std::vector<Material> materials;
 
 	std::size_t size() const { return nVertices * sizeof(Vertex) + nIndices * sizeof(Index); }
 
@@ -44,16 +53,18 @@ struct Model {
 	{
 		std::stringstream ss;
 		ss << "n vertices = " << nVertices << ", n indices = " << nIndices << "\n"
-		   << "size: " << size() << " bytes\n"
-		   << "# materials: " << materials.size() << "\n";
-		for (const auto& mat : materials) {
-			ss << "mat { name = " << mat.name << ", diff = " << mat.diffuseTex
-			   << ", spec = " << mat.specularTex << ", norm = " << mat.normalTex << " }\n";
-		}
-		ss << "# meshes: " << meshes.size() << "\n";
-		for (const auto& mesh : meshes) {
-			ss << "mesh { off = " << mesh.offset << ", len = " << mesh.len << ", mat = " << mesh.materialId
-			   << " }\n";
+			<< "size: " << size() << " bytes\n";
+		if (data) {
+			ss << "# materials: " << data->materials.size() << "\n";
+			for (const auto& mat : data->materials) {
+				ss << "mat { name = " << mat.name << ", diff = " << mat.diffuseTex
+					<< ", spec = " << mat.specularTex << ", norm = " << mat.normalTex << " }\n";
+			}
+			ss << "# meshes: " << data->meshes.size() << "\n";
+			for (const auto& mesh : data->meshes) {
+				ss << "mesh { off = " << mesh.offset << ", len = " << mesh.len << ", mat = " << mesh.materialId
+					<< " }\n";
+			}
 		}
 		return ss.str();
 	}
@@ -61,10 +72,11 @@ struct Model {
 
 /** Loads a model's vertices and indices into `buffer`.
  *  `buffer` must be a region of correctly initialized memory.
- *  Upon success, `buffer` gets filled with [vertices|indices], and indices start at
- *  offset `sizeof(Vertex) * nVertices`.
+ *  Upon success, `buffer` gets filled with [vertices|indices] (indices start at
+ *  offset `sizeof(Vertex) * nVertices`) and `coldData` is filled with a pointer to the model's cold data.
  *  @return a valid model, or one with nullptr `vertices` and `indices` if there were errors.
  */
 Model loadModel(const char* modelPath,
 	/* inout */ void* buffer,
+	/* out */ ModelColdData** coldData,
 	std::size_t bufsize);

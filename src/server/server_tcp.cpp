@@ -25,8 +25,11 @@ static void genUpdateLists(Server& server)
 		// Build the initial list of models to send to the client
 		std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
 		server.toClient.modelsToSend.reserve(server.resources.models.size());
-		for (const auto& pair : server.resources.models)
-			server.toClient.modelsToSend.emplace_back(&pair.second);
+		auto it = server.resources.models.iter_start();
+		StringId ignore;
+		Model model;
+		while (server.resources.models.iter_next(it, ignore, model))
+			server.toClient.modelsToSend.emplace_back(&model);
 	}
 }
 
@@ -150,8 +153,8 @@ static bool batch_sendModel(socket_t clientSocket,
 		return false;
 	}
 
-	info("model.materials = ", model.materials.size());
-	for (const auto& mat : model.materials) {
+	info("model.materials = ", model.data->materials.size());
+	for (const auto& mat : model.data->materials) {
 		if (!batch_sendMaterial(clientSocket, resources, materialsSent, texturesSent, mat))
 			return false;
 	}

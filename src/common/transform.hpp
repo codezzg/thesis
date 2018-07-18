@@ -11,7 +11,6 @@
 #include <glm/gtx/transform.hpp>
 
 struct Transform {
-private:
 	glm::mat4 mat{ 1.f };
 
 	glm::vec3 position{ 0.f, 0.f, 0.f };
@@ -25,7 +24,6 @@ private:
 			position);
 	}
 
-public:
 	void setPosition(const glm::vec3& pos)
 	{
 		position = pos;

@@ -90,7 +90,7 @@ int main(int argc, char** argv)
 
 	{
 		// Add lights
-		const auto lights = createLights(100);
+		const auto lights = createLights(50);
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 	}
 
@@ -124,16 +124,20 @@ int main(int argc, char** argv)
 		// FIXME add stuff to send via TCP
 		auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
 
+		auto it = server.resources.models.iter_start();
+		StringId modelName;
+		Model model;
+		assert(server.resources.models.iter_next(it, modelName, model));
+
 		// std::this_thread::sleep_for(5s);
-		auto model = &(++server.resources.models.begin())->second;
 		{
 			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-			toSend.models.emplace(model);
+			toSend.models.emplace(&model);
 		}
-		server.scene.addNode(model->name, NodeType::MODEL, Transform{});
+		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
 		{
 			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-			server.toClient.modelsToSend.emplace_back(model);
+			server.toClient.modelsToSend.emplace_back(&model);
 		}
 		server.networkThreads.tcpActive->cv.notify_one();
 		std::this_thread::sleep_for(4s);
@@ -151,15 +155,15 @@ int main(int argc, char** argv)
 		}
 		server.networkThreads.tcpActive->cv.notify_one();
 		std::this_thread::sleep_for(4s);
-		model = &(server.resources.models.begin())->second;
+		assert(server.resources.models.iter_next(it, modelName, model));
 		{
 			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-			toSend.models.emplace(model);
+			toSend.models.emplace(&model);
 		}
-		server.scene.addNode(model->name, NodeType::MODEL, Transform{});
+		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
 		{
 			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-			server.toClient.modelsToSend.emplace_back(model);
+			server.toClient.modelsToSend.emplace_back(&model);
 		}
 		server.networkThreads.tcpActive->cv.notify_one();
 		std::this_thread::sleep_for(2s);
@@ -254,7 +258,7 @@ bool loadAssets(Server& server)
 			" KiB");
 
 		// Ensure all needed textures exist
-		for (const auto& mat : model.materials) {
+		for (const auto& mat : model.data->materials) {
 			if (mat.diffuseTex.length() > 0 && !std::ifstream(mat.diffuseTex)) {
 				err("required texture ", mat.diffuseTex, " does not exist.");
 				return false;

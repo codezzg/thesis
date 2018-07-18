@@ -1,21 +1,30 @@
 #include "server_resources.hpp"
 
+ServerResources::~ServerResources() {
+	for (auto cd : modelsColdData)
+		delete cd;
+}
+
 Model ServerResources::loadModel(const char* file)
 {
 	const auto fileSid = sid(file);
-	if (models.count(fileSid) > 0) {
+	Model model;
+	if (models.lookup(fileSid, fileSid, model)) {
 		logging::warn("Tried to load model ", file, " which is already loaded!");
-		return models[fileSid];
+		return model;
 	}
 
 	// Reserve the whole remaining memory for loading the resource, then shrink to fit.
 	std::size_t bufsize;
 	auto buffer = allocator.allocAll(&bufsize);
 
-	auto& model = models[fileSid];
-	model = ::loadModel(file, buffer, bufsize);
-
+	// Model cold data is stored in a separate chunk of memory
+	ModelColdData* coldData;
+	model = ::loadModel(file, buffer, &coldData, bufsize);
 	assert(model.vertices && "Failed to load model!");
+
+	models.set(fileSid, fileSid, model);
+	modelsColdData.emplace_back(coldData);
 
 	allocator.deallocLatest();
 	allocator.alloc(model.size());
@@ -74,4 +83,16 @@ shared::SpirvShader ServerResources::loadShader(const char* file)
 	logging::info("Loaded shader ", file, " (", shader.codeSizeInBytes, " B)");
 
 	return shader;
+}
+
+void ServerResources::onInit() {
+	// Reserve initial memory to the models hashmap
+	const auto modelsMemsize = CF_HASHMAP_GET_BUFFER_SIZE(StringId, Model, 128);
+	if (memsize < modelsMemsize) {
+		logging::err("ServerResources needs more than ", modelsMemsize,
+			" B to work! Reserve more memory for ServerResources!");
+		throw;
+	}
+	models = cf::hashmap<StringId, Model>::create(modelsMemsize, memory);
+	allocator.init(memory + modelsMemsize, memsize - modelsMemsize); 
 }
