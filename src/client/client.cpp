@@ -172,7 +172,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	debug(":: Received READY.");
 
 	debug(":: Starting TCP listening loop");
-	// networkThreads.keepalive = std::make_unique<KeepaliveThread>(endpoints.reliable.socket);
+	networkThreads.keepalive = std::make_unique<KeepaliveThread>(endpoints.reliable.socket);
 	networkThreads.tcpMsg = std::make_unique<TcpMsgThread>(endpoints.reliable);
 
 	// Ready to start the main loop
@@ -628,11 +628,9 @@ void VulkanClient::updateLightsUniformBuffer()
 	ubo->nPointLights = netRsrc.pointLights.size();
 	for (unsigned i = 0; i < netRsrc.pointLights.size(); ++i) {
 		const auto& pl = netRsrc.pointLights[i];
-		const auto& plt = transformFromMatrix(objTransforms[pl.name]);
-		ubo->pointLights[i] = UboPointLight{ { plt.position.x, plt.position.y, plt.position.z },
-			pl.attenuation,
-			{ pl.color.r, pl.color.g, pl.color.b },
-			0 };
+		const auto& plt = Transform::fromMatrix(objTransforms[pl.name]);
+		ubo->pointLights[i] =
+			UboPointLight{ plt.getPosition(), pl.attenuation, { pl.color.r, pl.color.g, pl.color.b }, 0 };
 	}
 }
 

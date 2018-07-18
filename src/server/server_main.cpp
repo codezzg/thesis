@@ -58,14 +58,14 @@ int main(int argc, char** argv)
 	Server server{ MEMSIZE };
 
 	const auto atExit = [&server]() {
-		debug("Sockets:\nudpActive: ",
-			server.endpoints.udpActive.socket,
-			"\nudpPassive: ",
-			server.endpoints.udpPassive.socket,
-			"\nreliable: ",
-			server.endpoints.reliable.socket,
-			"\nclient: ",
-			server.networkThreads.keepalive->clientSocket);
+		// debug("Sockets:\nudpActive: ",
+		// server.endpoints.udpActive.socket,
+		//"\nudpPassive: ",
+		// server.endpoints.udpPassive.socket,
+		//"\nreliable: ",
+		// server.endpoints.reliable.socket,
+		//"\nclient: ",
+		// server.networkThreads.keepalive->clientSocket);
 		// "Ensure" we close the sockets even if we terminate abruptly
 		gBandwidthLimiter.stop();
 		server.closeNetwork();

@@ -8,6 +8,7 @@
 #include "units.hpp"
 #include "utils.hpp"
 #include "vertex.hpp"
+#include "xplatform.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -68,6 +69,7 @@ UdpPassiveThread::UdpPassiveThread(Endpoint& ep)
 	buffer = new uint8_t[BUFSIZE];
 	usedBufSize = 0;
 	thread = std::thread{ &UdpPassiveThread::udpPassiveTask, this };
+	xplatSetThreadName(thread, "UdpPassive");
 }
 
 UdpPassiveThread::~UdpPassiveThread()
@@ -137,6 +139,7 @@ void UdpActiveThread::udpActiveTask(Endpoint& ep)
 UdpActiveThread::UdpActiveThread(Endpoint& ep)
 {
 	thread = std::thread{ &UdpActiveThread::udpActiveTask, this, std::ref(ep) };
+	xplatSetThreadName(thread, "UdpActive");
 }
 
 UdpActiveThread::~UdpActiveThread()

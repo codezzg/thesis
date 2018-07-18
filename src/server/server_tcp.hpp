@@ -41,11 +41,26 @@ public:
 	~TcpActiveThread();
 };
 
-class KeepaliveListenThread {
-
+/** Utility mixin class */
+class ServerSlaveThread {
+protected:
 	std::thread thread;
 
+	Server& server;
 	const Endpoint& ep;
+	const socket_t clientSocket;
+
+	explicit ServerSlaveThread(Server& server, const Endpoint& ep, socket_t clientSocket)
+		: server{ server }
+		, ep{ ep }
+		, clientSocket{ clientSocket }
+	{}
+
+public:
+	bool clientConnected = true;
+};
+
+class KeepaliveListenThread : public ServerSlaveThread {
 
 	std::mutex mtx;
 	/* Used to wait in the keepalive listen loop */
@@ -54,29 +69,18 @@ class KeepaliveListenThread {
 	void keepaliveListenTask();
 
 public:
-	const socket_t clientSocket;
-	explicit KeepaliveListenThread(const Endpoint& ep, socket_t clientSocket);
+	explicit KeepaliveListenThread(Server& server, const Endpoint& ep, socket_t clientSocket);
 	~KeepaliveListenThread();
 };
 
 /** This thread listens on the TCP endpoint and routes the incoming messages
  *  either to the keepalive or to the general TCP message queue.
  */
-class TcpReceiveThread {
-	std::thread thread;
-
-	Server& server;
-	const Endpoint& ep;
-	socket_t clientSocket;
-
-	bool clientConnected = true;
+class TcpReceiveThread : public ServerSlaveThread {
 
 	void receiveTask();
 
 public:
 	explicit TcpReceiveThread(Server& server, const Endpoint& ep, socket_t clientSocket);
 	~TcpReceiveThread();
-
-	bool isClientConnected() const { return clientConnected; }
-	void disconnect() { xplatSockClose(clientSocket); }
 };

@@ -9,11 +9,13 @@
 #	include <unistd.h>
 #	include <libgen.h>
 #endif
+
 #include "logging.hpp"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <thread>
 #include <utility>
 
 using namespace logging;
@@ -155,4 +157,49 @@ std::string xplatPath(std::string&& path)
 	std::replace(path.begin(), path.end(), '\\', '/');
 #endif
 	return path;
+}
+
+#ifdef _WIN32
+// Helper function for setting thread name.
+// See: https://docs.microsoft.com/en-us/visualstudio/debugger/how-to-set-a-thread-name-in-native-code
+
+#	pragma pack(push, 8)
+struct THREADNAME_INFO {
+	DWORD dwType = 0x1000;   // Must be 0x1000.
+	LPCSTR szName;           // Pointer to name (in user addr space).
+	DWORD dwThreadID;        // Thread ID (-1=caller thread).
+	DWORD dwFlags = 0;       // Reserved for future use, must be zero.
+};
+#	pragma pack(pop)
+
+static void _winSetThreadName(DWORD dwThreadID, const char* threadName)
+{
+	constexpr DWORD MS_VC_EXCEPTION = 0x406D1388;
+
+	THREADNAME_INFO info;
+	info.szName = threadName;
+	info.dwThreadID = dwThreadID;
+#	pragma warning(push)
+#	pragma warning(disable : 6320 6322)
+	__try {
+		RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+	}
+#	pragma warning(pop)
+}
+#endif
+
+void xplatSetThreadName(std::thread& thread, const char* name)
+{
+#ifdef _WIN32
+	_winSetThreadName(thread.native_handle(), name);
+#else
+	// XXX: this is probably very vulnerable
+	char* nameRW = const_cast<char*>(name);
+	if (strlen(name) > 16) {
+		strncpy(nameRW, name, 15);
+		nameRW[15] = '\0';
+	}
+	pthread_setname_np(thread.native_handle(), nameRW);
+#endif
 }

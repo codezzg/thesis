@@ -3,10 +3,18 @@
 #include <functional>
 #include <string>
 
+namespace std {
+class thread;
+}
+
 #ifdef _WIN32
+
 constexpr char DIRSEP = '\\';
+
 #else
+
 constexpr char DIRSEP = '/';
+
 #endif
 
 using signal_handler_t = std::function<void()>;
@@ -29,3 +37,5 @@ std::string xplatDirname(const char* path);
 std::string xplatBasename(const char* path);
 
 std::string xplatPath(std::string&& str);
+
+void xplatSetThreadName(std::thread& thread, const char* name);

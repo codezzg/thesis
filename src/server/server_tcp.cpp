@@ -5,6 +5,7 @@
 #include "server_resources.hpp"
 #include "tcp_messages.hpp"
 #include "tcp_serialize.hpp"
+#include "xplatform.hpp"
 #include <array>
 #include <chrono>
 
@@ -252,6 +253,7 @@ TcpActiveThread::TcpActiveThread(Server& server, Endpoint& ep)
 	, ep{ ep }
 {
 	thread = std::thread{ &TcpActiveThread::tcpActiveTask, this };
+	xplatSetThreadName(thread, "TcpActive");
 }
 
 TcpActiveThread::~TcpActiveThread()
@@ -320,7 +322,7 @@ void TcpActiveThread::connectToClient(socket_t clientSocket, const char* clientA
 {
 	// Start keepalive listening thread
 	server.networkThreads.keepalive =
-		std::make_unique<KeepaliveListenThread>(server.endpoints.reliable, clientSocket);
+		std::make_unique<KeepaliveListenThread>(server, server.endpoints.reliable, clientSocket);
 
 	// Starts UDP loops and send ready to client
 	server.endpoints.udpActive =
@@ -336,20 +338,20 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 	while (ep.connected) {
 		std::unique_lock<std::mutex> ulk{ mtx };
 		cv.wait(ulk, [this]() {
-			return !ep.connected || !server.networkThreads.tcpRecv->isClientConnected() ||
-			       resourcesToSend.size() > 0;
+			return !ep.connected || !server.networkThreads.tcpRecv->clientConnected ||
+			       !server.networkThreads.keepalive->clientConnected || resourcesToSend.size() > 0;
 		});
 
-		if (!ep.connected || !server.networkThreads.tcpRecv->isClientConnected())
+		if (!ep.connected || !server.networkThreads.keepalive->clientConnected ||
+			!server.networkThreads.tcpRecv->clientConnected)
 			return false;
 
 		if (resourcesToSend.size() > 0) {
 			if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
 				return false;
 
-			// uint8_t packet;
-			// if (!expectTCPMsg(clientSocket, &packet, 1, TcpMsgType::RSRC_EXCHANGE_ACK))
-			// return false;
+			if (!expectTCPMsg(TcpMsgType::RSRC_EXCHANGE_ACK))
+				return false;
 
 			info("Send ResourceBatch");
 			if (!sendResourceBatch(clientSocket, server.resources, resourcesToSend))
@@ -377,18 +379,20 @@ void TcpActiveThread::dropClient(socket_t clientSocket)
 	closeEndpoint(server.endpoints.udpActive);
 	server.networkThreads.udpActive.reset(nullptr);
 
+	server.networkThreads.tcpRecv->clientConnected = false;
 	server.networkThreads.keepalive.reset(nullptr);
 
-	server.networkThreads.tcpRecv->disconnect();
+	xplatSockClose(clientSocket);
+	server.networkThreads.tcpRecv->clientConnected = false;
 	server.networkThreads.tcpRecv.reset(nullptr);
 }
 ///////////
 
-KeepaliveListenThread::KeepaliveListenThread(const Endpoint& ep, socket_t clientSocket)
-	: ep{ ep }
-	, clientSocket{ clientSocket }
+KeepaliveListenThread::KeepaliveListenThread(Server& server, const Endpoint& ep, socket_t clientSocket)
+	: ServerSlaveThread{ server, ep, clientSocket }
 {
 	thread = std::thread{ &KeepaliveListenThread::keepaliveListenTask, this };
+	xplatSetThreadName(thread, "KeepaliveListen");
 }
 
 KeepaliveListenThread::~KeepaliveListenThread()
@@ -404,9 +408,9 @@ KeepaliveListenThread::~KeepaliveListenThread()
 /* This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
 void KeepaliveListenThread::keepaliveListenTask()
 {
-	constexpr auto interval = std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS };
+	constexpr auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
 
-	while (ep.connected) {
+	while (ep.connected && clientConnected) {
 		std::unique_lock<std::mutex> ulk{ mtx };
 		if (cv.wait_for(ulk, interval) == std::cv_status::no_timeout) {
 			break;
@@ -420,15 +424,17 @@ void KeepaliveListenThread::keepaliveListenTask()
 			break;
 		}
 	}
+	clientConnected = false;
+	if (server.networkThreads.tcpActive)
+		server.networkThreads.tcpActive->cv.notify_one();
 }
 
 ///////////////
 TcpReceiveThread::TcpReceiveThread(Server& server, const Endpoint& ep, socket_t clientSocket)
-	: server{ server }
-	, ep{ ep }
-	, clientSocket{ clientSocket }
+	: ServerSlaveThread{ server, ep, clientSocket }
 {
 	thread = std::thread{ &TcpReceiveThread::receiveTask, this };
+	xplatSetThreadName(thread, "TcpReceive");
 }
 
 TcpReceiveThread::~TcpReceiveThread()
@@ -449,10 +455,14 @@ void TcpReceiveThread::receiveTask()
 	else
 		gMsgRecvQueue.clear();
 
-	while (ep.connected) {
+	int failCount = 0;
+	constexpr int MAX_FAIL_COUNT = 10;
+
+	while (ep.connected && clientConnected) {
 		uint8_t packet;
 		TcpMsgType type;
 		if (receiveTCPMsg(clientSocket, &packet, 1, type)) {
+			failCount = 0;
 			switch (type) {
 			case TcpMsgType::DISCONNECT:
 				info("Received DISCONNECT from client.");
@@ -465,6 +475,9 @@ void TcpReceiveThread::receiveTask()
 				gMsgRecvQueue.push(type);
 				break;
 			}
+		} else {
+			if (++failCount == MAX_FAIL_COUNT)
+				break;
 		}
 	}
 exit:

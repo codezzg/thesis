@@ -1,6 +1,7 @@
 #include "bandwidth_limiter.hpp"
 #include "endpoint.hpp"
 #include "logging.hpp"
+#include "xplatform.hpp"
 #include <cstring>
 #include <exception>
 #include <functional>
@@ -35,6 +36,7 @@ void BandwidthLimiter::start()
 	tokens = 0;
 
 	refillThread = std::thread(std::bind(&BandwidthLimiter::refillTask, std::ref(*this)));
+	xplatSetThreadName(refillThread, "BandwidthLimiter");
 	info("BandwidthLimiter: started with maxTokens = ",
 		maxTokens,
 		", capacity = ",

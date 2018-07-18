@@ -15,6 +15,7 @@
 #include "udp_messages.hpp"
 #include "udp_serialize.hpp"
 #include "utils.hpp"
+#include "xplatform.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -41,6 +42,7 @@ UdpActiveThread::UdpActiveThread(Server& server, Endpoint& ep)
 	, ep{ ep }
 {
 	thread = std::thread{ &UdpActiveThread::udpActiveTask, this };
+	xplatSetThreadName(thread, "UdpActive");
 }
 
 UdpActiveThread::~UdpActiveThread()
@@ -166,6 +168,7 @@ UdpPassiveThread::UdpPassiveThread(Server& server, Endpoint& ep)
 	, ep{ ep }
 {
 	thread = std::thread{ &UdpPassiveThread::udpPassiveTask, this };
+	xplatSetThreadName(thread, "UdpPassive");
 }
 
 UdpPassiveThread::~UdpPassiveThread()

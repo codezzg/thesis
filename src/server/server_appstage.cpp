@@ -89,16 +89,16 @@ void appstageLoop(Server& server)
 
 				// node->transform.position = glm::vec3{ 0, 0, i * 5 };
 				if (((node->flags >> NODE_FLAG_STATIC) & 1) == 0) {
-					node->transform.position =
+					node->transform.setPosition(
 						glm::vec3{ (5 + 0 * 4 * i) * std::sin(0.5 * t + i * 0.4),
 							(5 + 0 * 2 * i) * std::sin(0.5 * t + i * 0.4),
 							// 10 - 9 * (node->type == NodeType::POINT_LIGHT),
-							(2 + 0 * 6 * i) * std::cos(0.5 * t + i * 0.3) };
-					node->transform.rotation = glm::vec3{ 0, 0.3 * t + i, 0 };
-					node->transform.scale =
+							(2 + 0 * 6 * i) * std::cos(0.5 * t + i * 0.3) });
+					node->transform.setRotation(glm::vec3{ 0.f, 0.3f * t + i, 0.f });
+					node->transform.setScale(
 						glm::vec3{ 1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
 							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
-							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };
+							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) });
 				}
 				tUpdates.emplace_back(newQueuedUpdateTransform(node->name));
 				++i;

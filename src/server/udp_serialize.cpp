@@ -160,7 +160,7 @@ static std::size_t addTransformUpdate(uint8_t* buffer, std::size_t bufsize, std:
 	// Write header
 	TransformUpdateHeader header;
 	header.objectId = node.name;
-	header.transform = transformMatrix(node.transform);
+	header.transform = node.transform.getMatrix();
 
 	memcpy(buffer + offset + written, &header, sizeof(TransformUpdateHeader));
 	written += sizeof(TransformUpdateHeader);

@@ -52,8 +52,3 @@ struct Endpoint {
 
 Endpoint startEndpoint(const char* ip, int port, Endpoint::Type type, int socktype);
 void closeEndpoint(Endpoint& ep);
-
-class NetworkThread {
-protected:
-	std::thread thread;
-};

@@ -4,6 +4,7 @@
 #include "shared_resources.hpp"
 #include "tcp_deserialize.hpp"
 #include "tcp_messages.hpp"
+#include "xplatform.hpp"
 #include <array>
 #include <cstddef>
 
@@ -61,6 +62,7 @@ static void keepaliveTask(socket_t socket, std::condition_variable& cv)
 KeepaliveThread::KeepaliveThread(socket_t sock)
 {
 	thread = std::thread{ keepaliveTask, sock, std::ref(cv) };
+	xplatSetThreadName(thread, "Keepalive");
 }
 
 KeepaliveThread::~KeepaliveThread()
@@ -107,6 +109,7 @@ TcpMsgThread::TcpMsgThread(Endpoint& ep)
 	, resources{ megabytes(128) }
 {
 	thread = std::thread{ &TcpMsgThread::tcpMsgTask, this };
+	xplatSetThreadName(thread, "TcpReceive");
 }
 
 TcpMsgThread::~TcpMsgThread()
@@ -127,7 +130,7 @@ void TcpMsgThread::performResourceExchange()
 	if (!resourcesAvailable)
 		resources.clear();
 
-	// sendTCPMsg(ep.socket, TcpMsgType::RSRC_EXCHANGE_ACK);
+	sendTCPMsg(ep.socket, TcpMsgType::RSRC_EXCHANGE_ACK);
 
 	if (receiveOneTimeData()) {
 		resourcesAvailable = true;
