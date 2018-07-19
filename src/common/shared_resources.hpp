@@ -82,9 +82,6 @@ struct Model {
 	/** Follows payload: [materialIds (StringId) | meshes (shared::Mesh)] */
 };
 
-/** A PointLight with a position, color and intensity.
- *  All those parameters can either be fixed or dynamic.
- */
 struct PointLightInfo {
 	StringId name;
 

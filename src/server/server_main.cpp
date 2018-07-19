@@ -90,7 +90,7 @@ int main(int argc, char** argv)
 
 	{
 		// Add lights
-		const auto lights = createLights(50);
+		const auto lights = createLights(100);
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 	}
 
@@ -127,8 +127,8 @@ int main(int argc, char** argv)
 		auto it = server.resources.models.iter_start();
 		StringId modelName;
 		Model model;
-		assert(server.resources.models.iter_next(it, modelName, model));
-
+		bool found = server.resources.models.iter_next(it, modelName, model);
+		assert(found);
 		// std::this_thread::sleep_for(5s);
 		{
 			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
@@ -155,7 +155,8 @@ int main(int argc, char** argv)
 		}
 		server.networkThreads.tcpActive->cv.notify_one();
 		std::this_thread::sleep_for(4s);
-		assert(server.resources.models.iter_next(it, modelName, model));
+		found = server.resources.models.iter_next(it, modelName, model);
+		assert(found);
 		{
 			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
 			toSend.models.emplace(&model);
@@ -168,6 +169,7 @@ int main(int argc, char** argv)
 		server.networkThreads.tcpActive->cv.notify_one();
 		std::this_thread::sleep_for(2s);
 	});
+
 	info("Started appstage");
 	appstageLoop(server);
 	atExit();
