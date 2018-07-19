@@ -87,7 +87,6 @@ bool sendModel(socket_t clientSocket, const Model& model)
 	header.res.nVertices = model.nVertices;
 	header.res.nIndices = model.nIndices;
 	assert(model.data);
-	info(model.data);
 	header.res.nMaterials = model.data->materials.size();
 	header.res.nMeshes = model.data->meshes.size();
 

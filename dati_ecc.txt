@@ -1,0 +1,18 @@
+dati
+----
+
+frame al secondo (throughput)
+tempo di risposta (dopo quanto vedo la scena)
+
+con/senza limitazione di banda
+
+alzare la luminosita` della scena
+
+framerate
+
+
+
+articoli
+--------
+geometry streaming
+remote gaming

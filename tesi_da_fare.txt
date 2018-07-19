@@ -1,7 +1,9 @@
 - fixare send TCP non in locale --> done
-- limitare bitrate server/client
+- limitare bitrate server/client --> done
 - far mandare luci dal server --> done
 - passare transform dal server (UDP) --> done
 - far funzionare piu modelli assieme --> done
-- aggiungere ricezione modello "a runtime"
+- aggiungere ricezione modello "a runtime" --> done
+- mandare texture dopo (ricaricare il modello con texture giusta in secondo momento)
+- caricare/scaricare modelli on demand (comando da tastiera client -> server)
 - aggiungere luci "dinamiche" (numero non fissato)

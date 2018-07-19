@@ -18,6 +18,7 @@ void FPSCounter::report(std::ostream& stream)
 		assert(reportPeriod > 0);
 		frames /= reportPeriod;
 		stream << prelude << ": " << frames << " fps (" << 1000.0 / frames << " ms)\n";
+		stream << std::flush;
 		checkpoint = now;
 		frames = 0;
 	}
