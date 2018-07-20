@@ -81,6 +81,7 @@ void UdpActiveThread::udpActiveTask()
 
 		std::unique_lock<std::mutex> ulk{ updates.mtx };
 		std::vector<QueuedUpdate> transitory = updates.transitory;
+		updates.transitory.clear();
 		ulk.unlock();
 
 		auto offset = writeUdpHeader(buffer.data(), buffer.size(), packetGen);
@@ -117,33 +118,34 @@ void UdpActiveThread::udpActiveTask()
 			deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
 		}
 
-		if (updates.persistent.size() > 0)
+		if (updates.persistent.size() > 0) {
 			verbose("sending ", updates.persistent.size(), " persistent updates");
 
-		// Send persistent updates
-		auto it = updates.persistent.iter_start();
-		uint32_t ignoreKey;
-		QueuedUpdate update;
-		bool loop = updates.persistent.iter_next(it, ignoreKey, update);
-		while (loop) {
-			if (!ep.connected)
-				return;
+			// Send persistent updates
+			auto it = updates.persistent.iter_start();
+			uint32_t ignoreKey;
+			QueuedUpdate update;
+			bool loop = updates.persistent.iter_next(it, ignoreKey, update);
+			while (loop) {
+				if (!ep.connected)
+					return;
 
-			// GEOM updates are currently the only ACKed ones
-			assert(update.type == QueuedUpdate::Type::GEOM);
-			const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
+				// GEOM updates are currently the only ACKed ones
+				assert(update.type == QueuedUpdate::Type::GEOM);
+				const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
 
-			if (written > 0) {
-				offset += written;
-				loop = updates.persistent.iter_next(it, ignoreKey, update);
-			} else {
-				// Not enough room: send the packet
-				if (!sendPacket(ep.socket, buffer.data(), buffer.size()))
-					break;
-				// info("pers: ", updates.persistent.size());
+				if (written > 0) {
+					offset += written;
+					loop = updates.persistent.iter_next(it, ignoreKey, update);
+				} else {
+					// Not enough room: send the packet
+					if (!sendPacket(ep.socket, buffer.data(), buffer.size()))
+						break;
+					// info("pers: ", updates.persistent.size());
 
-				writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-				offset = sizeof(UdpHeader);
+					writeUdpHeader(buffer.data(), buffer.size(), packetGen);
+					offset = sizeof(UdpHeader);
+				}
 			}
 		}
 		ulk.unlock();

@@ -529,7 +529,8 @@ void TcpReceiveThread::receiveTask()
 					msg.payload = *reinterpret_cast<uint16_t*>(packet.data() + 1);
 				}
 				gMsgRecvQueue.push(msg);
-				server.networkThreads.tcpActive->cv.notify_one();
+				if (server.networkThreads.tcpActive)
+					server.networkThreads.tcpActive->cv.notify_one();
 			} break;
 			}
 		} else {

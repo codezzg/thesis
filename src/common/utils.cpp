@@ -63,6 +63,8 @@ std::size_t readFileIntoMemory(const char* path, void* buffer, std::size_t bufsi
 
 void dumpBytes(const void* buffer, std::size_t count, std::size_t maxCount, LogLevel lv)
 {
+	if (gDebugLv < lv)
+		return;
 	for (unsigned i = 0; i < std::min(count, maxCount); ++i) {
 		char str[5];
 		snprintf(str, 5, "0x%.2X", *(reinterpret_cast<const uint8_t*>(buffer) + i));
