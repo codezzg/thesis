@@ -1,7 +1,6 @@
 #include "client_udp.hpp"
 #include "camera.hpp"
 #include "config.hpp"
-#include "frame_data.hpp"
 #include "frame_utils.hpp"
 #include "logging.hpp"
 #include "udp_messages.hpp"

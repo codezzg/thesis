@@ -14,18 +14,6 @@
 #include <vector>
 
 struct ClientToServerData {
-	/** The latest frame received from client */
-	int64_t clientFrame = -1;
-
-	/** Mutex guarding access to clientData */
-	std::mutex clientDataMtx;
-
-	/** Notified whenever a new frame arrives from the client */
-	std::condition_variable clientDataCv;
-
-	/** Payload received from the client goes here*/
-	std::array<uint8_t, FrameData().payload.size()> clientData;
-
 	std::vector<uint32_t> acksReceived;
 	std::mutex acksReceivedMtx;
 };

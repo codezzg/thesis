@@ -4,7 +4,6 @@
 #include "config.hpp"
 #include "defer.hpp"
 #include "fps_counter.hpp"
-#include "frame_data.hpp"
 #include "frame_utils.hpp"
 #include "geom_update.hpp"
 #include "logging.hpp"

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "camera.hpp"
-#include "frame_data.hpp"
 #include "model.hpp"
 #include "vertex.hpp"
 #include <algorithm>
@@ -9,20 +8,6 @@
 #include <glm/glm.hpp>
 
 struct Server;
-
-/** The procedures used by the server's "application stage", e.g. culling
- *  optimization, vertex transformations, etc.
- */
-
-// STUB entrypoint for stuff happening on application stage
-// `buffer` is the pointer to the memory where to store temporary frame data
-// `nVertices` and `nIndices` get updated by this function
-void transformVertices(Model& model,
-	const std::array<uint8_t, FrameData().payload.size()>& clientData,
-	/* inout */ uint8_t* buffer,
-	std::size_t bufsize,
-	/* inout */ int& nVertices,
-	/* inout */ int& nIndices);
 
 void appstageLoop(Server& server);
 

@@ -8,7 +8,6 @@
 #include <mutex>
 #include <thread>
 
-struct FrameData;
 class BandwidthLimiter;
 
 extern BandwidthLimiter gBandwidthLimiter;
