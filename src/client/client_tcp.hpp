@@ -18,7 +18,7 @@ class KeepaliveThread {
 public:
 	std::condition_variable cv;
 
-	explicit KeepaliveThread(socket_t s);
+	explicit KeepaliveThread(const Endpoint& ep);
 	~KeepaliveThread();
 };
 

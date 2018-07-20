@@ -35,7 +35,8 @@ constexpr auto SERVER_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 extern bool gUseCamera;
 extern bool gLimitFrameTime;
 
-VulkanClient::~VulkanClient() {
+VulkanClient::~VulkanClient()
+{
 	closeEndpoint(endpoints.active);
 	closeEndpoint(endpoints.passive);
 	closeEndpoint(endpoints.reliable);
@@ -178,7 +179,7 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	debug(":: Received READY.");
 
 	debug(":: Starting TCP listening loop");
-	networkThreads.keepalive = std::make_unique<KeepaliveThread>(endpoints.reliable.socket);
+	networkThreads.keepalive = std::make_unique<KeepaliveThread>(endpoints.reliable);
 	networkThreads.tcpMsg = std::make_unique<TcpMsgThread>(endpoints.reliable);
 
 	// Ready to start the main loop

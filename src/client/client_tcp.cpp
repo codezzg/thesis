@@ -42,26 +42,27 @@ bool tcp_sendRsrcExchangeAck(socket_t socket)
 
 ////////////////////
 
-static void keepaliveTask(socket_t socket, std::condition_variable& cv)
+static void keepaliveTask(const Endpoint& ep, std::condition_variable& cv)
 {
 	std::mutex mtx;
-	while (true) {
+	while (ep.connected) {
 		std::unique_lock<std::mutex> ulk{ mtx };
 
 		// Using a condition variable instead of sleep_for since we want to be able to interrupt it.
-		const auto r = cv.wait_for(ulk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
-		if (r == std::cv_status::no_timeout) {
+		const auto r =
+			cv.wait_for(ulk, std::chrono::seconds{ 5 });   // cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
+		if (r == std::cv_status::no_timeout && !ep.connected) {
 			info("keepalive task: interrupted");
 			break;
 		}
-		if (!sendTCPMsg(socket, TcpMsgType::KEEPALIVE))
+		if (!sendTCPMsg(ep.socket, TcpMsgType::KEEPALIVE))
 			warn("Failed to send keepalive.");
 	}
 }
 
-KeepaliveThread::KeepaliveThread(socket_t sock)
+KeepaliveThread::KeepaliveThread(const Endpoint& ep)
 {
-	thread = std::thread{ keepaliveTask, sock, std::ref(cv) };
+	thread = std::thread{ keepaliveTask, std::cref(ep), std::ref(cv) };
 	xplatSetThreadName(thread, "Keepalive");
 }
 
