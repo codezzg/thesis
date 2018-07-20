@@ -50,7 +50,7 @@ struct ServerToClientData {
 	UpdateList updates;
 
 	/** List of models whose geometry still needs to be sent to client */
-	std::vector<const Model*> modelsToSend;
+	std::vector<Model> modelsToSend;
 	std::mutex modelsToSendMtx;
 };
 
@@ -75,6 +75,8 @@ struct Server {
 		std::unique_ptr<TcpReceiveThread> tcpRecv;
 	} networkThreads;
 
+	std::string cwd;
+
 	ClientToServerData fromClient;
 	ServerToClientData toClient;
 
@@ -87,3 +89,6 @@ struct Server {
 
 	void closeNetwork();
 };
+
+/** Loads model `name` into `server`'s resources. */
+bool loadSingleModel(Server& server, const char* name, Model* outModel = nullptr);

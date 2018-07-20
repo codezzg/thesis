@@ -89,6 +89,17 @@ void cbKeyPressed(GLFWwindow* window, int key, int /*scancode*/, int action, int
 		}
 		appl->fullscreen = !appl->fullscreen;
 	} break;
+	case GLFW_KEY_1:
+	case GLFW_KEY_2:
+	case GLFW_KEY_3:
+	case GLFW_KEY_4:
+	case GLFW_KEY_5:
+	case GLFW_KEY_6:
+	case GLFW_KEY_7:
+	case GLFW_KEY_8:
+	case GLFW_KEY_9:
+		appl->reqModel(static_cast<unsigned>(key - GLFW_KEY_1));
+		break;
 	default:
 		break;
 	}

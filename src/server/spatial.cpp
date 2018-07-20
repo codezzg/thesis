@@ -3,8 +3,8 @@
 
 using namespace logging;
 
-// TODO
-void Scene::addNode(StringId name, NodeType type, Transform transform)
+// TODO: currently all nodes are children of root.
+Node* Scene::addNode(StringId name, NodeType type, Transform transform)
 {
 	auto node = allocator.alloc();
 	node->name = name;
@@ -13,6 +13,8 @@ void Scene::addNode(StringId name, NodeType type, Transform transform)
 	node->parent = root;
 	nodes.emplace_back(node);
 	nodeMap[name] = nodes.size() - 1;
+
+	return node;
 }
 
 void Scene::destroyNode(StringId name)

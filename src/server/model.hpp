@@ -47,28 +47,37 @@ struct Model {
 	uint32_t nVertices = 0;
 	uint32_t nIndices = 0;
 
+	bool operator==(const Model& other) const { return name == other.name; }
+
 	std::size_t size() const { return nVertices * sizeof(Vertex) + nIndices * sizeof(Index); }
 
 	std::string toString() const
 	{
 		std::stringstream ss;
 		ss << "n vertices = " << nVertices << ", n indices = " << nIndices << "\n"
-			<< "size: " << size() << " bytes\n";
+		   << "size: " << size() << " bytes\n";
 		if (data) {
 			ss << "# materials: " << data->materials.size() << "\n";
 			for (const auto& mat : data->materials) {
 				ss << "mat { name = " << mat.name << ", diff = " << mat.diffuseTex
-					<< ", spec = " << mat.specularTex << ", norm = " << mat.normalTex << " }\n";
+				   << ", spec = " << mat.specularTex << ", norm = " << mat.normalTex << " }\n";
 			}
 			ss << "# meshes: " << data->meshes.size() << "\n";
 			for (const auto& mesh : data->meshes) {
-				ss << "mesh { off = " << mesh.offset << ", len = " << mesh.len << ", mat = " << mesh.materialId
-					<< " }\n";
+				ss << "mesh { off = " << mesh.offset << ", len = " << mesh.len
+				   << ", mat = " << mesh.materialId << " }\n";
 			}
 		}
 		return ss.str();
 	}
 };
+
+namespace std {
+template <>
+struct hash<Model> {
+	std::size_t operator()(const Model& model) const { return model.name; }
+};
+}   // namespace std
 
 /** Loads a model's vertices and indices into `buffer`.
  *  `buffer` must be a region of correctly initialized memory.

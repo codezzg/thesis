@@ -42,7 +42,7 @@ struct Scene : public ExternalMemoryUser {
 	Node* root = nullptr;
 
 	/** Adds node `name` of type `type` */
-	void addNode(StringId name, NodeType type, Transform transform);
+	Node* addNode(StringId name, NodeType type, Transform transform);
 
 	/** Deallocates node `name` and removes it from the scene. */
 	void destroyNode(StringId name);

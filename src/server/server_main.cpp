@@ -56,6 +56,7 @@ int main(int argc, char** argv)
 	}
 
 	Server server{ MEMSIZE };
+	server.cwd = xplatGetCwd();
 
 	const auto atExit = [&server]() {
 		// debug("Sockets:\nudpActive: ",
@@ -120,56 +121,56 @@ int main(int argc, char** argv)
 	}
 	server.networkThreads.tcpActive = std::make_unique<TcpActiveThread>(server, server.endpoints.reliable);
 
-	auto res = std::async(std::launch::async, [&]() {
-		// FIXME add stuff to send via TCP
-		auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
+	/*	auto res = std::async(std::launch::async, [&]() {
+			// FIXME add stuff to send via TCP
+			auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
 
-		auto it = server.resources.models.iter_start();
-		StringId modelName;
-		Model model;
-		bool found = server.resources.models.iter_next(it, modelName, model);
-		assert(found);
-		// std::this_thread::sleep_for(5s);
-		{
-			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-			toSend.models.emplace(&model);
-		}
-		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
-		{
-			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-			server.toClient.modelsToSend.emplace_back(&model);
-		}
-		server.networkThreads.tcpActive->cv.notify_one();
-		std::this_thread::sleep_for(4s);
-		//{
-		// std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-		// for (const auto& pair : server.resources.shaders)
-		// toSend.shaders.emplace(&pair.second);
-		//}
-		// server.networkThreads.tcpActive->cv.notify_one();
-		// std::this_thread::sleep_for(1s);
-		{
-			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-			for (const auto& light : server.resources.pointLights)
-				toSend.pointLights.emplace(&light);
-		}
-		server.networkThreads.tcpActive->cv.notify_one();
-		std::this_thread::sleep_for(4s);
-		found = server.resources.models.iter_next(it, modelName, model);
-		assert(found);
-		{
-			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-			toSend.models.emplace(&model);
-		}
-		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
-		{
-			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-			server.toClient.modelsToSend.emplace_back(&model);
-		}
-		server.networkThreads.tcpActive->cv.notify_one();
-		std::this_thread::sleep_for(2s);
-	});
-
+			auto it = server.resources.models.iter_start();
+			StringId modelName;
+			Model model;
+			bool found = server.resources.models.iter_next(it, modelName, model);
+			assert(found);
+			// std::this_thread::sleep_for(5s);
+			{
+				std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+				toSend.models.emplace(&model);
+			}
+			server.scene.addNode(model.name, NodeType::MODEL, Transform{});
+			{
+				std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+				server.toClient.modelsToSend.emplace_back(&model);
+			}
+			server.networkThreads.tcpActive->cv.notify_one();
+			std::this_thread::sleep_for(4s);
+			//{
+			// std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+			// for (const auto& pair : server.resources.shaders)
+			// toSend.shaders.emplace(&pair.second);
+			//}
+			// server.networkThreads.tcpActive->cv.notify_one();
+			// std::this_thread::sleep_for(1s);
+			{
+				std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+				for (const auto& light : server.resources.pointLights)
+					toSend.pointLights.emplace(&light);
+			}
+			server.networkThreads.tcpActive->cv.notify_one();
+			std::this_thread::sleep_for(4s);
+			found = server.resources.models.iter_next(it, modelName, model);
+			assert(found);
+			{
+				std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+				toSend.models.emplace(&model);
+			}
+			server.scene.addNode(model.name, NodeType::MODEL, Transform{});
+			{
+				std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+				server.toClient.modelsToSend.emplace_back(&model);
+			}
+			server.networkThreads.tcpActive->cv.notify_one();
+			std::this_thread::sleep_for(2s);
+		});
+	*/
 	info("Started appstage");
 	appstageLoop(server);
 	atExit();
@@ -238,51 +239,13 @@ void parseArgs(int argc, char** argv, MainArgs& args)
 
 bool loadAssets(Server& server)
 {
-	const auto cwd = xplatGetCwd();
-	info("Starting server. cwd: ", cwd);
-
 	//// Load the models first: they'll remain at the bottom of our stack allocator
 
-	const auto loadSingleModel = [&](const char* name) {
-		auto model = server.resources.loadModel((cwd + xplatPath(name)).c_str());
+	// if (!loadSingleModel(server, "/models/sponza/sponza.dae"))
+	// return false;
 
-		if (model.vertices == nullptr) {
-			err("Failed to load model.");
-			return false;
-		}
-		info("Loaded ",
-			model.nVertices,
-			" vertices + ",
-			model.nIndices,
-			" indices. ",
-			"Tot size = ",
-			(model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024,
-			" KiB");
-
-		// Ensure all needed textures exist
-		for (const auto& mat : model.data->materials) {
-			if (mat.diffuseTex.length() > 0 && !std::ifstream(mat.diffuseTex)) {
-				err("required texture ", mat.diffuseTex, " does not exist.");
-				return false;
-			}
-			if (mat.specularTex.length() > 0 && !std::ifstream(mat.specularTex)) {
-				err("required texture ", mat.specularTex, " does not exist.");
-				return false;
-			}
-			if (mat.normalTex.length() > 0 && !std::ifstream(mat.normalTex)) {
-				err("required texture ", mat.normalTex, " does not exist.");
-				return false;
-			}
-		}
-
-		return true;
-	};
-
-	if (!loadSingleModel("/models/sponza/sponza.dae"))
-		return false;
-
-	if (!loadSingleModel("/models/nanosuit/nanosuit.obj"))
-		return false;
+	// if (!loadSingleModel(server, "/models/nanosuit/nanosuit.obj"))
+	// return false;
 
 	// if (!loadSingleModel("/models/cube/silver.obj"))
 	//	return false;

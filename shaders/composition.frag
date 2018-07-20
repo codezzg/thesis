@@ -62,7 +62,10 @@ void main() {
 	vec3 lighting = ambient;
 
 	for (int i = 0; i < lightsUbo.nPointLights; ++i) {
-		lighting += addPointLight(lightsUbo.pointLights[i], fragPos, viewUbo.viewPos,
+		// NOTE: assigning the uniform block's pointlight to a temporary works around
+		// issue https://github.com/KhronosGroup/glslang/issues/988
+		PointLight light = lightsUbo.pointLights[i];
+		lighting += addPointLight(light, fragPos, viewUbo.viewPos,
 				albedo, vec3(1.0, 1.0, 1.0), spec, normal);
 	}
 

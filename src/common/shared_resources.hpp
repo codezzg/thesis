@@ -2,6 +2,7 @@
 
 #include "hashing.hpp"
 #include "tcp_messages.hpp"
+#include <cstddef>
 #include <glm/glm.hpp>
 
 /**
@@ -111,3 +112,19 @@ struct SpirvShaderInfo {
 #pragma pack(pop)
 
 }   // end namespace shared
+
+namespace std {
+// NOTE: we map shaders with the same stage+passNumber to the same hash.
+template <>
+struct hash<shared::SpirvShader> {
+	std::size_t operator()(const shared::SpirvShader& s) const
+	{
+		return std::hash<uint8_t>()(s.passNumber) ^ (std::hash<uint8_t>()(static_cast<uint8_t>(s.stage)) << 1);
+	}
+};
+
+template <>
+struct hash<shared::PointLight> {
+	std::size_t operator()(const shared::PointLight& p) const { return p.name; }
+};
+}   // namespace std

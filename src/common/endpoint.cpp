@@ -177,9 +177,7 @@ bool receiveTCPMsg(socket_t socket, uint8_t* buffer, std::size_t bufsize, TcpMsg
 	if (!receivePacket(socket, buffer, bufsize))
 		return false;
 
-	// TODO: validate message header
-
-	// Check type of message (TODO) -- currently the message type is determined by its first byte.
+	// Check type of message -- currently the message type is determined by its first byte.
 	msgType = byte2tcpmsg(buffer[0]);
 
 	debug("<<< Received message type: ", msgType);

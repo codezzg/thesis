@@ -623,7 +623,7 @@ void VulkanClient::updateLightsUniformBuffer()
 
 	auto ubo = reinterpret_cast<LightsUBO*>(lightBuf->ptr);
 
-	// FIXMe
+	// FIXME
 	assert(netRsrc.pointLights.size() <= LightsUBO::MAX_LIGHTS);
 	ubo->nPointLights = netRsrc.pointLights.size();
 	for (unsigned i = 0; i < netRsrc.pointLights.size(); ++i) {
@@ -772,10 +772,8 @@ void VulkanClient::cleanup()
 	{
 		std::vector<Buffer> buffersToDestroy;
 		buffersToDestroy.emplace_back(app.screenQuadBuffer);
-		if (geometry.locations.size() > 0) {
-			buffersToDestroy.emplace_back(geometry.vertexBuffer);
-			buffersToDestroy.emplace_back(geometry.indexBuffer);
-		}
+		buffersToDestroy.emplace_back(geometry.vertexBuffer);
+		buffersToDestroy.emplace_back(geometry.indexBuffer);
 		destroyAllBuffers(app.device, buffersToDestroy);
 	}
 	uniformBuffers.cleanup();
@@ -807,4 +805,24 @@ void VulkanClient::prepareReceivedGeomHashset()
 	receivedGeomIdsMem = malloc(receivedGeomIdsMemSize);
 
 	receivedGeomIds = cf::hashset<uint32_t>::create(receivedGeomIdsMemSize, receivedGeomIdsMem);
+}
+
+void VulkanClient::reqModel(uint16_t n)
+{
+	if (!endpoints.reliable.connected) {
+		warn("Tried to send REQ_MODEL(", n, ") while endpoint is not connected");
+		return;
+	}
+
+#pragma pack(push, 1)
+	struct {
+		TcpMsgType type;
+		uint16_t payload;
+	} msg;
+#pragma pack(pop)
+	msg.type = TcpMsgType::REQ_MODEL;
+	msg.payload = n;
+
+	if (!sendPacket(endpoints.reliable.socket, reinterpret_cast<uint8_t*>(&msg), sizeof(msg)))
+		err("Failed to send REQ_MODEL(", n, ")");
 }

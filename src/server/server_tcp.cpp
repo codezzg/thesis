@@ -11,7 +11,13 @@
 
 using namespace logging;
 
-static BlockingQueue<TcpMsgType> gMsgRecvQueue;
+struct TcpMsg {
+	TcpMsgType type;
+	/** Currently only used by REQ_MODEL */
+	uint16_t payload;
+};
+
+static BlockingQueue<TcpMsg> gMsgRecvQueue;
 static std::chrono::time_point<std::chrono::steady_clock> gLatestPing;
 
 static void genUpdateLists(Server& server)
@@ -29,13 +35,45 @@ static void genUpdateLists(Server& server)
 		StringId ignore;
 		Model model;
 		while (server.resources.models.iter_next(it, ignore, model))
-			server.toClient.modelsToSend.emplace_back(&model);
+			server.toClient.modelsToSend.emplace_back(model);
 	}
+}
+
+static void loadAndEnqueueModel(Server& server, unsigned n)
+{
+	static const std::array<const char*, 4> modelList = { "/models/sponza/sponza.dae",
+		"/models/nanosuit/nanosuit.obj",
+		"/models/cat/cat.obj",
+		"/models/wall/wall2.obj" };
+
+	info("loadAndSendModel(", n, ")");
+
+	if (n >= modelList.size()) {
+		warn("Received a REQ_MODEL (", n, "), but models are only ", modelList.size(), "!");
+		return;
+	}
+
+	Model model;
+	if (!loadSingleModel(server, modelList[n], &model))
+		return;
+
+	// Note: tcpActive->mtx is already locked by us
+	server.networkThreads.tcpActive->resourcesToSend.models.emplace(model);
+
+	{
+		std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+		server.toClient.modelsToSend.emplace_back(model);
+	}
+
+	auto node = server.scene.addNode(model.name, NodeType::MODEL, Transform{});
+	// Make Sponza static
+	if (n == 0)
+		node->flags |= (1 << NODE_FLAG_STATIC);
 }
 
 static bool expectTCPMsg(TcpMsgType type)
 {
-	return gMsgRecvQueue.pop_or_wait() == type;
+	return gMsgRecvQueue.pop_or_wait().type == type;
 }
 
 static bool tcp_connectionPrelude(socket_t clientSocket)
@@ -221,24 +259,23 @@ static bool sendResourceBatch(socket_t clientSocket, ServerResources& resources,
 	std::unordered_set<StringId> materialsSent;
 
 	info("Sending ", batch.models.size(), " models");
-	for (const auto model : batch.models) {
-		assert(model);
+	for (const auto& model : batch.models) {
 		// This will also send dependent materials and textures
-		if (!batch_sendModel(clientSocket, resources, materialsSent, texturesSent, *model))
+		if (!batch_sendModel(clientSocket, resources, materialsSent, texturesSent, model))
 			return false;
 	}
 
 	// Send lights
 	for (const auto& light : batch.pointLights) {
-		assert(light);
-		if (!batch_sendPointLight(clientSocket, *light))
+		if (!batch_sendPointLight(clientSocket, light))
 			return false;
 	}
 
 	// Send shaders (and unload them immediately after)
-	// const std::array<const char*, 3> shadersToSend = { "shaders/gbuffer", "shaders/skybox", "shaders/composition"
-	// }; for (unsigned i = 0; i < shadersToSend.size(); ++i) { if (!batch_sendShaders(clientSocket, resources,
-	// shadersToSend[i], i)) return false;
+	// const std::array<const char*, 3> shadersToSend = { "shaders/gbuffer", "shaders/skybox",
+	// "shaders/composition"
+	// }; for (unsigned i = 0; i < shadersToSend.size(); ++i) { if (!batch_sendShaders(clientSocket,
+	// resources, shadersToSend[i], i)) return false;
 	//}
 
 	if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
@@ -342,12 +379,21 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 		std::unique_lock<std::mutex> ulk{ mtx };
 		cv.wait(ulk, [this]() {
 			return !ep.connected || !server.networkThreads.tcpRecv->clientConnected ||
-			       !server.networkThreads.keepalive->clientConnected || resourcesToSend.size() > 0;
+			       !server.networkThreads.keepalive->clientConnected || resourcesToSend.size() > 0 ||
+			       gMsgRecvQueue.size() > 0;
 		});
 
 		if (!ep.connected || !server.networkThreads.keepalive->clientConnected ||
 			!server.networkThreads.tcpRecv->clientConnected)
 			return false;
+
+		TcpMsg msg;
+		while (gMsgRecvQueue.try_pop(msg)) {
+			if (msg.type != TcpMsgType::REQ_MODEL)
+				continue;
+
+			loadAndEnqueueModel(server, msg.payload);
+		}
 
 		if (resourcesToSend.size() > 0) {
 			if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
@@ -408,7 +454,8 @@ KeepaliveListenThread::~KeepaliveListenThread()
 	}
 }
 
-/* This task listens for keepalives and updates `latestPing` with the current time every time it receives one. */
+/* This task listens for keepalives and updates `latestPing` with the current time every time it receives one.
+ */
 void KeepaliveListenThread::keepaliveListenTask()
 {
 	constexpr auto interval = std::chrono::seconds{ cfg::SERVER_KEEPALIVE_INTERVAL_SECONDS };
@@ -462,9 +509,10 @@ void TcpReceiveThread::receiveTask()
 	constexpr int MAX_FAIL_COUNT = 10;
 
 	while (ep.connected && clientConnected) {
-		uint8_t packet;
+		std::array<uint8_t, 3> packet;
+		packet.fill(0);
 		TcpMsgType type;
-		if (receiveTCPMsg(clientSocket, &packet, 1, type)) {
+		if (receiveTCPMsg(clientSocket, packet.data(), packet.size(), type)) {
 			failCount = 0;
 			switch (type) {
 			case TcpMsgType::DISCONNECT:
@@ -473,10 +521,16 @@ void TcpReceiveThread::receiveTask()
 			case TcpMsgType::KEEPALIVE:
 				gLatestPing = std::chrono::steady_clock::now();
 				break;
-			default:
+			default: {
 				info("pushing msg ", type);
-				gMsgRecvQueue.push(type);
-				break;
+				TcpMsg msg;
+				msg.type = type;
+				if (type == TcpMsgType::REQ_MODEL) {
+					msg.payload = *reinterpret_cast<uint16_t*>(packet.data() + 1);
+				}
+				gMsgRecvQueue.push(msg);
+				server.networkThreads.tcpActive->cv.notify_one();
+			} break;
 			}
 		} else {
 			if (++failCount == MAX_FAIL_COUNT)

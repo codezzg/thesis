@@ -1,6 +1,8 @@
 #include "server.hpp"
 #include "cf_hashmap.hpp"
 #include "logging.hpp"
+#include "xplatform.hpp"
+#include <fstream>
 
 using namespace logging;
 
@@ -55,3 +57,43 @@ void Server::closeNetwork()
 		networkThreads.tcpActive.reset(nullptr);
 	}
 }
+
+bool loadSingleModel(Server& server, const char* name, Model* outModel)
+{
+	auto model = server.resources.loadModel((server.cwd + xplatPath(name)).c_str());
+
+	if (model.vertices == nullptr || model.data == nullptr) {
+		err("Failed to load model.");
+		return false;
+	}
+	info("Loaded ",
+		model.nVertices,
+		" vertices + ",
+		model.nIndices,
+		" indices. ",
+		"Tot size = ",
+		(model.nVertices * sizeof(Vertex) + model.nIndices * sizeof(Index)) / 1024,
+		" KiB");
+
+	// Ensure all needed textures exist
+	for (const auto& mat : model.data->materials) {
+		if (mat.diffuseTex.length() > 0 && !std::ifstream(mat.diffuseTex)) {
+			err("required texture ", mat.diffuseTex, " does not exist.");
+			return false;
+		}
+		if (mat.specularTex.length() > 0 && !std::ifstream(mat.specularTex)) {
+			err("required texture ", mat.specularTex, " does not exist.");
+			return false;
+		}
+		if (mat.normalTex.length() > 0 && !std::ifstream(mat.normalTex)) {
+			err("required texture ", mat.normalTex, " does not exist.");
+			return false;
+		}
+	}
+
+	if (outModel)
+		*outModel = model;
+
+	return true;
+}
+

@@ -25,11 +25,11 @@ struct Sphere {
 	float radius;
 };
 
-static std::vector<QueuedUpdate> enqueueModelsGeomUpdates(const std::vector<const Model*>& modelsToSend)
+static std::vector<QueuedUpdate> enqueueModelsGeomUpdates(const std::vector<Model>& modelsToSend)
 {
 	std::vector<QueuedUpdate> updates;
 	for (const auto& model : modelsToSend) {
-		const auto updatePackets = buildUpdatePackets(*model);
+		const auto updatePackets = buildUpdatePackets(model);
 		for (const auto& up : updatePackets) {
 			updates.emplace_back(newQueuedUpdateGeom(up));
 		}
@@ -89,13 +89,13 @@ void appstageLoop(Server& server)
 
 				// node->transform.position = glm::vec3{ 0, 0, i * 5 };
 				if (((node->flags >> NODE_FLAG_STATIC) & 1) == 0) {
-					node->transform.position = 
+					node->transform.position =
 						glm::vec3{ (5 + 0 * 4 * i) * std::sin(0.5 * t + i * 0.4),
 							(5 + 0 * 2 * i) * std::sin(0.5 * t + i * 0.4),
 							// 10 - 9 * (node->type == NodeType::POINT_LIGHT),
 							(2 + 0 * 6 * i) * std::cos(0.5 * t + i * 0.3) };
 					node->transform.rotation = glm::vec3{ 0.f, 0.3f * t + i, 0.f };
-					node->transform.scale = 
+					node->transform.scale =
 						glm::vec3{ 1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
 							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
 							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };

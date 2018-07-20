@@ -23,6 +23,8 @@ public:
 
 	void disconnect();
 
+	void reqModel(uint16_t n);
+
 private:
 	friend void cbCursorMoved(GLFWwindow* window, double xpos, double ypos);
 	friend void cbKeyPressed(GLFWwindow* window, int key, int, int action, int);

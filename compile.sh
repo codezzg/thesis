@@ -59,7 +59,11 @@ compile() {
 	shaderCode="$(resolve_includes "$shaderCode" "$baseDir")"
 
 	[[ $verbose == 1 ]] && echo -e "--Shader type: $stage; code:\n$shaderCode\n----------"
-	echo "$shaderCode" | "$COMPILER" -V --stdin -o "$shaderFile.spv" -S $stage > >(egrep -v '^stdin$')
+	if [[ $SPIRV_OUT ]]; then
+		echo "$shaderCode" | "$COMPILER" -H --stdin -S $stage > >(egrep -v '^stdin$')
+	else
+		echo "$shaderCode" | "$COMPILER" -V --stdin -o "$shaderFile.spv" -S $stage > >(egrep -v '^stdin$')
+	fi
 	return $?
 }
 
@@ -68,16 +72,22 @@ while [[ $# > 0 ]]; do
 	case $1 in
 	-v) verbose=1; shift; ;;
 	-c) shift; COMPILER="$1"; shift; ;;
-	*) echo "Usage: $0 [-v] [-c COMPILER]" >&2; exit 1; ;;
+	-f) shift; SHADFILE=$1; shift; ;;
+	-s) SPIRV_OUT=1; shift; ;;
+	*) echo "Usage: $0 [-v] [-c COMPILER] [-f FILE] [-s]" >&2; exit 1; ;;
 	esac
 done
 
-for sh in shaders/*.{vert,frag}; do
-	[[ $verbose == 1 ]] && echo "Compiling $sh"
-	compile $sh
-	if [[ $? == 0 ]]; then
-		echo "[ OK ] Compiled $sh."
-	else
-		echo "[ ERR ] Error compiling $sh."
-	fi
-done
+if [[ $SHADFILE ]]; then
+	compile $SHADFILE
+else
+	for sh in shaders/*.{vert,frag}; do
+		[[ $verbose == 1 ]] && echo "Compiling $sh"
+		compile $sh
+		if [[ $? == 0 ]]; then
+			echo "[ OK ] Compiled $sh."
+		else
+			echo "[ ERR ] Error compiling $sh."
+		fi
+	done
+fi
