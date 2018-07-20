@@ -809,6 +809,7 @@ void VulkanClient::prepareReceivedGeomHashset()
 
 void VulkanClient::reqModel(uint16_t n)
 {
+	info("reqmodel");
 	if (!endpoints.reliable.connected) {
 		warn("Tried to send REQ_MODEL(", n, ") while endpoint is not connected");
 		return;

@@ -261,7 +261,7 @@ void receiveData(UdpPassiveThread& passiveEP,
 		bytesProcessed += bytesInChunk;
 		assert(bytesLeft >= 0);
 	}
-	debug("Processed ", nChunksProcessed, " chunks.");
+	verbose("Processed ", nChunksProcessed, " chunks.");
 }
 
 void updateModel(const UpdateReqGeom& req)

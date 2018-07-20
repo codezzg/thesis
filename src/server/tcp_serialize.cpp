@@ -186,12 +186,10 @@ bool sendTexture(socket_t clientSocket,
 
 	std::size_t bytesSent = len;
 	// Send more packets with remaining payload if needed
-	debug("Sending ", texName, ": ", (int)(100.0 * bytesSent / texture.size), "%");
 	while (bytesSent < texture.size) {
 		auto len = std::min(texture.size - bytesSent, cfg::PACKET_SIZE_BYTES);
 		if (!sendPacket(clientSocket, reinterpret_cast<const uint8_t*>(texture.data) + bytesSent, len))
 			return false;
-		debug("Sending ", texName, ": ", (int)(100.0 * bytesSent / texture.size), "%");
 		bytesSent += len;
 	}
 

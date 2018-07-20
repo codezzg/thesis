@@ -2,6 +2,7 @@
 #include "client.hpp"
 #include "config.hpp"
 #include "validation.hpp"
+#include "logging.hpp"
 
 extern bool gLimitFrameTime;
 
