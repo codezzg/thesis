@@ -121,56 +121,18 @@ int main(int argc, char** argv)
 	}
 	server.networkThreads.tcpActive = std::make_unique<TcpActiveThread>(server, server.endpoints.reliable);
 
-	/*	auto res = std::async(std::launch::async, [&]() {
-			// FIXME add stuff to send via TCP
-			auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
+	auto res = std::async(std::launch::async, [&]() {
+		// FIXME add stuff to send via TCP
+		auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
 
-			auto it = server.resources.models.iter_start();
-			StringId modelName;
-			Model model;
-			bool found = server.resources.models.iter_next(it, modelName, model);
-			assert(found);
-			// std::this_thread::sleep_for(5s);
-			{
-				std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-				toSend.models.emplace(&model);
-			}
-			server.scene.addNode(model.name, NodeType::MODEL, Transform{});
-			{
-				std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-				server.toClient.modelsToSend.emplace_back(&model);
-			}
-			server.networkThreads.tcpActive->cv.notify_one();
-			std::this_thread::sleep_for(4s);
-			//{
-			// std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-			// for (const auto& pair : server.resources.shaders)
-			// toSend.shaders.emplace(&pair.second);
-			//}
-			// server.networkThreads.tcpActive->cv.notify_one();
-			// std::this_thread::sleep_for(1s);
-			{
-				std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-				for (const auto& light : server.resources.pointLights)
-					toSend.pointLights.emplace(&light);
-			}
-			server.networkThreads.tcpActive->cv.notify_one();
-			std::this_thread::sleep_for(4s);
-			found = server.resources.models.iter_next(it, modelName, model);
-			assert(found);
-			{
-				std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-				toSend.models.emplace(&model);
-			}
-			server.scene.addNode(model.name, NodeType::MODEL, Transform{});
-			{
-				std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-				server.toClient.modelsToSend.emplace_back(&model);
-			}
-			server.networkThreads.tcpActive->cv.notify_one();
-			std::this_thread::sleep_for(2s);
-		});
-	*/
+		{
+			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+			for (const auto& light : server.resources.pointLights)
+				toSend.pointLights.emplace(light);
+		}
+		server.networkThreads.tcpActive->cv.notify_one();
+	});
+
 	info("Started appstage");
 	appstageLoop(server);
 	atExit();

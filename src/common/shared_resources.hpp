@@ -35,6 +35,8 @@ struct PointLight {
 	glm::vec3 color{ 1.f, 1.f, 1.f };
 	float attenuation = 0;
 	StringId name;
+
+	bool operator==(const shared::PointLight& other) const { return name == other.name; }
 };
 
 struct SpirvShader {

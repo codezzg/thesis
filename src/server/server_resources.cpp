@@ -1,6 +1,9 @@
 #include "server_resources.hpp"
 
-ServerResources::~ServerResources() {
+using namespace logging;
+
+ServerResources::~ServerResources()
+{
 	for (auto cd : modelsColdData)
 		delete cd;
 }
@@ -10,7 +13,7 @@ Model ServerResources::loadModel(const char* file)
 	const auto fileSid = sid(file);
 	Model model;
 	if (models.lookup(fileSid, fileSid, model)) {
-		logging::warn("Tried to load model ", file, " which is already loaded!");
+		warn("Tried to load model ", file, " which is already loaded!");
 		return model;
 	}
 
@@ -36,7 +39,7 @@ shared::Texture ServerResources::loadTexture(const char* file)
 {
 	const auto fileSid = sid(file);
 	if (textures.count(fileSid) > 0) {
-		logging::warn("Tried to load texture ", file, " which is already loaded!");
+		warn("Tried to load texture ", file, " which is already loaded!");
 		return textures[fileSid];
 	}
 
@@ -54,7 +57,7 @@ shared::Texture ServerResources::loadTexture(const char* file)
 	allocator.deallocLatest();
 	allocator.alloc(texture.size);
 
-	logging::info("Loaded texture ", file, " (", texture.size / 1024., " KiB)");
+	info("Loaded texture ", file, " (", texture.size / 1024., " KiB)");
 
 	return texture;
 }
@@ -63,7 +66,7 @@ shared::SpirvShader ServerResources::loadShader(const char* file)
 {
 	const auto fileSid = sid(file);
 	if (shaders.count(fileSid) > 0) {
-		logging::warn("Tried to load shader ", file, " which is already loaded!");
+		warn("Tried to load shader ", file, " which is already loaded!");
 		return shaders[fileSid];
 	}
 
@@ -80,19 +83,21 @@ shared::SpirvShader ServerResources::loadShader(const char* file)
 	allocator.deallocLatest();
 	allocator.alloc(shader.codeSizeInBytes);
 
-	logging::info("Loaded shader ", file, " (", shader.codeSizeInBytes, " B)");
+	info("Loaded shader ", file, " (", shader.codeSizeInBytes, " B)");
 
 	return shader;
 }
 
-void ServerResources::onInit() {
+void ServerResources::onInit()
+{
 	// Reserve initial memory to the models hashmap
 	const auto modelsMemsize = CF_HASHMAP_GET_BUFFER_SIZE(StringId, Model, 128);
 	if (memsize < modelsMemsize) {
-		logging::err("ServerResources needs more than ", modelsMemsize,
+		err("ServerResources needs more than ",
+			modelsMemsize,
 			" B to work! Reserve more memory for ServerResources!");
 		throw;
 	}
 	models = cf::hashmap<StringId, Model>::create(modelsMemsize, memory);
-	allocator.init(memory + modelsMemsize, memsize - modelsMemsize); 
+	allocator.init(memory + modelsMemsize, memsize - modelsMemsize);
 }
