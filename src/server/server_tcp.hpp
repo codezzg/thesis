@@ -48,7 +48,6 @@ protected:
 
 	Server& server;
 	const Endpoint& ep;
-	const socket_t clientSocket;
 
 	explicit ServerSlaveThread(Server& server, const Endpoint& ep, socket_t clientSocket)
 		: server{ server }
@@ -57,6 +56,8 @@ protected:
 	{}
 
 public:
+	const socket_t clientSocket;
+
 	bool clientConnected = true;
 };
 

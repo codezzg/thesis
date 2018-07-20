@@ -66,8 +66,12 @@ void UdpActiveThread::udpActiveTask()
 	fps.start();
 	fps.reportPeriod = 5;
 
+	auto t = std::chrono::high_resolution_clock::now();
+	std::size_t bytesPerSecond = 0;
+
 	// Send datagrams to the client
 	while (ep.connected) {
+		const LimitFrameTime lft{ std::chrono::milliseconds{ 10 } };
 
 		if (updates.size() == 0) {
 			// Wait for updates
@@ -102,6 +106,7 @@ void UdpActiveThread::udpActiveTask()
 			} else {
 				// Not enough room: send the packet
 				sendPacket(ep.socket, buffer.data(), buffer.size());
+				bytesPerSecond += buffer.size();
 
 				// Start with a new packet
 				writeUdpHeader(buffer.data(), buffer.size(), packetGen);
@@ -141,6 +146,7 @@ void UdpActiveThread::udpActiveTask()
 					// Not enough room: send the packet
 					if (!sendPacket(ep.socket, buffer.data(), buffer.size()))
 						break;
+					bytesPerSecond += buffer.size();
 					// info("pers: ", updates.persistent.size());
 
 					writeUdpHeader(buffer.data(), buffer.size(), packetGen);
@@ -157,6 +163,13 @@ void UdpActiveThread::udpActiveTask()
 
 		fps.addFrame();
 		fps.report();
+
+		auto tt = std::chrono::high_resolution_clock::now();
+		if (std::chrono::duration_cast<std::chrono::seconds>(tt - t).count() >= 1) {
+			t = tt;
+			info("UDP bytes sent this second: ", bytesPerSecond);
+			bytesPerSecond = 0;
+		}
 
 		++packetGen;
 	}

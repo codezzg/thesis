@@ -91,7 +91,7 @@ int main(int argc, char** argv)
 
 	{
 		// Add lights
-		const auto lights = createLights(100);
+		const auto lights = createLights(1);
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 	}
 

@@ -59,16 +59,6 @@ static void loadAndEnqueueModel(Server& server, unsigned n)
 
 	// Note: tcpActive->mtx is already locked by us
 	server.networkThreads.tcpActive->resourcesToSend.models.emplace(model);
-
-	{
-		std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-		server.toClient.modelsToSend.emplace_back(model);
-	}
-
-	auto node = server.scene.addNode(model.name, NodeType::MODEL, Transform{});
-	// Make Sponza static
-	if (n == 0)
-		node->flags |= (1 << NODE_FLAG_STATIC);
 }
 
 static bool expectTCPMsg(TcpMsgType type)
@@ -253,7 +243,7 @@ static bool batch_sendPointLight(socket_t clientSocket, const shared::PointLight
 	return true;
 }
 
-static bool sendResourceBatch(socket_t clientSocket, ServerResources& resources, const ResourceBatch& batch)
+static bool sendResourceBatch(socket_t clientSocket, Server& server, const ResourceBatch& batch)
 {
 	std::unordered_set<std::string> texturesSent;
 	std::unordered_set<StringId> materialsSent;
@@ -261,8 +251,20 @@ static bool sendResourceBatch(socket_t clientSocket, ServerResources& resources,
 	info("Sending ", batch.models.size(), " models");
 	for (const auto& model : batch.models) {
 		// This will also send dependent materials and textures
-		if (!batch_sendModel(clientSocket, resources, materialsSent, texturesSent, model))
+		if (!batch_sendModel(clientSocket, server.resources, materialsSent, texturesSent, model))
 			return false;
+
+		// After sending model TCP data, schedule its geometry to be streamed and add it
+		// to the scene (so its transform will be sent too)
+		{
+			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
+			server.toClient.modelsToSend.emplace_back(model);
+		}
+
+		auto node = server.scene.addNode(model.name, NodeType::MODEL, Transform{});
+		// Make Sponza static (FIXME: ugly)
+		if (node->name == sid((server.cwd + xplatPath("/models/sponza/sponza.dae")).c_str()))
+			node->flags |= (1 << NODE_FLAG_STATIC);
 	}
 
 	// Send lights
@@ -403,7 +405,7 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 				return false;
 
 			info("Send ResourceBatch");
-			if (!sendResourceBatch(clientSocket, server.resources, resourcesToSend))
+			if (!sendResourceBatch(clientSocket, server, resourcesToSend))
 				return false;
 
 			resourcesToSend.clear();
