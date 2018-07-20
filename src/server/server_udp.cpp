@@ -159,6 +159,7 @@ void UdpActiveThread::udpActiveTask()
 		if (offset > sizeof(UdpHeader)) {
 			// Need to send the last packet
 			sendPacket(ep.socket, buffer.data(), buffer.size());
+			bytesPerSecond += buffer.size();
 		}
 
 		fps.addFrame();

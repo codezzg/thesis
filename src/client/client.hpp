@@ -19,6 +19,8 @@
 
 class VulkanClient final {
 public:
+	~VulkanClient();
+
 	void run(const char* ip);
 
 	void disconnect();

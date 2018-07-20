@@ -35,6 +35,12 @@ constexpr auto SERVER_UPDATE_TIME = std::chrono::milliseconds{ 33 };
 extern bool gUseCamera;
 extern bool gLimitFrameTime;
 
+VulkanClient::~VulkanClient() {
+	closeEndpoint(endpoints.active);
+	closeEndpoint(endpoints.passive);
+	closeEndpoint(endpoints.reliable);
+}
+
 void VulkanClient::run(const char* ip)
 {
 	app.init();
