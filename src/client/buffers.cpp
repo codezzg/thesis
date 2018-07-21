@@ -174,7 +174,8 @@ void copyBufferToImage(const Application& app,
 	region.imageOffset = { 0, 0, 0 };
 	region.imageExtent = { width, height, 1 };
 
-	if (buffer.size - bufOffset < region.imageExtent.width * region.imageExtent.height * region.imageExtent.depth) {
+	if (buffer.size - bufOffset < static_cast<VkDeviceSize>(region.imageExtent.width) * region.imageExtent.height *
+					      region.imageExtent.depth) {
 		const auto& e = region.imageExtent;
 		err("copyBufferToImage: buffer has not enough room to contain the image!\n",
 			"\tNeeded: ",

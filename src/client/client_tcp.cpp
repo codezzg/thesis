@@ -49,8 +49,7 @@ static void keepaliveTask(const Endpoint& ep, std::condition_variable& cv)
 		std::unique_lock<std::mutex> ulk{ mtx };
 
 		// Using a condition variable instead of sleep_for since we want to be able to interrupt it.
-		const auto r =
-			cv.wait_for(ulk, std::chrono::seconds{ 5 });   // cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
+		const auto r = cv.wait_for(ulk, std::chrono::seconds{ cfg::CLIENT_KEEPALIVE_INTERVAL_SECONDS });
 		if (r == std::cv_status::no_timeout && !ep.connected) {
 			info("keepalive task: interrupted");
 			break;

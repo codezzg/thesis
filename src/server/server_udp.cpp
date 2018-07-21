@@ -226,7 +226,9 @@ void UdpPassiveThread::udpPassiveTask()
 		}
 
 		if (server.fromClient.acksReceivedMtx.try_lock()) {
-			for (unsigned i = 0; i < packet->nAcks; ++i)
+			constexpr unsigned MAX_ACKS = cfg::PACKET_SIZE_BYTES / sizeof(uint32_t);
+			const unsigned nAcks = std::min(packet->nAcks, MAX_ACKS);
+			for (unsigned i = 0; i < nAcks; ++i)
 				server.fromClient.acksReceived.emplace_back(packet->acks[i]);
 			server.fromClient.acksReceivedMtx.unlock();
 		}
