@@ -1,5 +1,6 @@
 #pragma once
 
+#include "blocking_queue.hpp"
 #include "cf_hashmap.hpp"
 #include "cf_hashset.hpp"
 #include "queued_update.hpp"
@@ -60,6 +61,12 @@ struct ServerToClientData {
 	TexturesQueue texturesQueue;
 };
 
+struct TcpMsg {
+	TcpMsgType type;
+	/** Currently only used by REQ_MODEL */
+	uint16_t payload;
+};
+
 /** The Server wraps the endpoints and provides a mean to sharing data between the server threads.
  *  It also functions as a convenient common entrypoint for starting and terminating threads.
  */
@@ -91,6 +98,8 @@ struct Server {
 	/** Keeps track of resources sent to the client */
 	cf::hashset<StringId> stuffSent;
 
+	BlockingQueue<TcpMsg> msgRecvQueue;
+
 	/** Constructs a Server with `memsize` internal memory. */
 	explicit Server(std::size_t memsize);
 	~Server();
@@ -100,3 +109,9 @@ struct Server {
 
 /** Loads model `name` into `server`'s resources. */
 bool loadSingleModel(Server& server, std::string name, Model* outModel = nullptr);
+
+inline bool expectTCPMsg(Server& server, TcpMsgType type)
+{
+	return server.msgRecvQueue.pop_or_wait().type == type;
+}
+

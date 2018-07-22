@@ -14,8 +14,7 @@
 
 namespace cf {
 
-#define CF_HASHSET_GET_BUFFER_SIZE(key_type, num_elements) \
-	((sizeof(uint32_t) + sizeof(key_type)) * num_elements)
+#define CF_HASHSET_GET_BUFFER_SIZE(key_type, num_elements) ((sizeof(uint32_t) + sizeof(key_type)) * num_elements)
 
 /// A hashset type that uses open addressing with robinhood hashing.
 /// The hashset uses 2 different regions of memory: hashes and values.
@@ -31,13 +30,14 @@ private:
 
 	size_t m_capacity;
 
-	uint8_t *m_buffer;
+	uint8_t* m_buffer;
 
 	static constexpr uint32_t EMPTY_HASH = 0;
 	static constexpr uint32_t DELETED_HASH_BIT = 1 << 31;
 
 	template <typename A>
-	static void _swap(A &a, A &b) {
+	static void _swap(A& a, A& b)
+	{
 		A tmp = a;
 		a = b;
 		b = tmp;
@@ -64,13 +64,13 @@ private:
 		return pos - ((hash & ~DELETED_HASH_BIT) % m_capacity);
 	}
 
-	bool _lookup_pos(uint32_t hash, const T &value, uint32_t &pos) const
+	bool _lookup_pos(uint32_t hash, const T& value, uint32_t& pos) const
 	{
 		pos = hash % m_capacity;
 		uint32_t distance = 0;
 
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		T *values = (T *) (m_buffer + m_capacity * sizeof(uint32_t));
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		T* values = (T*)(m_buffer + m_capacity * sizeof(uint32_t));
 
 		while (distance < m_capacity) {
 			if (hashes[pos] == EMPTY_HASH) {
@@ -92,7 +92,7 @@ private:
 		return false;
 	}
 
-	void _insert(uint32_t hash, const T &value)
+	void _insert(uint32_t hash, const T& value)
 	{
 		if (m_num_elements == m_capacity) {
 			// if this is the case then this will just keep trying to
@@ -104,8 +104,8 @@ private:
 
 		T _value = value;
 
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		T *values = (T *) (m_buffer + sizeof(uint32_t) * m_capacity);
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		T* values = (T*)(m_buffer + sizeof(uint32_t) * m_capacity);
 
 		while (distance < m_capacity) {
 
@@ -141,6 +141,7 @@ private:
 			distance++;
 		}
 	}
+
 public:
 	/// An iterator for iterating over the values. Use `iter_start()` to acquire
 	/// such an iterator. Use `iter_next()` to advance the iteration.
@@ -152,29 +153,34 @@ public:
 	/// The buffer is a chunk of memory that will be used as the storage. That
 	/// buffer should probably be created/sized by using the `CF_HASHSET_GET_BUFFER_SIZE` macro.
 	/// Don't modify the contents of the buffer after handing it to a hashset.
-	static hashset create(size_t buffer_size, void *buffer)
+	static hashset create(size_t buffer_size, void* buffer)
 	{
 		hashset<T> set = {};
 
-		set.m_buffer = (uint8_t *) buffer;
-		set.m_num_elements = 0;
+		set.m_buffer = (uint8_t*)buffer;
 		set.m_capacity = (size_t)(buffer_size / (sizeof(T) + sizeof(uint32_t)));
 
-		size_t capacity = set.m_capacity;
-		uint32_t *hashes = (uint32_t *) set.m_buffer;
-
-		// Set the flags os that every element is considered empty
-		for (size_t i = 0; i < capacity; i++) {
-			hashes[i] = EMPTY_HASH;
-		}
+		set.clear();
 
 		return set;
+	}
+
+	void clear()
+	{
+		m_num_elements = 0;
+
+		uint32_t* hashes = (uint32_t*)m_buffer;
+
+		// Set the flags os that every element is considered empty
+		for (size_t i = 0; i < m_capacity; i++) {
+			hashes[i] = EMPTY_HASH;
+		}
 	}
 
 	/// Inserts a value into the hashset. Since this hashset doesn't perform any hashing
 	/// itself, the caller has to provide the hash value.
 	/// The value is used for checking for existance as well as collision resolution.
-	void insert(uint32_t hash, const T &value)
+	void insert(uint32_t hash, const T& value)
 	{
 		hash = _hash(hash);
 		uint32_t pos = 0;
@@ -189,7 +195,7 @@ public:
 
 	/// Checks if `value` is an element of the hashset.
 	/// Returns true if an entry with `value` was found, false otherwise.
-	bool has(uint32_t hash, const T &value) const
+	bool has(uint32_t hash, const T& value) const
 	{
 		hash = _hash(hash);
 		uint32_t _pos = 0;
@@ -197,7 +203,7 @@ public:
 	}
 
 	/// Remove a value from the hashset.
-	void remove(uint32_t hash, const T &value)
+	void remove(uint32_t hash, const T& value)
 	{
 		hash = _hash(hash);
 		uint32_t pos = 0;
@@ -207,7 +213,7 @@ public:
 			return;
 		}
 
-		uint32_t *hashes = (uint32_t *) m_buffer;
+		uint32_t* hashes = (uint32_t*)m_buffer;
 		hashes[pos] |= DELETED_HASH_BIT;
 		m_num_elements--;
 	}
@@ -223,10 +229,10 @@ public:
 	/// Advance the iterator to the next element found. The value will be written to the
 	/// out parameter `value` if an element was found.
 	/// If an element was found, true will be returned, otherwise false.
-	bool iter_next(iter &iter, T &value) const
+	bool iter_next(iter& iter, T& value) const
 	{
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		T *values = (T *) (m_buffer + sizeof(uint32_t) * m_capacity);
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		T* values = (T*)(m_buffer + sizeof(uint32_t) * m_capacity);
 
 		for (size_t i = iter.offset; i < m_capacity; i++) {
 			if (hashes[i] == EMPTY_HASH) {
@@ -245,19 +251,16 @@ public:
 
 	/// Calculates the load factor of the hashset. If the load factor is greater than 0.95
 	/// then `copy()` should be used to relocate the hashet for better performance.
-	constexpr float load_factor() const
-	{
-		return m_num_elements / (float) m_capacity;
-	}
+	constexpr float load_factor() const { return m_num_elements / (float)m_capacity; }
 
 	/// Creates a new hashset using a different buffer. All values of the current map
 	/// will be inserted into the new map.
-	hashset<T> copy(size_t buffer_size, void *buffer) const
+	hashset<T> copy(size_t buffer_size, void* buffer) const
 	{
 		hashset<T> new_hashset = hashset::create(buffer_size, buffer);
 
-		uint32_t *hashes = (uint32_t *) m_buffer;
-		T *values = (T *) (m_buffer + sizeof(uint32_t) * m_capacity);
+		uint32_t* hashes = (uint32_t*)m_buffer;
+		T* values = (T*)(m_buffer + sizeof(uint32_t) * m_capacity);
 
 		for (size_t i = 0; i < m_capacity; i++) {
 			if (hashes[i] == EMPTY_HASH) {
@@ -274,20 +277,12 @@ public:
 	}
 
 	/// The number of elements in this hashset.
-	constexpr size_t num_elements() const
-	{
-		return m_num_elements;
-	}
+	constexpr size_t num_elements() const { return m_num_elements; }
 
 	/// The capacity of how many elements *could* be held in this set.
-	constexpr size_t capacity() const
-	{
-		return m_capacity;
-	}
-
+	constexpr size_t capacity() const { return m_capacity; }
 };
 
-
-}
+}   // namespace cf
 
 #endif
