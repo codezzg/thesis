@@ -27,15 +27,12 @@ static void genUpdateLists(Server& server)
 		std::lock_guard<std::mutex> lock{ server.toClient.updates.mtx };
 		server.toClient.updates.persistent.clear();
 	}
+	auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
+
 	{
-		// Build the initial list of models to send to the client
-		std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
-		server.toClient.modelsToSend.reserve(server.resources.models.size());
-		auto it = server.resources.models.iter_start();
-		StringId ignore;
-		Model model;
-		while (server.resources.models.iter_next(it, ignore, model))
-			server.toClient.modelsToSend.emplace_back(model);
+		std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
+		for (const auto& light : server.resources.pointLights)
+			toSend.pointLights.emplace(light);
 	}
 }
 
@@ -337,7 +334,7 @@ void TcpActiveThread::tcpActiveTask()
 		server.networkThreads.tcpRecv =
 			std::make_unique<TcpReceiveThread>(server, server.endpoints.reliable, clientSocket);
 
-		// genUpdateLists(server);
+		genUpdateLists(server);
 
 		if (!tcp_connectionPrelude(clientSocket))
 			dropClient(clientSocket);

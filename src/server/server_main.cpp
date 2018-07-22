@@ -33,8 +33,7 @@ struct MainArgs {
 };
 
 static void parseArgs(int argc, char** argv, MainArgs& args);
-static bool loadAssets(Server& server);
-std::vector<shared::PointLight> createLights(int n);
+static std::vector<shared::PointLight> createLights(int n);
 
 int main(int argc, char** argv)
 {
@@ -83,33 +82,14 @@ int main(int argc, char** argv)
 	}
 	xplatSetExitHandler(atExit);
 
-	/// Startup server: load models, assets, etc
-	if (!loadAssets(server)) {
-		err("Failed loading assets!");
-		return EXIT_FAILURE;
-	}
-
 	{
 		// Add lights
 		const auto lights = createLights(100);
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
-	}
 
-	/*
-	info("Filling spatial data structures...");
-	/// Build and fill spatial data structures with the loaded objects
-	for (const auto& pair : server.resources.models) {
-		const auto& model = pair.second;
-		server.scene.addNode(model.name, NodeType::MODEL, Transform{});
-	}
-	{
-		auto sponza = server.scene.getNode(sid(xplatGetCwd() + xplatPath("/models/sponza/sponza.dae")));
-		if (sponza)
-			sponza->flags |= (1 << NODE_FLAG_STATIC);
-	}*/
-
-	for (const auto& light : server.resources.pointLights) {
-		server.scene.addNode(light.name, NodeType::POINT_LIGHT, Transform{});
+		for (const auto& light : server.resources.pointLights) {
+			server.scene.addNode(light.name, NodeType::POINT_LIGHT, Transform{});
+		}
 	}
 
 	/// Start TCP socket and wait for connections
@@ -120,18 +100,6 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	server.networkThreads.tcpActive = std::make_unique<TcpActiveThread>(server, server.endpoints.reliable);
-
-	auto res = std::async(std::launch::async, [&]() {
-		// FIXME add stuff to send via TCP
-		auto& toSend = server.networkThreads.tcpActive->resourcesToSend;
-
-		{
-			std::lock_guard<std::mutex> lock{ server.networkThreads.tcpActive->mtx };
-			for (const auto& light : server.resources.pointLights)
-				toSend.pointLights.emplace(light);
-		}
-		server.networkThreads.tcpActive->cv.notify_one();
-	});
 
 	info("Started appstage");
 	appstageLoop(server);
@@ -197,31 +165,6 @@ void parseArgs(int argc, char** argv, MainArgs& args)
 		}
 		++i;
 	}
-}
-
-bool loadAssets(Server& server)
-{
-	//// Load the models first: they'll remain at the bottom of our stack allocator
-
-	// if (!loadSingleModel(server, "/models/sponza/sponza.dae"))
-	// return false;
-
-	// if (!loadSingleModel(server, "/models/nanosuit/nanosuit.obj"))
-	// return false;
-
-	// if (!loadSingleModel("/models/cube/silver.obj"))
-	//	return false;
-
-	// if (!loadSingleModel("/models/wall/wall2.obj"))
-	// return false;
-
-	// if (!loadSingleModel("/models/cat/cat.obj"))
-	// return false
-
-	// if (!loadSingleModel("/models/chalet.obj"))
-	// return false;
-
-	return true;
 }
 
 std::vector<shared::PointLight> createLights(int n)

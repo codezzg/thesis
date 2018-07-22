@@ -8,59 +8,6 @@
 
 using namespace logging;
 
-/** Adds given vertex and index buffers to `bufAllocator`, calculating the proper sizes,
- *  and returns the locations designated to contain the geometry of `models`
- *  Note that the buffers are not actually created until bufAllocator.create() is called.
- *  NOTE: models must contain at least a valid element.
- */
-static auto addVertexAndIndexBuffers(BufferAllocator& bufAllocator,
-	Buffer& vertexBuffer,
-	Buffer& indexBuffer,
-	const std::vector<ModelInfo>& models) -> std::unordered_map<StringId, Geometry::Location>
-{
-	std::unordered_map<StringId, Geometry::Location> locations;
-
-	if (models.size() == 0)
-		return locations;
-
-	VkDeviceSize vbufSize = 0, ibufSize = 0;
-
-	for (const auto& model : models) {
-		auto& loc = locations[model.name];
-		loc.vertexOff = vbufSize;
-		loc.indexOff = ibufSize;
-		vbufSize += model.nVertices * sizeof(Vertex);
-		ibufSize += model.nIndices * sizeof(Index);
-	}
-
-	assert(vbufSize > 0 && ibufSize > 0);
-
-	// vertex buffer
-	bufAllocator.addBuffer(vertexBuffer,
-		vbufSize,
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-	// index buffer
-	bufAllocator.addBuffer(indexBuffer,
-		ibufSize,
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-	info("Created vertexBuffer of size ",
-		vbufSize / 1024,
-		" KiB and indexBuffer of size ",
-		ibufSize / 1024,
-		" KiB.");
-	info("Locations:");
-	for (const auto& pair : locations) {
-		const auto& loc = pair.second;
-		info(pair.first, " => { voff: ", loc.vertexOff, ", ioff: ", loc.indexOff, " }");
-	}
-
-	return locations;
-}
-
 enum ListType { VERTEX, INDEX };
 
 /** @returns the first free byte of vertexBuffer and indexBuffer of `geometry`. */
@@ -79,36 +26,23 @@ static std::pair<VkDeviceSize, VkDeviceSize> getFirstFreePos(const Geometry& geo
 	return std::make_pair(vFirst, iFirst);
 }
 
-static bool accomodateNewData(Geometry& geometry,
-	BufferAllocator& bufAllocator,
-	VkDeviceSize firstFreePos,
-	ListType listType,
-	unsigned amtNeeded,
-	Buffer& newBuf)
+static VkDeviceSize getNewSize(const Geometry& geometry, VkDeviceSize firstFreePos, ListType type, unsigned amtNeeded)
 {
-	newBuf.handle = VK_NULL_HANDLE;
+	const auto dataSize = type == ListType::VERTEX ? sizeof(Vertex) : sizeof(Index);
+	const auto buf = type == ListType::VERTEX ? geometry.vertexBuffer : geometry.indexBuffer;
+	const bool canAccomodate = (buf.size - firstFreePos) >= (dataSize * amtNeeded);
 
-	const auto dataSize = listType == ListType::VERTEX ? sizeof(Vertex) : sizeof(Index);
-	const auto buf = listType == ListType::VERTEX ? geometry.vertexBuffer : geometry.indexBuffer;
-	bool canAccomodate = (buf.size - firstFreePos) >= (dataSize * amtNeeded);
+	VkDeviceSize newSize = 0;
 
 	info("geometry: need ", dataSize * amtNeeded, ", have ", buf.size - firstFreePos);
 	if (!canAccomodate) {
 		// Grow exponentially
-		auto newSize = 2 * geometry.vertexBuffer.size;
+		newSize = 2 * (type == ListType::VERTEX ? geometry.vertexBuffer.size : geometry.indexBuffer.size);
 		while (newSize - firstFreePos < dataSize * amtNeeded)
 			newSize *= 2;
-
-		const auto typeFlag = listType == ListType::VERTEX ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
-								   : VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-
-		bufAllocator.addBuffer(newBuf,
-			newSize,
-			typeFlag | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	}
 
-	return canAccomodate;
+	return newSize;
 }
 
 static void updateLocations(Geometry& geometry,
@@ -130,6 +64,40 @@ static void updateLocations(Geometry& geometry,
 	}
 }
 
+static void copyDataToNewBuffers(const Application& app, Buffer oldV, Buffer oldI, Buffer newV, Buffer newI)
+{
+	auto cmdBuf = beginSingleTimeCommands(app, app.commandPool);
+	VkBufferCopy copyRegion = {};
+	copyRegion.srcOffset = 0;
+	copyRegion.dstOffset = 0;
+	copyRegion.size = oldV.size;
+	vkCmdCopyBuffer(cmdBuf, oldV.handle, newV.handle, 1, &copyRegion);
+
+	copyRegion.size = oldI.size;
+	vkCmdCopyBuffer(cmdBuf, oldI.handle, newI.handle, 1, &copyRegion);
+
+	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, cmdBuf);
+}
+
+static std::pair<Buffer, Buffer> createNewBuffers(const Application& app, VkDeviceSize vSize, VkDeviceSize iSize)
+{
+	BufferAllocator bufAllocator;
+	Buffer newVertexBuffer, newIndexBuffer;
+
+	bufAllocator.addBuffer(newVertexBuffer,
+		vSize,
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	bufAllocator.addBuffer(newIndexBuffer,
+		iSize,
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	bufAllocator.create(app);
+
+	return std::make_pair(newVertexBuffer, newIndexBuffer);
+}
+
 void updateGeometryBuffers(const Application& app, Geometry& geometry, const std::vector<ModelInfo>& newModels)
 {
 	// Check if we have enough room to accomodate new models without reallocating
@@ -140,23 +108,9 @@ void updateGeometryBuffers(const Application& app, Geometry& geometry, const std
 		newIndicesNeeded += model.nIndices;
 	}
 
-	std::vector<Buffer> buffersToDestroy;
-	BufferAllocator bufAllocator;
-
-	// Check if new vertices fit in existing buffer. If that's not the case, schedule a new
-	// vertex buffer to be created. Either way, add the new locations for vertices to geometry.
-	Buffer newVertexBuffer, newIndexBuffer;
 	const auto freePos = getFirstFreePos(geometry);
-	bool canAccomodate = accomodateNewData(
-		geometry, bufAllocator, freePos.first, ListType::VERTEX, newVerticesNeeded, newVertexBuffer);
-	if (!canAccomodate)
-		buffersToDestroy.emplace_back(geometry.vertexBuffer);
 
-	canAccomodate = accomodateNewData(
-		geometry, bufAllocator, freePos.second, ListType::INDEX, newIndicesNeeded, newIndexBuffer);
-	if (!canAccomodate)
-		buffersToDestroy.emplace_back(geometry.indexBuffer);
-
+	// Insert the new locations
 	updateLocations(geometry, freePos.first, freePos.second, newModels);
 
 	info("new locations: ", mapToString(geometry.locations, [](auto l) -> std::string {
@@ -166,45 +120,28 @@ void updateGeometryBuffers(const Application& app, Geometry& geometry, const std
 		return ss.str();
 	}));
 
-	if (buffersToDestroy.size() == 0)   // no buffer needs to be reallocated
+	// Check if new vertices fit in existing buffer. If that's not the case, schedule a new
+	// vertex and index buffer to be created. If even only one of them must be reallocated, we reallocate the
+	// other too preventively.
+	const auto newVSize = getNewSize(geometry, freePos.first, ListType::VERTEX, newVerticesNeeded);
+	const auto newISize = getNewSize(geometry, freePos.second, ListType::INDEX, newIndicesNeeded);
+
+	if (newVSize + newISize == 0)   // no buffer needs to be reallocated
 		return;
+
+	const std::vector<Buffer> buffersToDestroy = { geometry.vertexBuffer, geometry.indexBuffer };
 
 	info("migrating geometry buffer(s). old = ", geometry.vertexBuffer.handle, " / ", geometry.indexBuffer.handle);
 
+	const auto newBufs = createNewBuffers(
+		app, std::max(geometry.vertexBuffer.size, newVSize), std::max(geometry.indexBuffer.size, newISize));
+
 	// Copy data to new buffers
-	bufAllocator.create(app);
+	copyDataToNewBuffers(app, geometry.vertexBuffer, geometry.indexBuffer, newBufs.first, newBufs.second);
 
-	VkCommandBuffer cmdBuf = VK_NULL_HANDLE;
-
-	assert(newVertexBuffer.handle != VK_NULL_HANDLE || newIndexBuffer.handle != VK_NULL_HANDLE);
-
-	if (newVertexBuffer.handle != VK_NULL_HANDLE) {
-		if (cmdBuf == VK_NULL_HANDLE)
-			cmdBuf = beginSingleTimeCommands(app, app.commandPool);
-		VkBufferCopy copyRegion = {};
-		copyRegion.srcOffset = 0;
-		copyRegion.dstOffset = 0;
-		copyRegion.size = geometry.vertexBuffer.size;
-		vkCmdCopyBuffer(cmdBuf, geometry.vertexBuffer.handle, newVertexBuffer.handle, 1, &copyRegion);
-
-		// Reassign
-		geometry.vertexBuffer = newVertexBuffer;
-	}
-
-	if (newIndexBuffer.handle != VK_NULL_HANDLE) {
-		if (cmdBuf == VK_NULL_HANDLE)
-			cmdBuf = beginSingleTimeCommands(app, app.commandPool);
-		VkBufferCopy copyRegion = {};
-		copyRegion.srcOffset = 0;
-		copyRegion.dstOffset = 0;
-		copyRegion.size = geometry.indexBuffer.size;
-		vkCmdCopyBuffer(cmdBuf, geometry.indexBuffer.handle, newIndexBuffer.handle, 1, &copyRegion);
-
-		geometry.indexBuffer = newIndexBuffer;
-	}
-
-	assert(cmdBuf != VK_NULL_HANDLE);
-	endSingleTimeCommands(app.device, app.queues.graphics, app.commandPool, cmdBuf);
+	// Overwrite old buffers
+	geometry.vertexBuffer = newBufs.first;
+	geometry.indexBuffer = newBufs.second;
 
 	// Destroy old buffers
 	unmapBuffersMemory(app.device, buffersToDestroy);
@@ -218,7 +155,9 @@ void updateGeometryBuffers(const Application& app, Geometry& geometry, const std
 		geometry.vertexBuffer.size / 1024,
 		" KiB / ",
 		geometry.indexBuffer.size / 1024,
-		" KiB)");
+		" KiB; tot = ",
+		(geometry.vertexBuffer.size + geometry.indexBuffer.size) / 1024 / 1024,
+		" MiB)");
 
 	// Map device memory to host for new buffers
 	mapBuffersMemory(app.device,
