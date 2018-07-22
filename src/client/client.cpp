@@ -750,9 +750,8 @@ void VulkanClient::updateLightsUniformBuffer()
 	ubo->nPointLights = netRsrc.pointLights.size();
 	for (unsigned i = 0; i < netRsrc.pointLights.size(); ++i) {
 		const auto& pl = netRsrc.pointLights[i];
-		const auto& plt = Transform::fromMatrix(objTransforms[pl.name]);
 		ubo->pointLights[i] =
-			UboPointLight{ plt.getPosition(), pl.attenuation, { pl.color.r, pl.color.g, pl.color.b }, 0 };
+			UboPointLight{ glm::vec3{ objTransforms[pl.name][3] }, pl.attenuation, { pl.color.r, pl.color.g, pl.color.b }, 0 };
 	}
 }
 
