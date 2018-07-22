@@ -253,16 +253,18 @@ void unmapBuffersMemory(VkDevice device, const std::vector<Buffer>& buffers)
 
 BufferAllocator::BufferCreateInfo getScreenQuadBufferProperties()
 {
-	return std::make_tuple(sizeof(Vertex) * 4,
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	// Note: need to be explicit with the arguments or Clang complains
+	return std::make_tuple(VkDeviceSize{ sizeof(Vertex) * 4 },
+		VkBufferUsageFlags{ VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT },
+		VkMemoryPropertyFlags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT });
 }
 
 BufferAllocator::BufferCreateInfo getSkyboxBufferProperties()
 {
-	return std::make_tuple(sizeof(Vertex) * 25 + sizeof(Index) * 36,
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	return std::make_tuple(VkDeviceSize{ sizeof(Vertex) * 25 + sizeof(Index) * 36 },
+		VkBufferUsageFlags{ VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+				    VK_BUFFER_USAGE_INDEX_BUFFER_BIT },
+		VkMemoryPropertyFlags{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT });
 }
 
 bool fillScreenQuadBuffer(const Application& app, Buffer& screenQuadBuf, Buffer& stagingBuf)

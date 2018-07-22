@@ -33,6 +33,18 @@ struct UpdateList {
 	std::size_t size() const { return transitory.size() + persistent.size(); }
 };
 
+namespace std {
+template <>
+struct hash<std::pair<std::string, shared::TextureFormat>> {
+	std::size_t operator()(const std::pair<std::string, shared::TextureFormat>& p) const
+	{
+		return std::hash<std::string>{}(p.first) ^ (std::hash<uint8_t>{}(static_cast<uint8_t>(p.second)) << 1);
+	}
+};
+}   // namespace std
+
+using TexturesQueue = std::unordered_map<StringId, std::unordered_set<std::pair<std::string, shared::TextureFormat>>>;
+
 struct ServerToClientData {
 	/** List of queued UDP updates to send to the client */
 	UpdateList updates;
@@ -40,6 +52,11 @@ struct ServerToClientData {
 	/** List of models whose geometry still needs to be sent to client */
 	std::vector<Model> modelsToSend;
 	std::mutex modelsToSendMtx;
+
+	/** Map { modelName => [textures] } storing the textures to send after all
+	 *  model geometry has been received by the client.
+	 */
+	TexturesQueue texturesQueue;
 };
 
 /** The Server wraps the endpoints and provides a mean to sharing data between the server threads.

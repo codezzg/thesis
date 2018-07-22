@@ -113,7 +113,7 @@ static bool batch_sendTexture(socket_t clientSocket,
 static bool batch_sendMaterial(socket_t clientSocket,
 	ServerResources& resources,
 	/* inout */ std::unordered_set<StringId>& materialsSent,
-	/* inout */ std::unordered_set<std::string>& texturesSent,
+	/* inout */ std::unordered_set<std::pair<std::string, shared::TextureFormat>>& texturesToSend,
 	const Material& mat)
 {
 	// Don't send the same material twice
@@ -135,12 +135,16 @@ static bool batch_sendMaterial(socket_t clientSocket,
 	}
 	materialsSent.emplace(mat.name);
 
-	if (!batch_sendTexture(clientSocket, resources, texturesSent, mat.diffuseTex, shared::TextureFormat::RGBA))
-		return false;
-	if (!batch_sendTexture(clientSocket, resources, texturesSent, mat.specularTex, shared::TextureFormat::GREY))
-		return false;
-	if (!batch_sendTexture(clientSocket, resources, texturesSent, mat.normalTex, shared::TextureFormat::RGBA))
-		return false;
+	// Send textures later, after geometry
+	texturesToSend.emplace(mat.diffuseTex, shared::TextureFormat::RGBA);
+	texturesToSend.emplace(mat.specularTex, shared::TextureFormat::GREY);
+	texturesToSend.emplace(mat.normalTex, shared::TextureFormat::RGBA);
+	// if (!batch_sendTexture(clientSocket, resources, texturesSent, mat.diffuseTex, shared::TextureFormat::RGBA))
+	// return false;
+	// if (!batch_sendTexture(clientSocket, resources, texturesSent, mat.specularTex, shared::TextureFormat::GREY))
+	// return false;
+	// if (!batch_sendTexture(clientSocket, resources, texturesSent, mat.normalTex, shared::TextureFormat::RGBA))
+	// return false;
 
 	return true;
 }
@@ -149,7 +153,7 @@ static bool batch_sendMaterial(socket_t clientSocket,
 static bool batch_sendModel(socket_t clientSocket,
 	ServerResources& resources,
 	/* inout */ std::unordered_set<StringId>& materialsSent,
-	/* inout */ std::unordered_set<std::string>& texturesSent,
+	/* inout */ std::unordered_set<std::pair<std::string, shared::TextureFormat>>& texturesToSend,
 	const Model& model)
 {
 	bool ok = sendModel(clientSocket, model);
@@ -166,7 +170,7 @@ static bool batch_sendModel(socket_t clientSocket,
 
 	info("model.materials = ", model.data->materials.size());
 	for (const auto& mat : model.data->materials) {
-		if (!batch_sendMaterial(clientSocket, resources, materialsSent, texturesSent, mat))
+		if (!batch_sendMaterial(clientSocket, resources, materialsSent, texturesToSend, mat))
 			return false;
 	}
 
@@ -226,18 +230,23 @@ static bool batch_sendPointLight(socket_t clientSocket, const shared::PointLight
 	return true;
 }
 
-static bool sendResourceBatch(socket_t clientSocket, Server& server, const ResourceBatch& batch)
+static bool sendResourceBatch(socket_t clientSocket,
+	Server& server,
+	const ResourceBatch& batch,
+	TexturesQueue& texturesQueue)
 {
-	std::unordered_set<std::string> texturesSent;
+	std::unordered_set<std::pair<std::string, shared::TextureFormat>> texturesToSend;
 	std::unordered_set<StringId> materialsSent;
 
 	info("Sending ", batch.models.size(), " models");
 	for (const auto& model : batch.models) {
-		// This will also send dependent materials and textures
-		if (!batch_sendModel(clientSocket, server.resources, materialsSent, texturesSent, model))
+		// This will also send dependent materials
+		if (!batch_sendModel(clientSocket, server.resources, materialsSent, texturesToSend, model))
 			return false;
 
-		// After sending model TCP data, schedule its geometry to be streamed and add it
+		texturesQueue[model.name] = texturesToSend;
+
+		// After sending model base info, schedule its geometry to be streamed and add it
 		// to the scene (so its transform will be sent too)
 		{
 			std::lock_guard<std::mutex> lock{ server.toClient.modelsToSendMtx };
@@ -388,7 +397,7 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 				return false;
 
 			info("Send ResourceBatch");
-			if (!sendResourceBatch(clientSocket, server, resourcesToSend)) {
+			if (!sendResourceBatch(clientSocket, server, resourcesToSend, server.toClient.texturesQueue)) {
 				err("Failed to send ResourceBatch");
 				return false;
 			}

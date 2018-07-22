@@ -117,7 +117,7 @@ void VulkanClient::initVulkan()
 	app.descriptorPool = createDescriptorPool(app);
 
 	// Initialize resource maps
-	app.res.init(app.device, app.descriptorPool);
+	app.res.init(app.device);
 
 	// Create pipelines
 	const auto descSetLayouts = createMultipassDescriptorSetLayouts(app);

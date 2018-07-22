@@ -14,6 +14,11 @@ function(do_add_compiler_flags)
 			target_compile_options(${PROJECT_NAME} PUBLIC /Od /W2 /MP)
 		else()
 			target_compile_options(${PROJECT_NAME} PUBLIC -O0 -ggdb -Wall -pedantic -Wextra)
+
+			if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+				target_compile_options(${PROJECT_NAME} PUBLIC -Wno-missing-braces)
+			endif()
+
 			if(GPROF)
 				message(STATUS "${PROJECT_NAME}: Adding GPROF support")
 				target_compile_options(${PROJECT_NAME} PUBLIC -pg -no-pie)

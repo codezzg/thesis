@@ -122,22 +122,14 @@ public:
 };
 
 class DescriptorSetMap final : public ResourceMap<VkDescriptorSet> {
-	const VkDescriptorPool& descriptorPool;
-
 public:
-	explicit DescriptorSetMap(VkDevice device, VkDescriptorPool& pool)
+	explicit DescriptorSetMap(VkDevice device)
 		: ResourceMap{ device }
-		, descriptorPool{ pool }
 	{
 		resourceType = "descriptorSet";
 	}
 
-	~DescriptorSetMap()
-	{
-		// These get freed automatically by vkDestroyDescriptorPool
-		// for (auto& pair : resources)
-		// vkFreeDescriptorSets(device, descriptorPool, 1, &pair.second);
-	}
+	~DescriptorSetMap() {}
 
 	VkDescriptorSet create(const StringId& name, const VkDescriptorSetAllocateInfo& allocInfo)
 	{
@@ -188,7 +180,7 @@ struct Resources {
 	DescriptorSetMap* descriptorSets;
 	SemaphoreMap* semaphores;
 
-	void init(VkDevice device, VkDescriptorPool descriptorPool)
+	void init(VkDevice device)
 	{
 		constexpr auto s0 = sizeof(PipelineLayoutMap);
 		constexpr auto s1 = sizeof(PipelineMap);
@@ -201,7 +193,7 @@ struct Resources {
 		pipelineLayouts = new (mem) PipelineLayoutMap(device);
 		pipelines = new (mem + s0) PipelineMap(device);
 		descriptorSetLayouts = new (mem + s0 + s1) DescriptorSetLayoutMap(device);
-		descriptorSets = new (mem + s0 + s1 + s2) DescriptorSetMap(device, descriptorPool);
+		descriptorSets = new (mem + s0 + s1 + s2) DescriptorSetMap(device);
 		semaphores = new (mem + s0 + s1 + s2 + s3) SemaphoreMap(device);
 	}
 

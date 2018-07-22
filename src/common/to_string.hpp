@@ -5,6 +5,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 
+namespace shared {
+
 inline std::ostream& operator<<(std::ostream& s, const shared::PointLight& light)
 {
 	s << "PointLight { name = " << light.name << ", color = " << glm::to_string(light.color)
@@ -31,3 +33,5 @@ inline std::ostream& operator<<(std::ostream& s, shared::ShaderStage stage)
 	}
 	return s;
 }
+
+}   // namespace shared

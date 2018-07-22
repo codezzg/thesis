@@ -34,6 +34,8 @@ struct hash<Vertex> {
 };
 }   // namespace std
 
+namespace glm {
+
 inline std::ostream& operator<<(std::ostream& s, const glm::vec2& v)
 {
 	s << "(" << v.x << ", " << v.y << ")";
@@ -51,6 +53,8 @@ inline std::ostream& operator<<(std::ostream& s, const glm::vec4& v)
 	s << "(" << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ")";
 	return s;
 }
+
+}   // namespace glm
 
 inline std::ostream& operator<<(std::ostream& s, const Vertex& v)
 {
