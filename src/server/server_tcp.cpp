@@ -265,6 +265,7 @@ void TcpActiveThread::dropClient(socket_t clientSocket)
 
 	server.scene.clear();
 	server.stuffSent.clear();
+	server.toClient.texturesQueue.clear();
 }
 ///////////
 
