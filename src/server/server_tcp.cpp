@@ -388,8 +388,10 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 				return false;
 
 			info("Send ResourceBatch");
-			if (!sendResourceBatch(clientSocket, server, resourcesToSend))
+			if (!sendResourceBatch(clientSocket, server, resourcesToSend)) {
+				err("Failed to send ResourceBatch");
 				return false;
+			}
 
 			resourcesToSend.clear();
 		}
@@ -455,7 +457,7 @@ void KeepaliveListenThread::keepaliveListenTask()
 		const auto now = std::chrono::steady_clock::now();
 		if (std::chrono::duration_cast<std::chrono::seconds>(now - gLatestPing) > interval) {
 			// drop the client
-			info("Keepalive timeout.");
+			err("Keepalive timeout.");
 			break;
 		}
 	}
