@@ -51,3 +51,10 @@ void Scene::onInit()
 	nodes.emplace_back(root);
 	nodeMap[root->name] = nodes.size() - 1;
 }
+
+void Scene::clear()
+{
+	nodeMap.clear();
+	nodes.clear();
+	allocator.clear();
+}

@@ -36,5 +36,4 @@ std::vector<VkDescriptorSet> createMultipassTransitoryDescriptorSets(const Appli
 	const BufferArray& uniformBuffers,
 	const std::vector<Material>& materials,
 	const std::vector<ModelInfo>& models,
-	VkSampler texSampler,
-	VkSampler cubeSampler);
+	VkSampler texSampler);

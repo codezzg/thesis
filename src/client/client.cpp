@@ -188,8 +188,34 @@ bool VulkanClient::connectToServer(const char* serverIp)
 	return true;
 }
 
-void VulkanClient::checkAssets(const ClientTmpResources& resources)
+void VulkanClient::collectMissingTextures(const ClientTmpResources& resources)
 {
+	const auto matEnd = resources.materials.end();
+	const auto texEnd = resources.textures.end();
+
+	for (const auto& model : resources.models) {
+		for (const auto& matName : model.materials) {
+			auto it = std::find_if(resources.materials.begin(),
+				resources.materials.end(),
+				[matName](const auto& mat) { return mat.name == matName; });
+			if (it == matEnd) {
+				warn("Material ",
+					matName,
+					" is needed by model ",
+					model.name,
+					" but was not received!");
+				continue;
+			}
+			if (resources.textures.find(it->diffuseTex) == texEnd)
+				missingTextures[it->diffuseTex].emplace_back(TextureType::DIFFUSE, matName);
+			if (resources.textures.find(it->specularTex) == texEnd)
+				missingTextures[it->specularTex].emplace_back(TextureType::SPECULAR, matName);
+			if (resources.textures.find(it->normalTex) == texEnd)
+				missingTextures[it->normalTex].emplace_back(TextureType::NORMAL, matName);
+		}
+	}
+
+	/*
 	// Collect textures ids into a set (so we can use set_difference later)
 	std::set<StringId> textureSet;
 	for (const auto& pair : resources.textures)
@@ -230,15 +256,17 @@ void VulkanClient::checkAssets(const ClientTmpResources& resources)
 
 		for (const auto& tex : diffTextureSet)
 			warn("Texture ", tex, " is needed by model ", model.name, " but was not received!");
-	}
+	}*/
 }
 
 bool VulkanClient::loadAssets(const ClientTmpResources& resources,
 	std::vector<ModelInfo>& newModels,
-	std::vector<Material>& newMaterials)
+	std::vector<Material>& newMaterials,
+	std::vector<StringId>& newTextures)
 {
 	newModels.reserve(resources.models.size());
 	newMaterials.reserve(resources.materials.size());
+	newTextures.reserve(resources.textures.size());
 
 	// Save models into permanent storage
 	netRsrc.models.insert(netRsrc.models.end(), resources.models.begin(), resources.models.end());
@@ -295,6 +323,7 @@ bool VulkanClient::loadAssets(const ClientTmpResources& resources,
 			if (pair.first == SID_NONE)
 				continue;
 			texLoadTasks.emplace_back(texLoader.addTextureAsync(netRsrc.textures[pair.first], pair.second));
+			newTextures.emplace_back(pair.first);
 		}
 
 		for (auto& res : texLoadTasks) {
@@ -373,13 +402,14 @@ void VulkanClient::runFrame()
 		// These are needed later, so save them
 		std::vector<ModelInfo> newModels;
 		std::vector<Material> newMaterials;
-		checkAssets(*resources);
-		loadAssets(*resources, newModels, newMaterials);
+		std::vector<StringId> newTextures;
+		collectMissingTextures(*resources);
+		loadAssets(*resources, newModels, newMaterials, newTextures);
 
 		networkThreads.tcpMsg->releaseResources();
 
 		// Regenerate network-dependant data structures and resources
-		recreateResources(newModels, newMaterials);
+		recreateResources(newModels, newMaterials, newTextures);
 	}
 
 	// Check for UDP messages
@@ -452,24 +482,26 @@ void VulkanClient::calcTimeStats(FPSCounter& fps,
 	fps.report();
 }
 
-void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, const std::vector<Material>& newMaterials)
+void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels,
+	const std::vector<Material>& newMaterials,
+	const std::vector<StringId>& newTextures)
 {
 	if (newModels.size() > 0) {
 		info("Updating geometry buffers");
 		updateGeometryBuffers(app, geometry, newModels);
-	}
 
-	info("Updating uniform buffers");
-	// Create new UBOs for new models
-	for (const auto& model : newModels) {
-		uniformBuffers.addBuffer(model.name, sizeof(ObjectUBO));
+		info("Updating uniform buffers");
+		// Create new UBOs for new models
+		for (const auto& model : newModels) {
+			uniformBuffers.addBuffer(model.name, sizeof(ObjectUBO));
+		}
 	}
 
 	// Create new descriptor sets for new materials and models
 	if (newModels.size() + newMaterials.size() > 0) {
 		info("Updating descriptor sets");
 		auto descriptorSets = createMultipassTransitoryDescriptorSets(
-			app, uniformBuffers, newMaterials, newModels, app.texSampler, app.cubeSampler);
+			app, uniformBuffers, newMaterials, newModels, app.texSampler);
 		assert(descriptorSets.size() == newModels.size() + newMaterials.size());
 
 		// One descriptor set per material
@@ -481,7 +513,89 @@ void VulkanClient::recreateResources(const std::vector<ModelInfo>& newModels, co
 			app.res.descriptorSets->add(newModels[i].name, descriptorSets[newMaterials.size() + i]);
 		}
 	}
-	recreateSwapChain();
+
+	if (newTextures.size() > 0)
+		regenMaterials(newTextures);
+
+	vkResetCommandPool(app.device, app.commandPool, 0);
+	recordAllCommandBuffers();
+}
+
+void VulkanClient::regenMaterials(const std::vector<StringId>& newTextures)
+{
+	/// Regenerate all materials (and their descriptor sets) whose texture(s) have been received
+	struct TexUpdates {
+		StringId diffuse = SID_NONE;
+		StringId specular = SID_NONE;
+		StringId normal = SID_NONE;
+	};
+	std::unordered_map<StringId, TexUpdates> matsToRegen;
+
+	// Collect names of materials to regenerate
+	for (auto texName : newTextures) {
+		auto it = missingTextures.find(texName);
+		if (it == missingTextures.end()) {
+			warn("Received texture ", texName, " but was not expected?!");
+			continue;
+		}
+
+		for (auto pairTypeMat : it->second) {
+			const auto matName = pairTypeMat.second;
+			switch (pairTypeMat.first) {
+			case TextureType::DIFFUSE:
+				matsToRegen[matName].diffuse = texName;
+				break;
+			case TextureType::SPECULAR:
+				matsToRegen[matName].specular = texName;
+				break;
+			case TextureType::NORMAL:
+				matsToRegen[matName].normal = texName;
+				break;
+			}
+		}
+
+		missingTextures.erase(it);
+	}
+
+	std::vector<VkDescriptorSet> descSetsToFree;
+	descSetsToFree.reserve(matsToRegen.size());
+
+	std::vector<Material> newMats;
+	newMats.reserve(matsToRegen.size());
+
+	// Replace old materials in netRsrc with newly created ones
+	for (auto pair : matsToRegen) {
+		const auto matName = pair.first;
+
+		descSetsToFree.emplace_back(app.res.descriptorSets->get(matName));
+
+		auto it = std::find_if(netRsrc.materials.begin(), netRsrc.materials.end(), [matName](const auto& mat) {
+			return mat.name == matName;
+		});
+		assert(it != netRsrc.materials.end());
+
+		Material mat;
+		mat.name = matName;
+		mat.diffuse =
+			pair.second.diffuse == SID_NONE ? it->diffuse : netRsrc.textures[pair.second.diffuse].view;
+		mat.specular =
+			pair.second.specular == SID_NONE ? it->specular : netRsrc.textures[pair.second.specular].view;
+		mat.normal = pair.second.normal == SID_NONE ? it->normal : netRsrc.textures[pair.second.normal].view;
+
+		netRsrc.materials.insert(it, mat);
+		newMats.emplace_back(mat);
+	}
+
+	// Recreate descriptor sets
+	auto descSets = createMultipassTransitoryDescriptorSets(app, uniformBuffers, newMats, {}, app.texSampler);
+	assert(descSets.size() == newMats.size());
+
+	for (unsigned i = 0; i < newMats.size(); ++i) {
+		(*app.res.descriptorSets)[newMats[i].name] = descSets[i];
+	}
+
+	VLKCHECK(vkQueueWaitIdle(app.queues.graphics));
+	vkFreeDescriptorSets(app.device, app.descriptorPool, descSetsToFree.size(), descSetsToFree.data());
 }
 
 void VulkanClient::recreateSwapChain()
@@ -587,11 +701,11 @@ void VulkanClient::updateObjectsUniformBuffer()
 		auto ubo = reinterpret_cast<ObjectUBO*>(objBuf->ptr);
 
 		if (gUseCamera) {
-			ubo->model = glm::mat4{ 1.f };   // objTransforms[model.name];
-							 // verbose("filling ",
-							 // ubo,
-							 //" / ",
-							 // std::hex,
+			ubo->model = objTransforms[model.name];
+			// verbose("filling ",
+			// ubo,
+			//" / ",
+			// std::hex,
 			//(uintptr_t)((uint8_t*)ubo + sizeof(ObjectUniformBufferObject)),
 			//"  with transform ",
 			// glm::to_string(ubo->model));

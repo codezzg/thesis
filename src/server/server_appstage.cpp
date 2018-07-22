@@ -96,9 +96,9 @@ void appstageLoop(Server& server)
 							(2 + 0 * 6 * i) * std::cos(0.5 * t + i * 0.3) };
 					node->transform.rotation = glm::vec3{ 0.f, 0.3f * t + i, 0.f };
 					node->transform.scale =
-						glm::vec3{ 1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
-							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))),
-							1 + std::max(-0.2, i * std::abs(std::cos(t * 0.5))) };
+						glm::vec3{ 1 + std::max(-0.2, std::abs(std::cos(t * 0.5))),
+							1 + std::max(-0.2, std::abs(std::cos(t * 0.5))),
+							1 + std::max(-0.2, std::abs(std::cos(t * 0.5))) };
 					node->transform._update();
 				}
 				tUpdates.emplace_back(newQueuedUpdateTransform(node->name));

@@ -117,41 +117,47 @@ void UdpActiveThread::udpActiveTask()
 		}
 
 		ulk.lock();
-		// Remove all persistent updates which were acked by the client
 		if (updates.persistent.size() > 0) {
-			std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
-			deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
-		}
+			{
+				// Remove all persistent updates which were acked by the client
+				std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
+				deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
+			}
 
-		if (updates.persistent.size() > 0) {
-			verbose("sending ", updates.persistent.size(), " persistent updates");
+			if (updates.persistent.size() > 0) {
+				verbose("sending ", updates.persistent.size(), " persistent updates");
 
-			// Send persistent updates
-			auto it = updates.persistent.iter_start();
-			uint32_t ignoreKey;
-			QueuedUpdate update;
-			bool loop = updates.persistent.iter_next(it, ignoreKey, update);
-			while (loop) {
-				if (!ep.connected)
-					return;
+				// Send persistent updates
+				auto it = updates.persistent.iter_start();
+				uint32_t ignoreKey;
+				QueuedUpdate update;
+				bool loop = updates.persistent.iter_next(it, ignoreKey, update);
+				while (loop) {
+					if (!ep.connected)
+						return;
 
-				// GEOM updates are currently the only ACKed ones
-				assert(update.type == QueuedUpdate::Type::GEOM);
-				const auto written = addUpdate(buffer.data(), buffer.size(), offset, update, server);
+					// GEOM updates are currently the only ACKed ones
+					assert(update.type == QueuedUpdate::Type::GEOM);
+					const auto written =
+						addUpdate(buffer.data(), buffer.size(), offset, update, server);
 
-				if (written > 0) {
-					offset += written;
-					loop = updates.persistent.iter_next(it, ignoreKey, update);
-				} else {
-					// Not enough room: send the packet
-					if (!sendPacket(ep.socket, buffer.data(), buffer.size()))
-						break;
-					bytesPerSecond += buffer.size();
-					// info("pers: ", updates.persistent.size());
+					if (written > 0) {
+						offset += written;
+						loop = updates.persistent.iter_next(it, ignoreKey, update);
+					} else {
+						// Not enough room: send the packet
+						if (!sendPacket(ep.socket, buffer.data(), buffer.size()))
+							break;
+						bytesPerSecond += buffer.size();
+						// info("pers: ", updates.persistent.size());
 
-					writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-					offset = sizeof(UdpHeader);
+						writeUdpHeader(buffer.data(), buffer.size(), packetGen);
+						offset = sizeof(UdpHeader);
+					}
 				}
+			} else {
+				// Just finished sending geometry: notify tcp thread
+				server.networkThreads.tcpActive->cv.notify_one();
 			}
 		}
 		ulk.unlock();

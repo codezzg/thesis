@@ -140,7 +140,8 @@ bool sendModel(socket_t clientSocket, const Model& model)
 bool sendTexture(socket_t clientSocket,
 	ServerResources& resources,
 	const std::string& texName,
-	shared::TextureFormat format)
+	shared::TextureFormat format,
+	std::size_t* outBytesSent)
 {
 	using shared::TextureInfo;
 
@@ -192,6 +193,9 @@ bool sendTexture(socket_t clientSocket,
 			return false;
 		bytesSent += len;
 	}
+
+	if (outBytesSent)
+		*outBytesSent = bytesSent;
 
 	return true;
 }

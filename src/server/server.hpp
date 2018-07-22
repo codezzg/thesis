@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cf_hashmap.hpp"
+#include "cf_hashset.hpp"
 #include "queued_update.hpp"
 #include "server_resources.hpp"
 #include "server_tcp.hpp"
@@ -43,7 +44,7 @@ struct hash<std::pair<std::string, shared::TextureFormat>> {
 };
 }   // namespace std
 
-using TexturesQueue = std::unordered_map<StringId, std::unordered_set<std::pair<std::string, shared::TextureFormat>>>;
+using TexturesQueue = std::unordered_set<std::pair<std::string, shared::TextureFormat>>;
 
 struct ServerToClientData {
 	/** List of queued UDP updates to send to the client */
@@ -87,6 +88,8 @@ struct Server {
 
 	ServerResources resources;
 	Scene scene;
+	/** Keeps track of resources sent to the client */
+	cf::hashset<StringId> stuffSent;
 
 	/** Constructs a Server with `memsize` internal memory. */
 	explicit Server(std::size_t memsize);
@@ -96,4 +99,4 @@ struct Server {
 };
 
 /** Loads model `name` into `server`'s resources. */
-bool loadSingleModel(Server& server, const char* name, Model* outModel = nullptr);
+bool loadSingleModel(Server& server, std::string name, Model* outModel = nullptr);

@@ -9,7 +9,8 @@ using namespace logging;
 /* Memory is used like this:
  * [66%] resources
  * [10%] scene
- * [05%] toClient.updates.persistent hashmap
+ * [20%] stuffSent
+ * [04%] toClient.updates.persistent hashmap
  */
 Server::Server(std::size_t memsize)
 	: memory(memsize)
@@ -25,18 +26,26 @@ Server::Server(std::size_t memsize)
 	memptr = (uint8_t*)allocator.alloc(memsize / 10);
 	scene.init(memptr, memsize / 10);
 
-	memptr = (uint8_t*)allocator.alloc(memsize / 20);
-	toClient.updates.persistent = cf::hashmap<uint32_t, QueuedUpdate>::create(memsize / 20, memptr);
+	memptr = (uint8_t*)allocator.alloc(memsize / 5);
+	stuffSent = cf::hashset<StringId>::create(memsize / 5, memptr);
 
-	info("Server memory:\n- resources: ",
+	std::size_t bytes;
+	memptr = (uint8_t*)allocator.allocAll(&bytes);
+	toClient.updates.persistent = cf::hashmap<uint32_t, QueuedUpdate>::create(bytes, memptr);
+
+	info("Server memory:\n",
+		"- resources: ",
 		resources.getMemsize() / 1024 / 1024,
 		" MiB\n",
 		"- scene: ",
-		scene.getMemsize() / 1024 / 1024,
-		" MiB\n",
+		scene.getMemsize() / 1024,
+		" KiB\n",
+		"- stuff sent: ",
+		memsize / 10 / 1024,
+		" KiB\n",
 		"- persistent updates: ",
-		memsize / 20 / 1024 / 1024,
-		" MiB\n",
+		bytes / 1024,
+		" KiB\n",
 		"- remaining: ",
 		allocator.remaining() / 1024 / 1024,
 		" MiB");
@@ -58,9 +67,11 @@ void Server::closeNetwork()
 	}
 }
 
-bool loadSingleModel(Server& server, const char* name, Model* outModel)
+bool loadSingleModel(Server& server, std::string name, Model* outModel)
 {
-	auto model = server.resources.loadModel((server.cwd + xplatPath(name)).c_str());
+	const auto path = server.cwd + xplatPath(name.c_str());
+
+	auto model = server.resources.loadModel(path.c_str());
 
 	if (model.vertices == nullptr || model.data == nullptr) {
 		err("Failed to load model.");

@@ -87,6 +87,10 @@ private:
 	/** List of UDP acks to send to the server */
 	std::vector<uint32_t> acksToSend;
 
+	/** Map { missingTex => [{ texType, material that need it }] } */
+	enum class TextureType { DIFFUSE, SPECULAR, NORMAL };
+	std::unordered_map<StringId, std::vector<std::pair<TextureType, StringId>>> missingTextures;
+
 	Camera camera;
 	std::unique_ptr<CameraController> cameraCtrl;
 
@@ -105,12 +109,13 @@ private:
 	bool connectToServer(const char* serverIp);
 
 	/** Check we received all the resources needed by all models */
-	void checkAssets(const ClientTmpResources& resources);
+	void collectMissingTextures(const ClientTmpResources& resources);
 
 	/** Takes the raw resources received by the server and processes them into usable resources */
 	bool loadAssets(const ClientTmpResources& resources,
 		/* out */ std::vector<ModelInfo>& newModels,
-		/* out */ std::vector<Material>& newMaterials);
+		/* out */ std::vector<Material>& newMaterials,
+		/* out */ std::vector<StringId>& newTextures);
 
 	void prepareReceivedGeomHashset();
 	/** Creates the buffers that will stay alive until cleanup */
@@ -125,7 +130,10 @@ private:
 	void runFrame();
 
 	void applyUpdateRequests();
-	void recreateResources(const std::vector<ModelInfo>& newModels, const std::vector<Material>& newMaterials);
+	void recreateResources(const std::vector<ModelInfo>& newModels,
+		const std::vector<Material>& newMaterials,
+		const std::vector<StringId>& newTextures);
+	void regenMaterials(const std::vector<StringId>& newTextures);
 
 	void calcTimeStats(FPSCounter& fps, std::chrono::time_point<std::chrono::high_resolution_clock>& beginTime);
 

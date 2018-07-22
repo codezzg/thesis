@@ -22,7 +22,8 @@ bool sendModel(socket_t clientSocket, const Model& model);
 bool sendTexture(socket_t clientSocket,
 	ServerResources& resources,
 	const std::string& texName,
-	shared::TextureFormat format);
+	shared::TextureFormat format,
+	std::size_t* bytesSent = nullptr);
 
 bool sendShader(socket_t clientSocket,
 	ServerResources& resources,

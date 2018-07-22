@@ -494,8 +494,7 @@ std::vector<VkDescriptorSet> createMultipassTransitoryDescriptorSets(const Appli
 	const BufferArray& uniformBuffers,
 	const std::vector<Material>& materials,
 	const std::vector<ModelInfo>& models,
-	VkSampler texSampler,
-	VkSampler cubeSampler)
+	VkSampler texSampler)
 {
 	std::vector<VkDescriptorSetLayout> layouts(materials.size() + models.size());
 
@@ -523,25 +522,6 @@ std::vector<VkDescriptorSet> createMultipassTransitoryDescriptorSets(const Appli
 
 	std::vector<VkWriteDescriptorSet> descriptorWrites;
 	descriptorWrites.reserve(layouts.size());
-
-	// Skybox
-	/*{
-		VkDescriptorImageInfo skyboxInfo = {};
-		skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		skyboxInfo.imageView = app.skybox.image.view;
-		skyboxInfo.sampler = cubeSampler;
-
-		VkWriteDescriptorSet descriptorWrite = {};
-		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = descriptorSets[0];
-		descriptorWrite.dstBinding = 1;
-		descriptorWrite.dstArrayElement = 0;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pImageInfo = &skyboxInfo;
-
-		descriptorWrites.emplace_back(descriptorWrite);
-	}*/
 
 	//// Sets #0-#materials.size()+1: material resources
 	std::vector<VkDescriptorImageInfo> diffuseInfos(materials.size());
@@ -628,3 +608,22 @@ std::vector<VkDescriptorSet> createMultipassTransitoryDescriptorSets(const Appli
 
 	return descriptorSets;
 }
+
+// Skybox
+/*{
+	VkDescriptorImageInfo skyboxInfo = {};
+	skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	skyboxInfo.imageView = app.skybox.image.view;
+	skyboxInfo.sampler = cubeSampler;
+
+	VkWriteDescriptorSet descriptorWrite = {};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptorSets[0];
+	descriptorWrite.dstBinding = 1;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrite.descriptorCount = 1;
+	descriptorWrite.pImageInfo = &skyboxInfo;
+
+	descriptorWrites.emplace_back(descriptorWrite);
+}*/

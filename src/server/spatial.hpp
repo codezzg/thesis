@@ -50,6 +50,8 @@ struct Scene : public ExternalMemoryUser {
 	/** @return A pointer to node `name` or nullptr if that node is not in the scene. */
 	Node* getNode(StringId name) const;
 
+	void clear();
+
 private:
 	PoolAllocator<Node> allocator;
 	/** Allows random access to nodes. Maps node name => node idx in the `nodes` vector. */

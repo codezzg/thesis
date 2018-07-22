@@ -35,7 +35,11 @@ class PoolAllocator : public ExternalMemoryUser {
 	}
 
 public:
-	void clear() { _fillPool(); }
+	void clear()
+	{
+		pool = reinterpret_cast<uintptr_t*>(memory);
+		_resetPool();
+	}
 
 	T* alloc()
 	{
@@ -99,11 +103,10 @@ public:
 
 private:
 	uintptr_t* pool;
-	std::size_t poolsize;
 	std::size_t capacity;
 
 	/** Fills the pool with a linked list of pointers */
-	void _fillPool()
+	void _resetPool()
 	{
 		for (size_t i = 0; i < capacity - 1; ++i) {
 			T* curAddr = reinterpret_cast<T*>(pool) + i;
