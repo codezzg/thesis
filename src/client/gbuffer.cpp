@@ -1,5 +1,6 @@
 #include "gbuffer.hpp"
 #include "application.hpp"
+#include "buffers.hpp"
 #include "commands.hpp"
 #include "formats.hpp"
 #include "images.hpp"

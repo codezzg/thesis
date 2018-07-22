@@ -20,12 +20,6 @@ bool tcp_performHandshake(socket_t socket)
 	return expectTCPMsg(socket, &buffer, 1, TcpMsgType::HELO_ACK);
 }
 
-bool tcp_expectStartResourceExchange(socket_t socket)
-{
-	uint8_t buffer;
-	return expectTCPMsg(socket, &buffer, 1, TcpMsgType::START_RSRC_EXCHANGE);
-}
-
 bool tcp_sendReadyAndWait(socket_t socket)
 {
 	if (!sendTCPMsg(socket, TcpMsgType::READY))

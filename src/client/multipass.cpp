@@ -6,6 +6,7 @@
 #include "geometry.hpp"
 #include "logging.hpp"
 #include "materials.hpp"
+#include "models.hpp"
 #include "utils.hpp"
 #include "vertex.hpp"
 #include <array>

@@ -2,12 +2,12 @@
 
 #include "buffers.hpp"
 #include "hashing.hpp"
-#include "models.hpp"
 #include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan.h>
 
 struct Application;
+struct ModelInfo;
 
 struct Geometry {
 	/** Single buffer containing all vertices for all models */
@@ -28,4 +28,8 @@ struct Geometry {
 	std::unordered_map<StringId, Location> locations;
 };
 
+/** Adds locations relative to `models` to `geometry`, reallocating buffers if needed.
+ *  In case of reallocation, both buffers are reallocated to new (shared) memory, growing exponentially.
+ *  Locations of already present models are unchanged by this operation.
+ */
 void updateGeometryBuffers(const Application& app, Geometry& geometry, const std::vector<ModelInfo>& models);

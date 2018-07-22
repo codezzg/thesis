@@ -2,7 +2,6 @@
 
 #include "buffers.hpp"
 #include "gbuffer.hpp"
-#include "images.hpp"
 #include "resources.hpp"
 #include "skybox.hpp"
 #include "swap.hpp"

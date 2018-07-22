@@ -74,20 +74,6 @@ static bool tcp_connectionPrelude(socket_t clientSocket)
 	if (!sendTCPMsg(clientSocket, TcpMsgType::HELO_ACK))
 		return false;
 
-	// Send one-time data
-	// info("Sending one time data...");
-	// if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
-	// return false;
-
-	// if (!expectTCPMsg(clientSocket, buffer.data(), buffer.size(), TcpMsgType::RSRC_EXCHANGE_ACK))
-	// return false;
-
-	// if (!sendOneTimeData(clientSocket))
-	// return false;
-
-	// if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
-	// return false;
-
 	// Wait for ready signal from client
 	if (!expectTCPMsg(TcpMsgType::READY))
 		return false;

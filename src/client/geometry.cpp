@@ -2,6 +2,7 @@
 #include "application.hpp"
 #include "commands.hpp"
 #include "logging.hpp"
+#include "models.hpp"
 #include "utils.hpp"
 #include "vertex.hpp"
 #include <algorithm>

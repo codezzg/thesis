@@ -1,6 +1,5 @@
 #pragma once
 
-#include "buffers.hpp"
 #include "images.hpp"
 #include "shared_resources.hpp"
 #include "third_party/stb_image.h"
@@ -11,6 +10,7 @@
 #include <vulkan/vulkan.h>
 
 struct Application;
+struct Buffer;
 
 enum CubeFaceIndex : uint32_t {
 	CUBE_FACE_POS_X = 0,

@@ -85,7 +85,6 @@ void BufferAllocator::create(const Application& app)
 #ifndef NDEBUG
 		gMemMonitor.newAlloc(bufferMemory, allocInfo);
 #endif
-
 		memories[pair.first] = bufferMemory;
 	}
 

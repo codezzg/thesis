@@ -1,6 +1,7 @@
 #include "buffer_array.hpp"
 #include "application.hpp"
 #include "logging.hpp"
+#include "phys_device.hpp"
 #include <algorithm>
 
 using namespace logging;

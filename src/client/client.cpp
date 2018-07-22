@@ -7,6 +7,7 @@
 #include "hashing.hpp"
 #include "logging.hpp"
 #include "multipass.hpp"
+#include "phys_device.hpp"
 #include "pipelines.hpp"
 #include "profile.hpp"
 #include "renderpass.hpp"

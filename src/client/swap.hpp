@@ -1,6 +1,5 @@
 #pragma once
 
-#include "buffers.hpp"
 #include "images.hpp"
 #include <string>
 #include <tuple>
@@ -24,7 +23,7 @@ struct SwapChain final {
 	VkDescriptorSet descriptorSet;
 
 	// @see comment of gbuffer.pipeline.
-	//VkPipeline pipeline;
+	// VkPipeline pipeline;
 
 	void destroy(VkDevice device);
 };

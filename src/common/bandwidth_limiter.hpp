@@ -1,8 +1,6 @@
 #pragma once
 
-#include "circular_buffer.hpp"
 #include "config.hpp"
-#include "endpoint_xplatform.hpp"
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -65,7 +63,8 @@ public:
 	 */
 	bool requestTokens(int n);
 
-	int getTokens() const { 
+	int getTokens() const
+	{
 		std::lock_guard<std::mutex> lock{ mtx };
 		return tokens;
 	}

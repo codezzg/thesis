@@ -1,7 +1,6 @@
 #pragma once
 
 #include "hashing.hpp"
-#include "models.hpp"
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -11,6 +10,7 @@ struct Buffer;
 struct CombinedUniformBuffers;
 struct Geometry;
 struct Material;
+struct ModelInfo;
 struct NetworkResources;
 
 void recordMultipassCommandBuffers(const Application& app,

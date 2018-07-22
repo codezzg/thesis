@@ -1,7 +1,5 @@
 #pragma once
 
-#include "images.hpp"
-#include <vector>
 #include <vulkan/vulkan.h>
 
 struct Application;

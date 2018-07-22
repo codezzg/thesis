@@ -150,7 +150,6 @@ bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 			       static_cast<std::size_t>(gBandwidthLimiter.getTokens()) >= len;
 		});
 	}
-	// info("Out of while");
 
 	if (::send(socket, reinterpret_cast<const char*>(data), len, 0) < 0) {
 		if (!spamming()) {
@@ -159,9 +158,9 @@ bool sendPacket(socket_t socket, const uint8_t* data, std::size_t len)
 		}
 		return false;
 	}
-	uberverbose("Sent ", len, " bytes");
-	if (gDebugLv >= LOGLV_UBER_VERBOSE)
-		dumpBytes(data, len);
+	// uberverbose("Sent ", len, " bytes");
+	// if (gDebugLv >= LOGLV_UBER_VERBOSE)
+	// dumpBytes(data, len);
 
 	return true;
 }
