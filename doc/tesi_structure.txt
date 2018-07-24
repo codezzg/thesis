@@ -1,0 +1,64 @@
+## Intro
+- Exposition of the problem
+- Why it's important
+- What is the current state of art
+- How am I solving it
+
+## Project description
+### Intro
+- Technologies used (in particular, Vulkan)
+- Supported platforms & compilers
+- High level description of the engine 
+
+### Main
+- Proposed architecture (client/server/common structure, xplatform layer, threads, etc)
+- Broadly, what data am I handling (assets, network messages, internal representation, etc)
+- Division of concerns: what does the client do vs what does the server do
+
+### Common
+- Description of the common code and data: foundation of the engine:
+  > StringId
+  > Xplatform layer
+  > Endpoints
+  > Memory allocators
+- Description of the shared resources
+- Custom network protocols used
+- The TCP network protocol: what it's for and how it's done
+  > TCP data and messages
+- The UDP network protocol: ditto
+  > UDP data and messages
+- Bandwidth limiter
+
+### Server
+- High-level description of the server and its parts
+- Server endpoints
+- Network threads
+- Model loading and their internal representation
+- Scene
+- TCP handshake and main TCP loop; assets sending on demand
+  > Prioritization of geometry vs textures
+- UDP active loop: how it interfaces with appstageLoop and other threads
+- Client dropping
+
+### Client
+- High-level description
+- GLFW
+- How does it do the rendering, broadly (deferred)
+- Vulkan implementation
+- Main data structures used
+- Optimizations
+- Client endpoints
+- Network threads
+- TCP deserialization, command buffer re-recording
+- UDP deserialization, memory-mapped buffers
+
+## Numbers
+- Amount of geometry sent
+- Throughput of data (appstage FPS, udpactive FPS)
+- Response time: roundtrip between client asking for a model and model being visible
+- Client frame rate
+
+## Considerations
+- Ways to improve the engine, future directions
+- What could be built upon it
+- Is this viable in real world?
