@@ -29,7 +29,7 @@ struct hash<Vertex> {
 	{
 		// XXX: is this a good approach?
 		return static_cast<std::size_t>(
-			hashing::fnv1_hash(reinterpret_cast<const uint8_t*>(&vertex), sizeof(Vertex)));
+			hashing::fnv1a_hash(reinterpret_cast<const uint8_t*>(&vertex), sizeof(Vertex)));
 	}
 };
 }   // namespace std

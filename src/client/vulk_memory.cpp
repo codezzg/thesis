@@ -2,6 +2,7 @@
 #include "logging.hpp"
 #include "vulk_errors.hpp"
 #include <cassert>
+#include <chrono>
 #include <stdexcept>
 
 using namespace logging;
@@ -20,7 +21,11 @@ void MemoryMonitor::newAlloc(VkDeviceMemory memory, const VkMemoryAllocateInfo& 
 		aInfo.allocationSize,
 		" B (",
 		aInfo.allocationSize / 1024 / 1024,
-		" MiB)");
+		" MiB)  [time: ",
+		std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::high_resolution_clock::now().time_since_epoch())
+			.count(),
+		" ]");
 	report();
 }
 
@@ -53,7 +58,11 @@ void MemoryMonitor::report()
 		totSize,
 		" B (",
 		totSize / 1024 / 1024,
-		" MiB)");
+		" MiB)  [time: ",
+		std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::high_resolution_clock::now().time_since_epoch())
+			.count(),
+		" ]");
 
 	std::unordered_map<uint32_t, VkDeviceSize> sizePerType;
 	for (const auto& pair : allocInfo)

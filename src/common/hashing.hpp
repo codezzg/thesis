@@ -14,36 +14,36 @@ constexpr StringId SID_NONE = 0;
 namespace hashing {
 
 #ifdef _WIN32
-inline uint32_t fnv1_hash(const char* buffer)
+inline uint32_t fnv1a_hash(const char* buffer)
 {
 #else
-constexpr uint32_t fnv1_hash(const char* buffer)
+constexpr uint32_t fnv1a_hash(const char* buffer)
 {
 #endif
 	constexpr uint32_t fnv_prime32 = 16777619;
 	uint32_t result = 2166136261;
 	int i = 0;
 	while (buffer[i] != '\0') {
-		result *= fnv_prime32;
 		result ^= static_cast<uint32_t>(buffer[i++]);
+		result *= fnv_prime32;
 	}
 	assert(result != SID_NONE);
 	return result;
 }
 
 #ifdef _WIN32
-inline uint32_t fnv1_hash(const uint8_t* buffer, std::size_t bufsize)
+inline uint32_t fnv1a_hash(const uint8_t* buffer, std::size_t bufsize)
 {
 #else
-constexpr uint32_t fnv1_hash(const uint8_t* buffer, std::size_t bufsize)
+constexpr uint32_t fnv1a_hash(const uint8_t* buffer, std::size_t bufsize)
 {
 #endif
 	constexpr uint32_t fnv_prime32 = 16777619;
 	uint32_t result = 2166136261;
 	unsigned i = 0;
 	while (i < bufsize) {
-		result *= fnv_prime32;
 		result ^= static_cast<uint32_t>(buffer[i++]);
+		result *= fnv_prime32;
 	}
 	assert(result != SID_NONE);
 	return result;
@@ -84,12 +84,12 @@ constexpr StringId sid(const char* buf)
 inline StringId sid(const char* buf)
 #	endif
 {
-	return hashing::fnv1_hash(buf);
+	return hashing::fnv1a_hash(buf);
 }
 
 inline StringId sid(const std::string& str)
 {
-	return hashing::fnv1_hash(str.c_str());
+	return hashing::fnv1a_hash(str.c_str());
 }
 
 inline std::string sidToString(StringId id)
@@ -99,14 +99,14 @@ inline std::string sidToString(StringId id)
 #else
 inline StringId sid(const char* buf)
 {
-	const auto h = hashing::fnv1_hash(buf);
+	const auto h = hashing::fnv1a_hash(buf);
 	stringDb.addUnique(h, std::string{ buf });
 	return h;
 }
 
 inline StringId sid(const std::string& str)
 {
-	const auto h = hashing::fnv1_hash(str.c_str());
+	const auto h = hashing::fnv1a_hash(str.c_str());
 	stringDb.addUnique(h, str);
 	return h;
 }
