@@ -28,9 +28,6 @@ class BandwidthLimiter {
 	/** Token refill rate (in Hz). This is the simulated bandwidth. */
 	float tokenRate = -1;
 
-	/** Bucket capacity (max number of packets that can accumulate in the bucket) */
-	std::size_t capacity = 1000;
-
 	/** Burst size (max tokens that can accumulate in the bucket) */
 	int maxTokens = 10000 * cfg::PACKET_SIZE_BYTES + 1;
 

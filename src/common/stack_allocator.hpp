@@ -25,13 +25,29 @@ public:
 
 	void* alloc(std::size_t size)
 	{
+		constexpr auto align = sizeof(void*);
+
 		if (used + size > memsize) {
 			logging::err("StackAllocator: out of memory!");
 			return nullptr;
 		}
 
+		// Note: this memory is guaranteed to be aligned
 		auto ptr = memory + used;
+		// assert(reinterpret_cast<uintptr_t>(ptr) % align == 0 && "StackAllocator: stack pointer unaligned!");
+		if (reinterpret_cast<uintptr_t>(ptr) % align != 0) {
+			logging::warn(
+				"StackAllocator: stack pointer unaligned (", reinterpret_cast<uintptr_t>(ptr), ")");
+		}
+
+		if (size % align != 0) {
+			// Insert padding
+			size = std::min(remaining(), (size / align + 1) * align);
+		}
+
 		used += size;
+		assert(used <= memsize);
+
 		allocations.emplace_back(size);
 		logging::debug("Allocating. # allocs so far: ",
 			allocations.size(),
