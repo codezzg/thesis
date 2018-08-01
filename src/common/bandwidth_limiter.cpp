@@ -26,12 +26,7 @@ void BandwidthLimiter::start()
 
 	refillThread = std::thread(std::bind(&BandwidthLimiter::refillTask, std::ref(*this)));
 	xplatSetThreadName(refillThread, "BandwidthLimiter");
-	info("BandwidthLimiter: started with maxTokens = ",
-		maxTokens,
-		", capacity = ",
-		capacity,
-		", tokenRate = ",
-		tokenRate);
+	info("BandwidthLimiter: started with maxTokens = ", maxTokens, ", tokenRate = ", tokenRate);
 }
 
 void BandwidthLimiter::stop()

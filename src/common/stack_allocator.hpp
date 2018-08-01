@@ -34,11 +34,7 @@ public:
 
 		// Note: this memory is guaranteed to be aligned
 		auto ptr = memory + used;
-		// assert(reinterpret_cast<uintptr_t>(ptr) % align == 0 && "StackAllocator: stack pointer unaligned!");
-		if (reinterpret_cast<uintptr_t>(ptr) % align != 0) {
-			logging::warn(
-				"StackAllocator: stack pointer unaligned (", reinterpret_cast<uintptr_t>(ptr), ")");
-		}
+		assert(reinterpret_cast<uintptr_t>(ptr) % align == 0 && "StackAllocator: stack pointer unaligned!");
 
 		if (size % align != 0) {
 			// Insert padding
