@@ -7,7 +7,7 @@ enum class TcpMsgType : uint8_t {
 	/** Handshake */
 	HELO = 0x01,
 	HELO_ACK = 0x02,
-	/** Client is ready to receive frame data */
+	/** Client is ready to receive UDP data */
 	READY = 0x03,
 	/** Keep the connection alive */
 	KEEPALIVE = 0x04,
@@ -23,9 +23,6 @@ enum class TcpMsgType : uint8_t {
 	RSRC_TYPE_POINT_LIGHT = 0x0C,
 	RSRC_TYPE_SHADER = 0x0D,
 	END_RSRC_EXCHANGE = 0x1F,
-	/** Tell client to start receiving UDP data */
-	START_STREAMING = 0x20,
-	END_STREAMING = 0x21,
 	/** Client asks the server to send a specific model.
 	 *  Follows a 2 bytes payload with the "model number"
 	 *  (an arbitrary index into some model list on the server)
@@ -76,12 +73,6 @@ inline std::ostream& operator<<(std::ostream& s, TcpMsgType msg)
 		break;
 	case M::END_RSRC_EXCHANGE:
 		s << "END_RSRC_EXCHANGE";
-		break;
-	case M::START_STREAMING:
-		s << "START_STREAMING";
-		break;
-	case M::END_STREAMING:
-		s << "END_STREAMING";
 		break;
 	case M::REQ_MODEL:
 		s << "REQ_MODEL";
