@@ -69,6 +69,8 @@ void UdpActiveThread::udpActiveTask()
 	auto t = std::chrono::high_resolution_clock::now();
 	std::size_t bytesPerSecond = 0;
 
+	auto latestPersistentSendTime = std::chrono::high_resolution_clock::now();
+
 	// Send datagrams to the client
 	while (ep.connected) {
 		const LimitFrameTime lft{ std::chrono::milliseconds{ 10 } };
@@ -116,51 +118,62 @@ void UdpActiveThread::udpActiveTask()
 			}
 		}
 
-		ulk.lock();
-		if (updates.persistent.size() > 0) {
-			{
-				// Remove all persistent updates which were acked by the client
-				std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
-				deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
-			}
-
+		if (std::chrono::duration_cast<std::chrono::milliseconds>(
+			    std::chrono::high_resolution_clock::now() - latestPersistentSendTime)
+				.count() > 500) {
+			// ulk.lock();
 			if (updates.persistent.size() > 0) {
-				verbose("sending ", updates.persistent.size(), " persistent updates");
-
-				// Send persistent updates
-				auto it = updates.persistent.iter_start();
-				uint32_t ignoreKey;
-				QueuedUpdate update;
-				bool loop = updates.persistent.iter_next(it, ignoreKey, update);
-				while (loop) {
-					if (!ep.connected)
-						return;
-
-					// GEOM updates are currently the only ACKed ones
-					assert(update.type == QueuedUpdate::Type::GEOM);
-					const auto written =
-						addUpdate(buffer.data(), buffer.size(), offset, update, server);
-
-					if (written > 0) {
-						offset += written;
-						loop = updates.persistent.iter_next(it, ignoreKey, update);
-					} else {
-						// Not enough room: send the packet
-						if (!sendPacket(ep.socket, buffer.data(), buffer.size()))
-							break;
-						bytesPerSecond += buffer.size();
-						// info("pers: ", updates.persistent.size());
-
-						writeUdpHeader(buffer.data(), buffer.size(), packetGen);
-						offset = sizeof(UdpHeader);
-					}
+				{
+					// Remove all persistent updates which were acked by the client
+					std::lock_guard<std::mutex> lock{ server.fromClient.acksReceivedMtx };
+					deleteAckedUpdates(server.fromClient.acksReceived, updates.persistent);
 				}
-			} else {
-				// Just finished sending geometry: notify tcp thread
-				server.networkThreads.tcpActive->cv.notify_one();
+
+				if (updates.persistent.size() > 0) {
+					verbose("sending ", updates.persistent.size(), " persistent updates");
+
+					// Send persistent updates
+					auto it = updates.persistent.iter_start();
+					uint32_t ignoreKey;
+					QueuedUpdate update;
+					bool loop = updates.persistent.iter_next(it, ignoreKey, update);
+					while (loop) {
+						if (!ep.connected)
+							return;
+
+						// GEOM updates are currently the only ACKed ones
+						assert(update.type == QueuedUpdate::Type::GEOM);
+						const auto written =
+							addUpdate(buffer.data(), buffer.size(), offset, update, server);
+
+						if (written > 0) {
+							offset += written;
+							loop = updates.persistent.iter_next(it, ignoreKey, update);
+						} else {
+							// Not enough room: send the packet
+							if (!sendPacket(ep.socket, buffer.data(), buffer.size()))
+								break;
+							bytesPerSecond += buffer.size();
+							// info("pers: ", updates.persistent.size());
+
+							writeUdpHeader(buffer.data(), buffer.size(), packetGen);
+							offset = sizeof(UdpHeader);
+						}
+					}
+				} else {
+					// Just finished sending geometry: notify tcp thread
+					{
+						std::lock_guard<std::mutex> lock{
+							server.networkThreads.tcpActive->mtx
+						};
+						server.toClient.sendingGeometry = false;
+					}
+					server.networkThreads.tcpActive->cv.notify_one();
+				}
 			}
+			// ulk.unlock();
+			latestPersistentSendTime = std::chrono::high_resolution_clock::now();
 		}
-		ulk.unlock();
 
 		if (offset > sizeof(UdpHeader)) {
 			// Need to send the last packet
@@ -238,6 +251,8 @@ void UdpPassiveThread::udpPassiveTask()
 				server.fromClient.acksReceived.emplace_back(packet->acks[i]);
 			server.fromClient.acksReceivedMtx.unlock();
 		}
+		// XXX: maybe save ACKs inside the UDPPassiveThread class
+		// instead of discarding them if try_lock() fails?
 	}
 }
 

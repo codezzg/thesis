@@ -57,6 +57,7 @@ static void loadAndEnqueueModel(Server& server, unsigned n)
 
 	// Note: tcpActive->mtx is already locked by us
 	server.networkThreads.tcpActive->resourcesToSend.models.emplace(model);
+	server.toClient.sendingGeometry = true;
 }
 
 static bool tcp_connectionPrelude(socket_t clientSocket, Server& server)
@@ -175,7 +176,7 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 		std::unique_lock<std::mutex> ulk{ mtx };
 		cv.wait(ulk, [this, &disconnected]() {
 			return disconnected() || resourcesToSend.size() > 0 || server.msgRecvQueue.size() > 0 ||
-			       server.toClient.texturesQueue.size() > 0;
+			       (!server.toClient.sendingGeometry && server.toClient.texturesQueue.size() > 0);
 		});
 
 		if (disconnected())
@@ -208,7 +209,7 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 			resourcesToSend.clear();
 		}
 
-		while (!disconnected() && server.toClient.updates.persistent.size() == 0 &&
+		while (!disconnected() && !server.toClient.sendingGeometry &&
 			server.toClient.texturesQueue.size() > 0) {
 
 			int64_t totBytesSent = 0;

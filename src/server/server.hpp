@@ -50,6 +50,7 @@ using TexturesQueue = std::unordered_set<std::pair<std::string, shared::TextureF
 struct ServerToClientData {
 	/** List of queued UDP updates to send to the client */
 	UpdateList updates;
+	bool sendingGeometry = false;
 
 	/** List of models whose geometry still needs to be sent to client */
 	std::vector<Model> modelsToSend;
