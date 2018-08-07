@@ -8,8 +8,8 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <chrono>
-#include <memory>
 #include <iostream>
+#include <memory>
 
 using namespace logging;
 using shared::Mesh;
@@ -31,7 +31,7 @@ using shared::Mesh;
 
 static Material saveMaterial(const char* modelPath, const aiMaterial* mat);
 
-Model loadModel(const char* modelPath, void* buffer, ModelColdData** coldData, std::size_t bufsize)
+Model loadModel(const char* modelPath, void* buffer, ModelColdData* coldData, std::size_t bufsize)
 {
 	const auto modelPathBase = xplatBasename(modelPath);
 	Model model = {};
@@ -62,8 +62,7 @@ Model loadModel(const char* modelPath, void* buffer, ModelColdData** coldData, s
 	auto uniqueVertices = cf::hashmap<Vertex, uint32_t>::create(uniqueVerticesSize, uniqueVerticesMem);
 	std::vector<Index> indices;
 
-	*coldData = new ModelColdData;
-	model.data = *coldData;
+	model.data = coldData;
 	model.data->meshes.reserve(scene->mNumMeshes);
 	model.nIndices = 0;
 	START_PROFILE(process);

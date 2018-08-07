@@ -22,8 +22,8 @@ Model ServerResources::loadModel(const char* file)
 	auto buffer = allocator.allocAll(&bufsize);
 
 	// Model cold data is stored in a separate chunk of memory
-	ModelColdData* coldData;
-	model = ::loadModel(file, buffer, &coldData, bufsize);
+	auto coldData = new ModelColdData;
+	model = ::loadModel(file, buffer, coldData, bufsize);
 	assert(model.vertices && "Failed to load model!");
 
 	models.set(fileSid, fileSid, model);

@@ -80,12 +80,12 @@ struct hash<Model> {
 }   // namespace std
 
 /** Loads a model's vertices and indices into `buffer`.
- *  `buffer` must be a region of correctly initialized memory.
+ *  `buffer` and `coldData` must be pointers to initialized memory.
  *  Upon success, `buffer` gets filled with [vertices|indices] (indices start at
  *  offset `sizeof(Vertex) * nVertices`) and `coldData` is filled with a pointer to the model's cold data.
  *  @return a valid model, or one with nullptr `vertices` and `indices` if there were errors.
  */
 Model loadModel(const char* modelPath,
 	/* inout */ void* buffer,
-	/* out */ ModelColdData** coldData,
+	/* inout */ ModelColdData* coldData,
 	std::size_t bufsize);
