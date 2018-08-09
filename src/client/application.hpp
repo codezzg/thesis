@@ -11,12 +11,7 @@
 
 struct NetworkResources;
 
-struct Queues final {
-	VkQueue graphics;
-	VkQueue present;
-};
-
-struct Application final {
+struct Application {
 
 	GLFWwindow* window = nullptr;
 	GLFWmonitor* monitor = nullptr;
@@ -29,7 +24,10 @@ struct Application final {
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device = VK_NULL_HANDLE;
 
-	Queues queues;
+	struct {
+		VkQueue graphics;
+		VkQueue present;
+	} queues;
 	std::vector<VkCommandBuffer> commandBuffers;
 
 	VkCommandPool commandPool = VK_NULL_HANDLE;
