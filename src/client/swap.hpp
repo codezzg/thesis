@@ -10,7 +10,7 @@ struct Application;
 struct Geometry;
 struct NetworkResources;
 
-struct SwapChain final {
+struct SwapChain {
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
 	VkExtent2D extent;
 	VkFormat imageFormat;
@@ -19,11 +19,6 @@ struct SwapChain final {
 	std::vector<VkImageView> imageViews;
 	std::vector<VkFramebuffer> framebuffers;
 	Image depthImage;
-
-	VkDescriptorSet descriptorSet;
-
-	// @see comment of gbuffer.pipeline.
-	// VkPipeline pipeline;
 
 	void destroy(VkDevice device);
 };

@@ -124,6 +124,9 @@ std::string Validation::addDetails(const char* msg) const
 		iss >> token;
 		oss << token << " ";
 
+		if (startsWith(token, "("))
+			token = token.substr(1, token.length() - 1);
+
 		if (!startsWith(token, "0x") || token.length() > 4 /* handles are usually small numbers */)
 			continue;
 

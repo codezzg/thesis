@@ -10,8 +10,7 @@
 
 bool checkValidationLayerSupport(const std::vector<const char*>& requestedLayers);
 
-struct Validation final {
-private:
+class Validation final {
 	VkDebugReportCallbackEXT debugReportCallback;
 	VkInstance instance;
 
@@ -42,12 +41,3 @@ public:
 	// Tries to add details of objectInfo to validation layer's message `msg`.
 	std::string addDetails(const char* msg) const;
 };
-
-// VkResult createDebugReportCallbackEXT(VkInstance instance, const VkDebugReportCallbackCreateInfoEXT* pCreateInfo,
-// const VkAllocationCallbacks* pAllocator, VkDebugReportCallbackEXT* pCallback);
-
-// void destroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT callback,
-// const VkAllocationCallbacks* pAllocator);
-
-// VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType,
-// uint64_t obj, size_t location, int32_t code, const char* layerPrefix, const char* msg, void* userData);
