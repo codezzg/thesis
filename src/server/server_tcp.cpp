@@ -34,10 +34,12 @@ static void genUpdateLists(Server& server)
 
 static void loadAndEnqueueModel(Server& server, unsigned n)
 {
-	static const std::array<std::string, 4> modelList = { "/models/sponza/sponza.dae",
+	static const std::array<std::string, 4> modelList = {
+		"/models/sponza/sponza.dae",
 		"/models/nanosuit/nanosuit.obj",
 		"/models/cat/cat.obj",
-		"/models/wall/wall2.obj" };
+		"/models/wall/wall2.obj",
+	};
 
 	info("loadAndSendModel(", n, ")");
 
