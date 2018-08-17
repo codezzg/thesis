@@ -181,8 +181,10 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 			       (!server.toClient.sendingGeometry && server.toClient.texturesQueue.size() > 0);
 		});
 
-		if (disconnected())
+		if (disconnected()) {
+			warn("MsgLoop: disconnected.");
 			return false;
+		}
 
 		{
 			// Check for REQ_MODEL
@@ -196,11 +198,15 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 		}
 
 		if (resourcesToSend.size() > 0) {
-			if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
+			if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE)) {
+				warn("Failed to send START_RSRC_EXCHANGE");
 				return false;
+			}
 
-			if (!expectTCPMsg(server, TcpMsgType::RSRC_EXCHANGE_ACK))
+			if (!expectTCPMsg(server, TcpMsgType::RSRC_EXCHANGE_ACK)) {
+				warn("Failed to receive RSRC_EXCHANGE_ACK");
 				return false;
+			}
 
 			info("Send ResourceBatch");
 			if (!sendResourceBatch(clientSocket, server, resourcesToSend, server.toClient.texturesQueue)) {
@@ -217,18 +223,24 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 			int64_t totBytesSent = 0;
 			constexpr int64_t MIN_BYTES_PER_BATCH = megabytes(1);
 
-			if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE))
+			if (!sendTCPMsg(clientSocket, TcpMsgType::START_RSRC_EXCHANGE)) {
+				warn("Failed to send START_RSRC_EXCHANGE for sending textures");
 				return false;
+			}
 
-			if (!expectTCPMsg(server, TcpMsgType::RSRC_EXCHANGE_ACK))
+			if (!expectTCPMsg(server, TcpMsgType::RSRC_EXCHANGE_ACK)) {
+				warn("Failed to receive RSRC_EXCHANGE_ACK while sending textures");
 				return false;
+			}
 
 			for (auto tex_it = server.toClient.texturesQueue.begin();
 				tex_it != server.toClient.texturesQueue.end();) {
 				totBytesSent += batch_sendTexture(clientSocket, server, tex_it->first, tex_it->second);
 
-				if (totBytesSent < 0)
+				if (totBytesSent < 0) {
+					warn("While sending textures: totBytesSent < 0?!");
 					return false;
+				}
 
 				tex_it = server.toClient.texturesQueue.erase(tex_it);
 
@@ -236,11 +248,14 @@ bool TcpActiveThread::msgLoop(socket_t clientSocket)
 					break;
 			}
 
-			if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE))
+			if (!sendTCPMsg(clientSocket, TcpMsgType::END_RSRC_EXCHANGE)) {
+				warn("Failed to send END_RSRC_EXCHANGE while sending textures");
 				return false;
+			}
 		}
 	}
 
+	warn("MsgLoop: returning.");
 	return false;
 }
 

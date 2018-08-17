@@ -30,6 +30,7 @@ bool gChangeLights = true;
 struct MainArgs {
 	std::string ip = "127.0.0.1";
 	float limitBytesPerSecond = -1;
+	int nLights = 10;
 };
 
 static void parseArgs(int argc, char** argv, MainArgs& args);
@@ -84,7 +85,7 @@ int main(int argc, char** argv)
 
 	{
 		// Add lights
-		const auto lights = createLights(100);
+		const auto lights = createLights(args.nLights);
 		server.resources.pointLights.insert(server.resources.pointLights.end(), lights.begin(), lights.end());
 
 		for (const auto& light : server.resources.pointLights) {
@@ -110,7 +111,7 @@ void parseArgs(int argc, char** argv, MainArgs& args)
 {
 	const auto usage = [argv]() {
 		std::cerr << "Usage: " << argv[0] << " [-v[vvv...]] [-n (no colored logs)] [-b (max bytes per second)]"
-			  << " [-m (don't move objects)] [-l (don't change lights)]\n";
+			  << " [-m (don't move objects)] [-l (don't change lights)] [-k (n dyn lights)]\n";
 		std::exit(EXIT_FAILURE);
 	};
 
@@ -151,6 +152,13 @@ void parseArgs(int argc, char** argv, MainArgs& args)
 				gChangeLights = false;
 				break;
 
+			case 'k':
+				if (i == argc - 1) {
+					usage();
+				}
+				args.nLights = std::atoi(argv[i + 1]);
+				++i;
+				break;
 			default:
 				usage();
 			}
