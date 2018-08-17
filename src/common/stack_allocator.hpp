@@ -3,6 +3,7 @@
 #include "ext_mem_user.hpp"
 #include "logging.hpp"
 #include <vector>
+#include <algorithm>
 
 /** This class manages an externally provided memory buffer as a stack allocator.
  *  It does not perform any actual memory allocation or free, it merely gives back the
