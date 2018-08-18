@@ -1,0 +1,3 @@
+on regime (while only sending transforms):
+	appstage 0.004 ms
+	udpactive 0.0084 ms

@@ -1,0 +1,36 @@
+spit-scoot wired (8500 KB/s)
+nano
+	geo: instant
+	full: 1.8 s
+
+sponza
+	geo: 1.3 s
+	full: 5 s
+
+
+spit-scoot capped @ 5000 KB/s
+nano
+	geo: instant
+	full: 4.9 ~ 5.5 s
+
+sponza
+	geo: 5.3 ~ 5.5 s
+	full: 32 s
+
+spit-scoot capped @ 3000 KB/s
+nano
+	geo: instant
+	full: 7.6 ~ 8.2 s
+
+sponza
+	geo: 8.4 s
+	full: 52 s
+
+spit-scoot capped @ 2000 KB/s
+nano
+	geo: instant
+	full: 11.5 s
+
+sponza
+	geo: 8.7s
+	full: 52 s

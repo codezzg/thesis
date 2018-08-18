@@ -1,0 +1,11 @@
+sponza
+	239670 vertices + 786759 indices. Tot size = 16180 KiB
+
+nano
+	14262 vertices + 57174 indices. Tot size = 1003 KiB
+
+cat
+	4135 vertices + 11862 indices. Tot size = 272 KiB
+
+wall
+	24 vertices + 36 indices. Tot size = 1 KiB
