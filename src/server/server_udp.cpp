@@ -73,8 +73,6 @@ void UdpActiveThread::udpActiveTask()
 
 	// Send datagrams to the client
 	while (ep.connected) {
-		const LimitFrameTime lft{ std::chrono::milliseconds{ 10 } };
-
 		if (updates.size() == 0) {
 			// Wait for updates
 			std::unique_lock<std::mutex> ulk{ updates.mtx };
