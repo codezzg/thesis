@@ -441,30 +441,42 @@ void VulkanClient::runFrame()
 
 void VulkanClient::applyUpdateRequests()
 {
+	std::vector<std::future<void>> futures;
+	futures.reserve(updateReqs.size());
+	std::mutex mtx;
 	for (const auto& req : updateReqs) {
-		switch (req.type) {
-		case UpdateReq::Type::GEOM:
-			updateModel(req.data.geom);
-			acksToSend.emplace_back(req.data.geom.serialId);
-			if (receivedGeomIds.load_factor() > 0.9) {
-				receivedGeomIdsMemSize *= 2;
-				receivedGeomIdsMem = realloc(receivedGeomIdsMem, receivedGeomIdsMemSize);
-				receivedGeomIds = receivedGeomIds.copy(receivedGeomIdsMemSize, receivedGeomIdsMem);
-				info("Reallocating receivedGeomIds. New size: ", receivedGeomIdsMemSize / 1024, " KiB");
+		futures.emplace_back(std::async(std::launch::async, [&]() {
+			switch (req.type) {
+			case UpdateReq::Type::GEOM:
+				updateModel(req.data.geom);
+				mtx.lock();
+				acksToSend.emplace_back(req.data.geom.serialId);
+				if (receivedGeomIds.load_factor() > 0.9) {
+					receivedGeomIdsMemSize *= 2;
+					receivedGeomIdsMem = realloc(receivedGeomIdsMem, receivedGeomIdsMemSize);
+					receivedGeomIds =
+						receivedGeomIds.copy(receivedGeomIdsMemSize, receivedGeomIdsMem);
+					info("Reallocating receivedGeomIds. New size: ",
+						receivedGeomIdsMemSize / 1024,
+						" KiB");
+				}
+				receivedGeomIds.insert(req.data.geom.serialId, req.data.geom.serialId);
+				mtx.unlock();
+				break;
+			case UpdateReq::Type::POINT_LIGHT:
+				updatePointLight(req.data.pointLight, netRsrc);
+				break;
+			case UpdateReq::Type::TRANSFORM:
+				updateTransform(req.data.transform, objTransforms);
+				break;
+			default:
+				assert(false);
+				break;
 			}
-			receivedGeomIds.insert(req.data.geom.serialId, req.data.geom.serialId);
-			break;
-		case UpdateReq::Type::POINT_LIGHT:
-			updatePointLight(req.data.pointLight, netRsrc);
-			break;
-		case UpdateReq::Type::TRANSFORM:
-			updateTransform(req.data.transform, objTransforms);
-			break;
-		default:
-			assert(false);
-			break;
-		}
+		}));
 	}
+	for (auto& f : futures)
+		f.wait();
 }
 
 void VulkanClient::calcTimeStats(FPSCounter& fps,
