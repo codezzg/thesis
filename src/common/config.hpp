@@ -6,8 +6,8 @@
 
 namespace cfg {
 
-constexpr int WIDTH = 800;
-constexpr int HEIGHT = 600;
+constexpr int WIDTH = 1920;
+constexpr int HEIGHT = 1080;
 
 constexpr auto MODEL_PATH = "models/chalet.obj";
 constexpr auto TEX_DIFFUSE_PATH = "textures/chalet.jpg";
